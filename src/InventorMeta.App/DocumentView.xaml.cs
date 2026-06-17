@@ -9,6 +9,7 @@ using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Media;
 using Microsoft.UI.Xaml.Media.Imaging;
+using Windows.ApplicationModel.DataTransfer;
 using Windows.Storage;
 using Windows.Storage.Pickers;
 using InventorMeta;
@@ -24,7 +25,23 @@ namespace InventorMeta.App
         /// <summary>Raised with a status message after (re)load; the window shows it in the footer.</summary>
         public event Action<string>? StatusChanged;
 
+        private readonly List<(UIElement body, FontIcon chevron)> _collapsibles = new();
+        private bool _allExpanded = true;
+
         public DocumentView() { InitializeComponent(); }
+
+        private static string G(int code) => ((char)code).ToString();   // Segoe Fluent glyph
+        private const int ChevronUp = 0xE70E, ChevronDown = 0xE70D, CopyGlyph = 0xE8C8;
+
+        private void SetAllExpanded(bool expanded)
+        {
+            _allExpanded = expanded;
+            foreach (var (body, chevron) in _collapsibles)
+            {
+                body.Visibility = expanded ? Visibility.Visible : Visibility.Collapsed;
+                chevron.Glyph = G(expanded ? ChevronUp : ChevronDown);
+            }
+        }
 
         public bool Load(string path)
         {
@@ -101,7 +118,11 @@ namespace InventorMeta.App
             foreach (var kv in doc.Summary) KeyPropsPanel.Children.Add(KeyRow(kv.Key, kv.Value));
             if (doc.VersionInfo.TryGetValue("Saved From", out var sf)) KeyPropsPanel.Children.Add(KeyRow("Saved From", sf));
 
+            _collapsibles.Clear();
+            _allExpanded = true;
+
             PropsPanel.Children.Clear();
+            PropsPanel.Children.Add(BuildExpandCollapseAll());
             foreach (var grp in doc.Properties.GroupBy(p => p.Set).OrderBy(g => SetOrder(g.Key)))
             {
                 var table = PropTable(grp.OrderBy(x => x.Pid).Select(p => (p.Pid, p.Name, p.Display)));
@@ -215,10 +236,63 @@ namespace InventorMeta.App
 
         // ---- card / table builders ----
 
-        /// <summary>A rounded, bordered, elevated card with a header strip and a body.</summary>
+        /// <summary>Wraps a row in a hover area with a copy-to-clipboard button on the right.</summary>
+        private static Border CopyableRow(UIElement content, string copyText, Thickness padding)
+        {
+            var grid = new Grid();
+            grid.Children.Add(content);
+
+            var btn = new Button
+            {
+                Content = new FontIcon { Glyph = "", FontSize = 12 },
+                HorizontalAlignment = HorizontalAlignment.Right,
+                VerticalAlignment = VerticalAlignment.Center,
+                Padding = new Thickness(7, 3, 7, 3), MinWidth = 0, MinHeight = 0,
+                CornerRadius = new CornerRadius(4),
+                Opacity = 0, IsHitTestVisible = false   // stays in layout so the row never resizes
+            };
+            ToolTipService.SetToolTip(btn, "Copy value");
+            bool can = !string.IsNullOrEmpty(copyText);
+            btn.Click += (_, _) => Copy(copyText);
+            grid.Children.Add(btn);
+
+            var row = new Border
+            {
+                Child = grid, Padding = padding,
+                Background = new SolidColorBrush(Microsoft.UI.Colors.Transparent) // make the whole row hit-testable
+            };
+            if (can) ToolTipService.SetToolTip(row, "Click to copy");
+            row.PointerEntered += (_, _) => { if (can) { btn.Opacity = 1; btn.IsHitTestVisible = true; } };
+            row.PointerExited += (_, _) => { btn.Opacity = 0; btn.IsHitTestVisible = false; };
+            row.Tapped += (_, e) => { if (can) { Copy(copyText); e.Handled = true; } };
+            return row;
+        }
+
+        private static void Copy(string text)
+        {
+            if (string.IsNullOrEmpty(text)) return;
+            try
+            {
+                var dp = new DataPackage();
+                dp.SetText(text);
+                Clipboard.SetContent(dp);
+                string shown = text.Length > 48 ? text[..48] + "…" : text;
+                (App.MainWindowInstance as MainWindow)?.ShowToast($"Copied  “{shown}”");
+            }
+            catch { }
+        }
+
+
+        /// <summary>A rounded, bordered, elevated card with a clickable (collapsible) header and a body.</summary>
         private Border Card(string title, string? badge, UIElement body)
         {
+            var chevron = new FontIcon
+            {
+                Glyph = G(ChevronUp), FontSize = 11, Opacity = 0.6,
+                VerticalAlignment = VerticalAlignment.Center
+            };
             var headerContent = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8 };
+            headerContent.Children.Add(chevron);
             headerContent.Children.Add(new TextBlock
             {
                 Text = title, FontWeight = FontWeights.SemiBold, FontSize = 14,
@@ -231,13 +305,44 @@ namespace InventorMeta.App
                     Child = new TextBlock { Text = badge, Style = (Style)Resources["BadgeText"] }
                 });
 
+            var header = new Border { Style = (Style)Resources["CardHeaderRow"], Child = headerContent };
+            ToolTipService.SetToolTip(header, "Click to collapse / expand");
+
             var stack = new StackPanel();
-            stack.Children.Add(new Border { Style = (Style)Resources["CardHeaderRow"], Child = headerContent });
+            stack.Children.Add(header);
             stack.Children.Add(body);
+
+            header.Tapped += (_, _) =>
+            {
+                bool show = body.Visibility == Visibility.Collapsed;
+                body.Visibility = show ? Visibility.Visible : Visibility.Collapsed;
+                chevron.Glyph = G(show ? ChevronUp : ChevronDown);
+            };
+            _collapsibles.Add((body, chevron));
 
             var card = new Border { Style = (Style)Resources["DataCard"], Child = stack, Margin = new Thickness(0, 0, 0, 4) };
             try { card.Shadow = new ThemeShadow(); card.Translation = new Vector3(0, 0, 8); } catch { }
             return card;
+        }
+
+        /// <summary>An "Expand all / Collapse all" toggle button bound to the cards in this view.</summary>
+        private Button BuildExpandCollapseAll()
+        {
+            var icon = new FontIcon { Glyph = G(ChevronDown), FontSize = 12 };
+            var label = new TextBlock { Text = "Collapse all" };
+            var btn = new Button
+            {
+                HorizontalAlignment = HorizontalAlignment.Right,
+                Content = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8,
+                    Children = { icon, label } }
+            };
+            btn.Click += (_, _) =>
+            {
+                SetAllExpanded(!_allExpanded);
+                label.Text = _allExpanded ? "Collapse all" : "Expand all";
+                icon.Glyph = G(_allExpanded ? ChevronDown : ChevronUp);
+            };
+            return btn;
         }
 
         /// <summary>PID / Name / Value table with divider lines between rows.</summary>
@@ -255,7 +360,7 @@ namespace InventorMeta.App
                 Cell(g, 0, pid.ToString(), 0.45, mono: true);
                 Cell(g, 1, name, 0.9, semibold: true);
                 Cell(g, 2, val, 0.8);
-                sp.Children.Add(new Border { Child = g, Padding = new Thickness(14, 7, 14, 7) });
+                sp.Children.Add(CopyableRow(g, val, new Thickness(14, 7, 14, 7)));
             }
             return sp;
         }
@@ -272,7 +377,7 @@ namespace InventorMeta.App
                 g.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
                 Cell(g, 0, k, 0.55);
                 Cell(g, 1, v, 0.95, semibold: true);
-                sp.Children.Add(new Border { Child = g, Padding = new Thickness(14, 7, 14, 7) });
+                sp.Children.Add(CopyableRow(g, v, new Thickness(14, 7, 14, 7)));
             }
             return sp;
         }
@@ -332,16 +437,17 @@ namespace InventorMeta.App
             g.Children.Add(t);
         }
 
-        private static Grid KeyRow(string label, string value)
+        private static Border KeyRow(string label, string value)
         {
             var g = new Grid();
             g.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(118) });
             g.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
             var l = new TextBlock { Text = label, Opacity = 0.6, FontSize = 12, TextWrapping = TextWrapping.Wrap };
-            var v = new TextBlock { Text = value, FontSize = 13, TextWrapping = TextWrapping.Wrap, IsTextSelectionEnabled = true };
+            var v = new TextBlock { Text = value, FontSize = 13, TextWrapping = TextWrapping.Wrap,
+                                    IsTextSelectionEnabled = true, Margin = new Thickness(0, 0, 8, 0) };
             Grid.SetColumn(v, 1);
             g.Children.Add(l); g.Children.Add(v);
-            return g;
+            return CopyableRow(g, value, new Thickness(0, 3, 0, 3));
         }
 
         private static StackPanel Section(string title, string[] lines)
