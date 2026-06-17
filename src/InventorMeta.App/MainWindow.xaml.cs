@@ -19,6 +19,14 @@ namespace InventorMeta.App
             InitializeComponent();
             Title = "Inventor Metadata Viewer";
             try { Encoding.RegisterProvider(CodePagesEncodingProvider.Instance); } catch { }
+
+            // modern Windows 11 look: Mica backdrop + content drawn into the title bar
+            try { SystemBackdrop = new Microsoft.UI.Xaml.Media.MicaBackdrop(); } catch { }
+            ExtendsContentIntoTitleBar = true;
+            SetTitleBar(AppTitleBar);
+            VersionText.Text = "v" + AppInfo.Version;
+            SetWindowIcon();
+
             UpdateEmptyState();
 
             // open any files passed on the command line
@@ -27,6 +35,25 @@ namespace InventorMeta.App
             {
                 foreach (var a in cli.Skip(1).Where(File.Exists)) OpenFile(a);
             });
+        }
+
+        private void SetWindowIcon()
+        {
+            try
+            {
+                string ico = Path.Combine(AppContext.BaseDirectory, "Assets", "appicon.ico");
+                if (!File.Exists(ico)) return;
+                var hwnd = WinRT.Interop.WindowNative.GetWindowHandle(this);
+                var id = Microsoft.UI.Win32Interop.GetWindowIdFromWindow(hwnd);
+                Microsoft.UI.Windowing.AppWindow.GetFromWindowId(id).SetIcon(ico);
+            }
+            catch { /* icon is cosmetic */ }
+        }
+
+        private async void OnInfoClick(object sender, RoutedEventArgs e)
+        {
+            var dlg = new AboutDialog { XamlRoot = Content.XamlRoot };
+            await dlg.ShowAsync();
         }
 
         // ---------- opening ----------
@@ -76,7 +103,7 @@ namespace InventorMeta.App
         private void OnTabSelectionChanged(object sender, SelectionChangedEventArgs e)
         {
             if (DocTabs.SelectedItem is TabViewItem { Content: DocumentView dv } && dv.Document != null)
-                StatusText.Text = $"{dv.Document.FileName} — {dv.Document.DocumentType}";
+                StatusText.Text = $"{dv.Document.FileName} - {dv.Document.DocumentType}";
         }
 
         private void UpdateEmptyState()
