@@ -65,15 +65,12 @@ namespace InventorMeta
         };
 
         // ---- Document Summary Information: {D5CDD502-...} (standard MS) ----
+        // Inventor's "Inventor Document Summary Information" {8CF58000-...} uses the same scheme.
         public static readonly Dictionary<uint, string> DocSummaryInfo = new()
         {
-            [2]="Category", [3]="Presentation Target", [14]="Manager", [15]="Company",
-        };
-
-        // ---- Inventor Summary Information: {3D38DE39-...} (thumbnail lives here) ----
-        public static readonly Dictionary<uint, string> InventorSummary = new()
-        {
-            [4]="Author", [17]="Thumbnail",
+            [2]="Category", [3]="Presentation Target", [4]="Byte Count", [5]="Line Count",
+            [6]="Paragraph Count", [7]="Slide Count", [8]="Note Count", [9]="Hidden Slides",
+            [11]="Scale Crop", [14]="Manager", [15]="Company", [16]="Links Up To Date",
         };
 
         // ---- Design Tracking Control: {D861FB30-...} (internal, inferred) ----
@@ -91,8 +88,9 @@ namespace InventorMeta
             {
                 "32853F0F-3444-11D1-9E93-0060B03C1CA6" => DesignTracking,
                 "F29F85E0-4FF9-1068-AB91-08002B27B3D9" => SummaryInfo,
+                "3D38DE39-0588-4C14-BB37-18F4D5DD31C7" => SummaryInfo,   // Inventor Summary Information (same scheme)
                 "D5CDD502-2E9C-101B-9397-08002B2CF9AE" => DocSummaryInfo,
-                "3D38DE39-0588-4C14-BB37-18F4D5DD31C7" => InventorSummary,
+                "8CF58000-DA66-4AE6-8FF0-7B58406FB049" => DocSummaryInfo, // Inventor Document Summary Information
                 "D861FB30-3136-11D1-9E92-0060B03C1CA6" => DesignTrackingControl,
                 _ => null
             };
