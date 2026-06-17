@@ -15,7 +15,6 @@ namespace InventorMeta.App
     public sealed partial class MainWindow : Window
     {
         private ElementTheme _theme;
-        private bool _themeReady;
 
         public MainWindow()
         {
@@ -31,8 +30,7 @@ namespace InventorMeta.App
             // light / dark theme (persisted)
             _theme = ThemeManager.Load();
             ThemeManager.Apply(this, _theme);
-            ThemeToggle.IsOn = _theme != ElementTheme.Light;
-            _themeReady = true;
+            UpdateThemeIcon();
 
             UpdateEmptyState();
 
@@ -105,12 +103,40 @@ namespace InventorMeta.App
             await dlg.ShowAsync();
         }
 
-        private void OnThemeToggled(object sender, RoutedEventArgs e)
+        private void OnThemeButtonClick(object sender, RoutedEventArgs e)
         {
-            if (!_themeReady) return;
-            _theme = ThemeToggle.IsOn ? ElementTheme.Dark : ElementTheme.Light;
+            _theme = _theme == ElementTheme.Light ? ElementTheme.Dark : ElementTheme.Light;
             ThemeManager.Apply(this, _theme);
             ThemeManager.Save(_theme);
+            UpdateThemeIcon();
+        }
+
+        private DispatcherTimer? _toastTimer;
+
+        /// <summary>Show a brief in-app toast (e.g. copy confirmation).</summary>
+        public void ShowToast(string message)
+        {
+            ToastText.Text = message;
+            Toast.Visibility = Visibility.Visible;
+            Toast.Opacity = 1;
+
+            _toastTimer ??= CreateToastTimer();
+            _toastTimer.Stop();
+            _toastTimer.Start();
+        }
+
+        private DispatcherTimer CreateToastTimer()
+        {
+            var t = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(1700) };
+            t.Tick += (_, _) => { t.Stop(); Toast.Opacity = 0; Toast.Visibility = Visibility.Collapsed; };
+            return t;
+        }
+
+        private void UpdateThemeIcon()
+        {
+            bool dark = _theme != ElementTheme.Light;
+            ThemeIcon.Glyph = ((char)(dark ? 0xE708 : 0xE706)).ToString(); // moon when dark, sun when light
+            ToolTipService.SetToolTip(ThemeButton, dark ? "Switch to light theme" : "Switch to dark theme");
         }
 
         // ---------- opening ----------

@@ -39,15 +39,11 @@
             </Grid>
 
             <!-- theme toggle (light / dark) -->
-            <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="6"
-                        VerticalAlignment="Center" Margin="0,0,10,0">
-                <FontIcon Glyph="&#xE706;" FontSize="14" Opacity="0.7"
-                          ToolTipService.ToolTip="Light"/>
-                <ToggleSwitch x:Name="ThemeToggle" MinWidth="0" OnContent="" OffContent=""
-                              Toggled="OnThemeToggled" VerticalAlignment="Center"/>
-                <FontIcon Glyph="&#xE708;" FontSize="14" Opacity="0.7"
-                          ToolTipService.ToolTip="Dark"/>
-            </StackPanel>
+            <Button x:Name="ThemeButton" Grid.Column="1" Click="OnThemeButtonClick"
+                    VerticalAlignment="Center" Margin="0,0,10,0" Padding="9,6"
+                    Background="Transparent" BorderThickness="0">
+                <FontIcon x:Name="ThemeIcon" FontSize="16"/>
+            </Button>
         </Grid>
 
         <!-- Body: document tabs + empty-state drop zone -->
@@ -146,5 +142,19 @@
                 </StackPanel>
             </Button>
         </Grid>
+
+        <!-- in-app toast (copy confirmations, etc.) -->
+        <Border x:Name="Toast" Grid.RowSpan="3" VerticalAlignment="Bottom" HorizontalAlignment="Center"
+                Margin="0,0,0,56" Padding="16,10" CornerRadius="8" Translation="0,0,48"
+                Visibility="Collapsed" Opacity="0"
+                Background="{ThemeResource SolidBackgroundFillColorTertiaryBrush}"
+                BorderBrush="{ThemeResource CardStrokeColorDefaultSolidBrush}" BorderThickness="1">
+            <Border.Shadow><ThemeShadow/></Border.Shadow>
+            <StackPanel Orientation="Horizontal" Spacing="10">
+                <FontIcon Glyph="&#xE73E;" FontSize="14"
+                          Foreground="{ThemeResource SystemFillColorSuccessBrush}"/>
+                <TextBlock x:Name="ToastText" VerticalAlignment="Center" FontSize="13"/>
+            </StackPanel>
+        </Border>
     </Grid>
 </Window>
