@@ -19,8 +19,9 @@
     <ApplicationIcon>Assets\appicon.ico</ApplicationIcon>
   </PropertyGroup>
   <ItemGroup>
-    <PackageReference Include="Microsoft.WindowsAppSDK" Version="1.6.250205002" />
-    <PackageReference Include="Microsoft.Windows.SDK.BuildTools" Version="10.0.26100.1742" />
+    <PackageReference Include="Microsoft.WindowsAppSDK" Version="2.2.0" />
+    <PackageReference Include="Microsoft.Windows.SDK.BuildTools" Version="10.0.26100.4654" />
+    <PackageReference Include="CommunityToolkit.WinUI.Media" Version="8.3.260402-preview2" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\InventorMeta\InventorMeta.csproj" />

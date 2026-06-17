@@ -103,14 +103,12 @@ namespace InventorMeta.App
                 var bmp = new BitmapImage();
                 using var ms = new MemoryStream(doc.Thumbnail);
                 bmp.SetSource(ms.AsRandomAccessStream());
-                ThumbImage.Source = bmp;
-                ThumbImage.Visibility = Visibility.Visible;
+                ThumbBrush.ImageSource = bmp;
                 NoThumb.Visibility = Visibility.Collapsed;
             }
             else
             {
-                ThumbImage.Source = null;
-                ThumbImage.Visibility = Visibility.Collapsed;
+                ThumbBrush.ImageSource = null;
                 NoThumb.Visibility = Visibility.Visible;
             }
 
