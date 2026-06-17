@@ -1,0 +1,9 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/InventorMeta.App/InventorMeta.App.csproj">
+      <Platform Project="x64" />
+    </Project>
+    <Project Path="src/InventorMeta.Cli/InventorMeta.Cli.csproj" />
+    <Project Path="src/InventorMeta/InventorMeta.csproj" />
+  </Folder>
+</Solution>
