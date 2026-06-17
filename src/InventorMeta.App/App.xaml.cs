@@ -1,17 +1,16 @@
 using Microsoft.UI.Xaml;
 
-namespace InventorMeta.App
+namespace InventorMeta.App;
+
+public partial class App
 {
-    public partial class App : Application
+    public static Window MainWindowInstance { get; private set; } = null!;
+
+    public App() { InitializeComponent(); }
+
+    protected override void OnLaunched(LaunchActivatedEventArgs args)
     {
-        public static Window MainWindowInstance { get; private set; } = null!;
-
-        public App() { InitializeComponent(); }
-
-        protected override void OnLaunched(LaunchActivatedEventArgs args)
-        {
-            MainWindowInstance = new MainWindow();
-            MainWindowInstance.Activate();
-        }
+        MainWindowInstance = new MainWindow();
+        MainWindowInstance.Activate();
     }
 }
