@@ -14,18 +14,25 @@ namespace InventorMeta.App
 {
     public sealed partial class MainWindow : Window
     {
+        private ElementTheme _theme;
+        private bool _themeReady;
+
         public MainWindow()
         {
             InitializeComponent();
             Title = "Inventor Metadata Viewer";
             try { Encoding.RegisterProvider(CodePagesEncodingProvider.Instance); } catch { }
 
-            // modern Windows 11 look: Mica backdrop + content drawn into the title bar
-            try { SystemBackdrop = new Microsoft.UI.Xaml.Media.MicaBackdrop(); } catch { }
             ExtendsContentIntoTitleBar = true;
             SetTitleBar(AppTitleBar);
             VersionText.Text = "v" + AppInfo.Version;
-            SetWindowIcon();
+            SetupWindow();
+
+            // light / dark theme (persisted)
+            _theme = ThemeManager.Load();
+            ThemeManager.Apply(this, _theme);
+            ThemeToggle.IsOn = _theme != ElementTheme.Light;
+            _themeReady = true;
 
             UpdateEmptyState();
 
@@ -37,23 +44,73 @@ namespace InventorMeta.App
             });
         }
 
-        private void SetWindowIcon()
+        private Microsoft.UI.Windowing.AppWindow? _appWindow;
+
+        private void SetupWindow()
         {
             try
             {
-                string ico = Path.Combine(AppContext.BaseDirectory, "Assets", "appicon.ico");
-                if (!File.Exists(ico)) return;
                 var hwnd = WinRT.Interop.WindowNative.GetWindowHandle(this);
                 var id = Microsoft.UI.Win32Interop.GetWindowIdFromWindow(hwnd);
-                Microsoft.UI.Windowing.AppWindow.GetFromWindowId(id).SetIcon(ico);
+                _appWindow = Microsoft.UI.Windowing.AppWindow.GetFromWindowId(id);
+
+                string ico = Path.Combine(AppContext.BaseDirectory, "Assets", "appicon.ico");
+                if (File.Exists(ico)) _appWindow.SetIcon(ico);
+
+                var area = Microsoft.UI.Windowing.DisplayArea.GetFromWindowId(
+                    id, Microsoft.UI.Windowing.DisplayAreaFallback.Primary);
+
+                // restore last size, or a wider default
+                int w = Math.Clamp(AppSettings.GetInt("win.w", 1360), 900, 8000);
+                int h = Math.Clamp(AppSettings.GetInt("win.h", 880), 600, 6000);
+                _appWindow.Resize(new Windows.Graphics.SizeInt32(w, h));
+
+                int x = AppSettings.GetInt("win.x", int.MinValue);
+                int y = AppSettings.GetInt("win.y", int.MinValue);
+                if (x != int.MinValue && y != int.MinValue && area != null)
+                {
+                    x = Math.Clamp(x, area.WorkArea.X - w + 120, area.WorkArea.X + area.WorkArea.Width - 120);
+                    y = Math.Clamp(y, area.WorkArea.Y, area.WorkArea.Y + area.WorkArea.Height - 80);
+                    _appWindow.Move(new Windows.Graphics.PointInt32(x, y));
+                }
+                else if (area != null)
+                {
+                    _appWindow.Move(new Windows.Graphics.PointInt32(
+                        area.WorkArea.X + (area.WorkArea.Width - w) / 2,
+                        area.WorkArea.Y + (area.WorkArea.Height - h) / 2));
+                }
+
+                Closed += (_, _) => SaveWindowBounds();
             }
-            catch { /* icon is cosmetic */ }
+            catch { /* window chrome is best-effort */ }
+        }
+
+        private void SaveWindowBounds()
+        {
+            try
+            {
+                if (_appWindow == null) return;
+                var s = _appWindow.Size; var p = _appWindow.Position;
+                if (s.Width < 300 || s.Height < 200) return; // skip minimized / odd states
+                AppSettings.SetMany(
+                    ("win.w", s.Width.ToString()), ("win.h", s.Height.ToString()),
+                    ("win.x", p.X.ToString()), ("win.y", p.Y.ToString()));
+            }
+            catch { /* best-effort */ }
         }
 
         private async void OnInfoClick(object sender, RoutedEventArgs e)
         {
-            var dlg = new AboutDialog { XamlRoot = Content.XamlRoot };
+            var dlg = new AboutDialog { XamlRoot = Content.XamlRoot, RequestedTheme = _theme };
             await dlg.ShowAsync();
+        }
+
+        private void OnThemeToggled(object sender, RoutedEventArgs e)
+        {
+            if (!_themeReady) return;
+            _theme = ThemeToggle.IsOn ? ElementTheme.Dark : ElementTheme.Light;
+            ThemeManager.Apply(this, _theme);
+            ThemeManager.Save(_theme);
         }
 
         // ---------- opening ----------

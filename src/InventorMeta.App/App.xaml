@@ -7,6 +7,20 @@
             <ResourceDictionary.MergedDictionaries>
                 <XamlControlsResources xmlns="using:Microsoft.UI.Xaml.Controls" />
             </ResourceDictionary.MergedDictionaries>
+
+            <!-- Brand accent (indigo-violet) for LIGHT theme only; dark keeps the system accent -->
+            <ResourceDictionary.ThemeDictionaries>
+                <ResourceDictionary x:Key="Light">
+                    <Color x:Key="SystemAccentColor">#6C5CE7</Color>
+                    <Color x:Key="SystemAccentColorLight1">#7D6EEA</Color>
+                    <Color x:Key="SystemAccentColorLight2">#8E80EE</Color>
+                    <Color x:Key="SystemAccentColorLight3">#A093F1</Color>
+                    <Color x:Key="SystemAccentColorDark1">#5B4CD4</Color>
+                    <Color x:Key="SystemAccentColorDark2">#4A3CC0</Color>
+                    <Color x:Key="SystemAccentColorDark3">#3B2FA8</Color>
+                </ResourceDictionary>
+                <ResourceDictionary x:Key="Dark"/>
+            </ResourceDictionary.ThemeDictionaries>
         </ResourceDictionary>
     </Application.Resources>
 </Application>

@@ -4,6 +4,49 @@
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
     xmlns:muxc="using:Microsoft.UI.Xaml.Controls">
 
+    <UserControl.Resources>
+        <!-- theme-reactive styles for the code-built cards & tables -->
+        <!-- active-tab background: a theme-reactive card colour so the selected tab stands out -->
+        <SolidColorBrush x:Key="TabViewItemHeaderBackgroundSelected" Color="{ThemeResource CardBackgroundFillColorDefault}"/>
+
+        <Style x:Key="DataCard" TargetType="Border">
+            <Setter Property="Background" Value="{ThemeResource CardBackgroundFillColorDefaultBrush}"/>
+            <Setter Property="BorderBrush" Value="{ThemeResource CardStrokeColorDefaultSolidBrush}"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="CornerRadius" Value="8"/>
+        </Style>
+        <!-- mid layer: a container surface that the data cards sit on -->
+        <Style x:Key="Surface" TargetType="Border">
+            <Setter Property="Background" Value="{ThemeResource SolidBackgroundFillColorTertiaryBrush}"/>
+            <Setter Property="BorderBrush" Value="{ThemeResource CardStrokeColorDefaultSolidBrush}"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="CornerRadius" Value="10"/>
+        </Style>
+        <Style x:Key="CardHeaderRow" TargetType="Border">
+            <Setter Property="Background" Value="{ThemeResource CardBackgroundFillColorSecondaryBrush}"/>
+            <Setter Property="BorderBrush" Value="{ThemeResource CardStrokeColorDefaultBrush}"/>
+            <Setter Property="BorderThickness" Value="0,0,0,1"/>
+            <Setter Property="CornerRadius" Value="8,8,0,0"/>
+            <Setter Property="Padding" Value="14,10"/>
+        </Style>
+        <!-- thin divider line between table rows -->
+        <Style x:Key="RowLine" TargetType="Border">
+            <Setter Property="BorderBrush" Value="{ThemeResource DividerStrokeColorDefaultBrush}"/>
+            <Setter Property="BorderThickness" Value="0,0,0,1"/>
+        </Style>
+        <Style x:Key="Badge" TargetType="Border">
+            <Setter Property="Background" Value="{ThemeResource AccentFillColorDefaultBrush}"/>
+            <Setter Property="CornerRadius" Value="10"/>
+            <Setter Property="Padding" Value="8,1,8,2"/>
+            <Setter Property="VerticalAlignment" Value="Center"/>
+        </Style>
+        <Style x:Key="BadgeText" TargetType="TextBlock">
+            <Setter Property="FontSize" Value="11"/>
+            <Setter Property="FontWeight" Value="SemiBold"/>
+            <Setter Property="Foreground" Value="{ThemeResource TextOnAccentFillColorPrimaryBrush}"/>
+        </Style>
+    </UserControl.Resources>
+
     <Grid>
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto"/>
@@ -45,18 +88,21 @@
                 <ColumnDefinition Width="*"/>
             </Grid.ColumnDefinitions>
 
-            <Border Grid.Column="0" CornerRadius="8"
+            <Border Grid.Column="0" CornerRadius="8" Translation="0,0,12"
                     Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
-                    BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" BorderThickness="1">
+                    BorderBrush="{ThemeResource CardStrokeColorDefaultSolidBrush}" BorderThickness="1">
+                <Border.Shadow><ThemeShadow/></Border.Shadow>
                 <ScrollViewer>
                     <StackPanel>
-                        <Grid Height="280" Background="{ThemeResource SmokeFillColorDefaultBrush}"
+                        <Grid Height="280" Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
                               CornerRadius="8,8,0,0">
-                            <Image x:Name="ThumbImage" Stretch="Uniform" Margin="12"/>
+                            <Image x:Name="ThumbImage" Stretch="Uniform" Margin="16,16,16,12"/>
                             <TextBlock x:Name="NoThumb" Text="No preview" Opacity="0.5"
                                        HorizontalAlignment="Center" VerticalAlignment="Center"
                                        Visibility="Collapsed"/>
                         </Grid>
+                        <Border Height="1" Margin="14,2,14,0"
+                                Background="{ThemeResource DividerStrokeColorDefaultBrush}"/>
                         <Grid Padding="16,12,16,4" ColumnSpacing="12">
                             <Grid.ColumnDefinitions>
                                 <ColumnDefinition Width="Auto"/>
@@ -74,25 +120,28 @@
                 </ScrollViewer>
             </Border>
 
-            <muxc:TabView Grid.Column="1" IsAddTabButtonVisible="False"
-                          CanReorderTabs="False" CanDragTabs="False">
-                <muxc:TabViewItem Header="All Properties" IsClosable="False">
-                    <muxc:TabViewItem.IconSource><muxc:SymbolIconSource Symbol="AllApps"/></muxc:TabViewItem.IconSource>
-                    <ScrollViewer Padding="4,8"><StackPanel x:Name="PropsPanel" Spacing="8"/></ScrollViewer>
-                </muxc:TabViewItem>
-                <muxc:TabViewItem x:Name="StatesTab" Header="Model States" IsClosable="False">
-                    <muxc:TabViewItem.IconSource><muxc:SymbolIconSource Symbol="Switch"/></muxc:TabViewItem.IconSource>
-                    <ScrollViewer Padding="8"><StackPanel x:Name="StatesPanel" Spacing="12"/></ScrollViewer>
-                </muxc:TabViewItem>
-                <muxc:TabViewItem Header="References" IsClosable="False">
-                    <muxc:TabViewItem.IconSource><muxc:SymbolIconSource Symbol="Link"/></muxc:TabViewItem.IconSource>
-                    <ScrollViewer Padding="8"><StackPanel x:Name="RefsPanel" Spacing="12"/></ScrollViewer>
-                </muxc:TabViewItem>
-                <muxc:TabViewItem Header="File Structure" IsClosable="False">
-                    <muxc:TabViewItem.IconSource><muxc:SymbolIconSource Symbol="List"/></muxc:TabViewItem.IconSource>
-                    <ScrollViewer Padding="8"><TextBlock x:Name="TreeText" FontFamily="Consolas" IsTextSelectionEnabled="True"/></ScrollViewer>
-                </muxc:TabViewItem>
-            </muxc:TabView>
+            <Border Grid.Column="1" Style="{StaticResource Surface}" Translation="0,0,10">
+                <Border.Shadow><ThemeShadow/></Border.Shadow>
+                <muxc:TabView Background="Transparent" IsAddTabButtonVisible="False"
+                              CanReorderTabs="False" CanDragTabs="False">
+                    <muxc:TabViewItem Header="All Properties" IsClosable="False">
+                        <muxc:TabViewItem.IconSource><muxc:SymbolIconSource Symbol="AllApps"/></muxc:TabViewItem.IconSource>
+                        <ScrollViewer Padding="10,10"><StackPanel x:Name="PropsPanel" Spacing="10"/></ScrollViewer>
+                    </muxc:TabViewItem>
+                    <muxc:TabViewItem x:Name="StatesTab" Header="Model States" IsClosable="False">
+                        <muxc:TabViewItem.IconSource><muxc:SymbolIconSource Symbol="Switch"/></muxc:TabViewItem.IconSource>
+                        <ScrollViewer Padding="10,10"><StackPanel x:Name="StatesPanel" Spacing="12"/></ScrollViewer>
+                    </muxc:TabViewItem>
+                    <muxc:TabViewItem Header="References" IsClosable="False">
+                        <muxc:TabViewItem.IconSource><muxc:SymbolIconSource Symbol="Link"/></muxc:TabViewItem.IconSource>
+                        <ScrollViewer Padding="14"><StackPanel x:Name="RefsPanel" Spacing="12"/></ScrollViewer>
+                    </muxc:TabViewItem>
+                    <muxc:TabViewItem Header="File Structure" IsClosable="False">
+                        <muxc:TabViewItem.IconSource><muxc:SymbolIconSource Symbol="List"/></muxc:TabViewItem.IconSource>
+                        <ScrollViewer Padding="14"><TextBlock x:Name="TreeText" FontFamily="Consolas" IsTextSelectionEnabled="True"/></ScrollViewer>
+                    </muxc:TabViewItem>
+                </muxc:TabView>
+            </Border>
         </Grid>
     </Grid>
 </UserControl>
