@@ -1,4 +1,4 @@
-# Autodesk Inventor File Format — Reverse-Engineering Notes
+# Autodesk Inventor File Format - Reverse-Engineering Notes
 
 How `.ipt` (part), `.iam` (assembly), `.idw` (drawing) and `.ipn` (presentation)
 files are structured, and exactly what you can read out of them **without Autodesk
@@ -11,17 +11,17 @@ byte-by-byte with the tooling in this repo. Findings are split into
 
 ---
 
-## 0. TL;DR — what is realistically readable
+## 0. TL;DR - what is realistically readable
 
 | Data | Readable without Inventor? | Where |
 |------|----------------------------|-------|
 | Document type (part/assembly/drawing) | ✅ Yes, trivially | Root storage CLSID |
 | All iProperties (Part Number, Author, Material, Project, Status, Description, custom props…) | ✅ Yes, fully | OLE Property Sets |
 | Preview thumbnail (512×512 PNG) | ✅ Yes, fully | Property Set, VT_CF blob |
-| Cached mass / volume / surface area / density | ⚠️ Yes, **but possibly stale** | Design Tracking PIDs 58–61 |
+| Cached mass / volume / surface area / density | ⚠️ Yes, **but possibly stale** | Design Tracking PIDs 58-61 |
 | Referenced files (assembly components, drawing's model) | ✅ Yes (paths) | `UFRxDoc` stream |
 | Model States / representations | ✅ Yes (names) | `UFRxDoc` + `MemberDocs` |
-| **iProperties per model state** (without switching states!) | ✅ Yes, fully | each `MemberDocs/<state>` sub-doc — see §7 |
+| **iProperties per model state** (without switching states!) | ✅ Yes, fully | each `MemberDocs/<state>` sub-doc - see §7 |
 | Originating template, save/version provenance | ✅ Yes | `UFRxDoc` |
 | Parametric feature tree, sketches, parameters | ❌ Opaque | `RSeStorage` (proprietary B-Rep DB) |
 | Exact solid geometry (B-Rep) | ❌ Opaque | `RSeStorage` segment streams |
@@ -59,16 +59,16 @@ The format is fully documented by Microsoft as **[MS-CFB]**. Parsing it requires
 
 ---
 
-## 2. Document type — the root CLSID
+## 2. Document type - the root CLSID
 
 The CFB **root storage's CLSID** identifies the document type unambiguously:
 
 | CLSID | Document |
 |-------|----------|
-| `4D29B490-49B2-11D0-93C3-7E0706000000` | Part — `.ipt` |
-| `E60F81E1-49B3-11D0-93C3-7E0706000000` | Assembly — `.iam` |
-| `BBF9FDF1-52DC-11D0-8C04-0800090BE8EC` | Drawing — `.idw` |
-| `76283A80-50DD-11D3-A7E3-00C04F79D7BC` | Presentation — `.ipn` |
+| `4D29B490-49B2-11D0-93C3-7E0706000000` | Part - `.ipt` |
+| `E60F81E1-49B3-11D0-93C3-7E0706000000` | Assembly - `.iam` |
+| `BBF9FDF1-52DC-11D0-8C04-0800090BE8EC` | Drawing - `.idw` |
+| `76283A80-50DD-11D3-A7E3-00C04F79D7BC` | Presentation - `.ipn` |
 
 So you can detect the real type from the bytes even if the extension is wrong.
 
@@ -85,7 +85,7 @@ Top level of a typical part (`.ipt`), annotated:
 ├─ \x05<scrambled> (77 KB)         ─┘  one of them holds the thumbnail
 ├─ Protein               (4 B)     material/appearance engine marker
 ├─ UFRxDoc            (~18 KB)     document refs, model states, version  (see §5)
-├─ RSeStorage                      "Robust Storage Engine" — the model DB (see §6)
+├─ RSeStorage                      "Robust Storage Engine" - the model DB (see §6)
 │  ├─ Bxxxxxxxxxxxxxxxxxxxxxxxxx   data segment streams (paired with M…)
 │  ├─ Mxxxxxxxxxxxxxxxxxxxxxxxxx   segment metadata/maps
 │  ├─ RSeDbRevisionInfo           per-segment revision/version table
@@ -103,7 +103,7 @@ Drawings put large cached referenced-model data under `RSeStorage/RefdFiles/Refd
 
 > **Why the scrambled stream names?** Inventor hashes the names of the property-set
 > streams (e.g. `Zrxrt4arFafyu34gYa3l3ohgHg`). The leading byte is a control char
-> (`\x01`/`\x05`, the classic OLE property-set prefix). **Don't rely on the names** —
+> (`\x01`/`\x05`, the classic OLE property-set prefix). **Don't rely on the names** -
 > identify each set by the FMTID inside it.
 
 ---
@@ -129,7 +129,7 @@ Identify each set by its **section FMTID**:
 | `D861FB30-3136-11D1-9E92-0060B03C1CA6` | Design Tracking Control *(internal)* | save/version bookkeeping |
 | `BB586990-AF3E-11D3-95A9-00A0C9B6E37A` | Private Model Information *(internal)* | cached model/appearance info |
 
-### 4.1 Design Tracking Properties — PID → name
+### 4.1 Design Tracking Properties - PID → name
 
 Authoritative: these PIDs come from the Inventor API enum
 `PropertiesForDesignTrackingPropertiesEnum`, where the enum integer **is** the OLE PID.
@@ -154,7 +154,7 @@ Verified against observed file data.
 | 30 | Vendor | 60 | **Volume** |
 | 31 | Document SubType (CLSID) | 61 | **Density** |
 | 32 | Document SubType Name | 62 | **Valid Mass Props** (flag) |
-| 33 | Proxy Refresh Date | 63–65 | Flat-pattern extents (sheet-metal) |
+| 33 | Proxy Refresh Date | 63-65 | Flat-pattern extents (sheet-metal) |
 | 34 | Mfg Approved By | 66 | Sheet Metal Rule |
 | 35 | Date Mfg Approved | 67 | **Last Updated With** (app/build) |
 | 36 | Cost | 71 | Material Identifier (library GUID/path) |
@@ -166,7 +166,7 @@ Example values pulled from `SamplePart.ipt`:
 `Design Status = Work In Progress`, `Last Updated With = "2027 (Build 310192060, 192F)"`,
 `Material Identifier = "…\InventorMaterialLibrary.adsklib#1:Generic#MaterialInv_072"`.
 
-### 4.2 Summary Information — PID → name (MS standard)
+### 4.2 Summary Information - PID → name (MS standard)
 
 | PID | Name | PID | Name |
 |----:|------|----:|------|
@@ -177,14 +177,14 @@ Example values pulled from `SamplePart.ipt`:
 | 6 | Comments | 18 | Application Name |
 | 8 | Last Saved By | | |
 
-### 4.3 Mass / physical properties — important caveat
+### 4.3 Mass / physical properties - important caveat
 
 Mass (58), Surface Area (59), Volume (60), Density (61) are stored **as cached values**
-in Design Tracking Properties — readable directly. **But they may be stale or default:**
+in Design Tracking Properties - readable directly. **But they may be stale or default:**
 Inventor only writes correct numbers after a mass update. **PID 62 "Valid Mass Props"
-is the validity gate** — check it before trusting 58–61. In the sample file Density
+is the validity gate** - check it before trusting 58-61. In the sample file Density
 reads `1` (default) and Valid Mass Props is partial, i.e. mass had not been computed.
-**Bounding box is *not* stored** as an iProperty — it is computed on demand from
+**Bounding box is *not* stored** as an iProperty - it is computed on demand from
 geometry via the API and never persisted in a property set.
 
 ### 4.4 Property-set binary layout (for implementers)
@@ -204,18 +204,18 @@ Values are VT-typed: VT_LPWSTR(31), VT_FILETIME(64), VT_R8(5), VT_I4(3),
 
 ---
 
-## 5. `UFRxDoc` — references, model states, provenance
+## 5. `UFRxDoc` - references, model states, provenance
 
 `UFRxDoc` is an Inventor-proprietary binary stream, but the useful parts are plain
 UTF-16 strings and reliably scrapeable:
 
-* **Referenced documents** — full paths of assembly components / the drawing's model,
+* **Referenced documents** - full paths of assembly components / the drawing's model,
   e.g. the assembly lists `C:\…\SamplePart.ipt`. (Trailing separator bytes mean you
   should match the path *non-anchored*, not to end-of-string.)
-* **Originating template** — a watermark line: `Document <path> was created using…`.
-* **Version provenance** — labelled lines:
+* **Originating template** - a watermark line: `Document <path> was created using…`.
+* **Version provenance** - labelled lines:
   `File Schema:`, `Software Schema:`, `Saved From:`, `Saved On:`.
-* **Model State names** — `Model State1`, `Model State11`, … plus representation names
+* **Model State names** - `Model State1`, `Model State11`, … plus representation names
   (DesignView, view orientations like `Isometrisch`/`Vorne`/`Rechts`, `___LODFactoryRep`).
 
 > Note: the schema/`Saved On` strings can carry the *template's* origin (e.g.
@@ -224,20 +224,20 @@ UTF-16 strings and reliably scrapeable:
 
 ---
 
-## 6. `RSeStorage` — the model database (mostly opaque)
+## 6. `RSeStorage` - the model database (mostly opaque)
 
 `RSe` = **Robust Storage Engine**, Inventor's transactional object database that holds
 the actual parametric model: feature tree, sketches, constraints, parameters, and the
 B-Rep solid geometry. Structure we can see:
 
-* Streams come in **`B…`/`M…` pairs** — a data **segment** and its metadata/map.
+* Streams come in **`B…`/`M…` pairs** - a data **segment** and its metadata/map.
   Each scrambled suffix is a segment id (consistent between B and M).
-* `RSeSegInfo` — directory of segments.
-* `RSeDbRevisionInfo` — per-segment revision/version table (supports Inventor's
+* `RSeSegInfo` - directory of segments.
+* `RSeDbRevisionInfo` - per-segment revision/version table (supports Inventor's
   undo/rollback and partial loading).
-* `RSeDb` (under `V1/`, `V2/`) — database roots; the `V1`/`V2` storages are
+* `RSeDb` (under `V1/`, `V2/`) - database roots; the `V1`/`V2` storages are
   versioned snapshots.
-* `RSeEmbeddings/` — embedded objects; `RefdFiles/` — cached copies of referenced docs
+* `RSeEmbeddings/` - embedded objects; `RefdFiles/` - cached copies of referenced docs
   (in drawings, `RefdFile_1` can be > 1 MB: the cached model graphics).
 
 The **segment payloads are a proprietary serialization of Inventor's modeling kernel**
@@ -247,9 +247,9 @@ for geometry, use a neutral export or the Inventor/Apprentice API instead.
 
 ---
 
-## 7. `MemberDocs` — Model States (and iPart/iAssembly members)  ⭐ per-state properties
+## 7. `MemberDocs` - Model States (and iPart/iAssembly members)  ⭐ per-state properties
 
-`MemberDocs/` contains **complete nested documents** — each child storage is itself a
+`MemberDocs/` contains **complete nested documents** - each child storage is itself a
 full Inventor document (own property sets, own `RSeStorage`). These correspond to
 **Model States** (and historically Levels of Detail / iPart/iAssembly members).
 
@@ -260,7 +260,7 @@ suppression-driven differences, etc.) are all sitting in the file at once.
 
 How the reader does it:
 
-1. **Enumerate member storages** — every `Type=storage` directly under `/MemberDocs/`.
+1. **Enumerate member storages** - every `Type=storage` directly under `/MemberDocs/`.
 2. **Map storage → state name** from `UFRxDoc`: each member-storage id sits next to its
    `Model State<n>` name in the token stream. The order varies by document
    (*name before id* in parts, *id before name* in assemblies), so the reader searches
@@ -270,7 +270,7 @@ How the reader does it:
    separator. Multi-state parts resolve cleanly, e.g. `Model State1`, `Model State2`.)*
 3. **Parse each member's property sets** with the same OLE-property-set code as the
    primary document, producing a full property list + key-iProperty summary per state.
-4. **Identify the active state** — the top-level document *is* the active state's data.
+4. **Identify the active state** - the top-level document *is* the active state's data.
    The reader matches each member against the primary using a **stable signature** that
    excludes per-save volatile fields (revision-id GUIDs, save timestamps, the Design
    Tracking Control counters); the member that matches is flagged active.
@@ -297,7 +297,7 @@ Each inner variant is `{ DWORD vt, value }` (e.g. `vt=8 VT_BSTR` → `DWORD byte
 The reader returns the **first** inner value as the property's value for that state. In
 the unchanged `[Primary]`/top-level document the same property is a plain `VT_LPWSTR`.
 
-Worked example — custom property **`ThisIsATest`** in `SamplePart.ipt`:
+Worked example - custom property **`ThisIsATest`** in `SamplePart.ipt`:
 
 | State | `ThisIsATest` | stored as |
 |-------|---------------|-----------|
@@ -314,11 +314,11 @@ separating user-facing differences (like `ThisIsATest`) from internal/volatile o
 The member-doc property sets are a **cache** that Inventor populates when each model
 state is *computed*. Empirically (verified): editing a property that a member cache
 already contains propagates to that cache, but **adding a new custom property does not
-backfill the member caches** — its per-state values go to the active document and the
+backfill the member caches** - its per-state values go to the active document and the
 proprietary `RSeStorage` model DB, and only reach the readable member caches once each
 state is recomputed (activated) and the file re-saved. Until then those values exist in
 the file **only inside the opaque RSe B-segment streams** (header `9E C2 2B A4…`,
-Inventor's own serialization — not decodable here), so the reader cannot recover them
+Inventor's own serialization - not decodable here), so the reader cannot recover them
 and shows **`(not cached)`** for that state. This is a property-set-cache limit, not a
 parser bug.
 
@@ -331,7 +331,7 @@ from 5 → 9 properties and all per-state values resolve correctly.
 
 Without that option, the member caches only update for the states you actually
 *recompute*. Workaround on older files / when the option is off: activate each model
-state once (double-click it in the browser so it rebuilds) and save — a plain Save while
+state once (double-click it in the browser so it rebuilds) and save - a plain Save while
 the primary state is active is **not** enough, the non-active states must be recomputed.
 Whatever is uncached shows as `(not cached)` rather than a wrong value.
 
@@ -342,7 +342,7 @@ Whatever is uncached shows as `(not cached)` rather than a wrong value.
 The 512×512 preview is a property in the **Inventor Summary Information** set
 (FMTID `3D38DE39-…`, **PID 17**, type **VT_CF**). The VT_CF blob is:
 `format-tag(4) | small Inventor preamble | <image bytes>`. In the 2027 files the image
-bytes are a **PNG** (older Inventor versions used a Windows **DIB/BMP** — the reader
+bytes are a **PNG** (older Inventor versions used a Windows **DIB/BMP** - the reader
 detects PNG/BMP/DIB by magic and wraps a bare DIB in a BMP header). Strip the preamble
 (scan the first ~64 bytes for the image magic) and you have a directly viewable image.
 
@@ -360,12 +360,12 @@ detects PNG/BMP/DIB by magic and wraps a bare DIB in a BMP header). Strip the pr
 
 ## 10. Sources
 
-* **[MS-CFB]** Compound File Binary File Format — Microsoft Open Specifications.
-* **[MS-OLEPS]** Object Linking and Embedding Property Set Data Structures — Microsoft.
+* **[MS-CFB]** Compound File Binary File Format - Microsoft Open Specifications.
+* **[MS-OLEPS]** Object Linking and Embedding Property Set Data Structures - Microsoft.
 * Inventor API: `PropertiesForDesignTrackingPropertiesEnum`,
   `PropertiesForSummaryInformationEnum`, `DocumentProperties` overview
   (help.autodesk.com → Inventor API).
-* `PropertySetFormatID` / Inventor internal property names — see the open-source
+* `PropertySetFormatID` / Inventor internal property names - see the open-source
   `Inventor.InternalNames` project (string constants; no PIDs).
 * The two *internal* sets (`D861FB30-…`, `BB586990-…`) are undocumented; the PIDs noted
   for them are **inferred** from observed data, not authoritative.

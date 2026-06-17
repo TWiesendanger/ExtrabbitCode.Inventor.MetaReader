@@ -5,7 +5,7 @@ using System.Text;
 namespace InventorMeta
 {
     /// <summary>
-    /// Minimal reader for OLE Property Sets ([MS-OLEPS]) — the standard Microsoft
+    /// Minimal reader for OLE Property Sets ([MS-OLEPS]) - the standard Microsoft
     /// format Inventor uses to store iProperties (Summary, Document Summary, and the
     /// Inventor-specific "Design Tracking"/"Content"/"User Defined" property sets).
     /// A stream is a property set when it begins with the bytes FE FF.

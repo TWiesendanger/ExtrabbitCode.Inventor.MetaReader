@@ -36,7 +36,7 @@ namespace InventorMeta.App
                 }
                 Document = new InventorDocument(path);
                 Populate(Document);
-                StatusChanged?.Invoke($"Loaded {Document.FileName} — {Document.Properties.Count} properties, " +
+                StatusChanged?.Invoke($"Loaded {Document.FileName} - {Document.Properties.Count} properties, " +
                                       $"{Document.References.Count} reference(s).");
                 return true;
             }
@@ -156,7 +156,7 @@ namespace InventorMeta.App
 
             StatesPanel.Children.Add(new TextBlock
             {
-                Text = "Per-state iProperties, read straight from the file — no need to switch states in Inventor.",
+                Text = "Per-state iProperties, read straight from the file - no need to switch states in Inventor.",
                 Opacity = 0.7, FontSize = 13, TextWrapping = TextWrapping.Wrap
             });
 
@@ -168,7 +168,7 @@ namespace InventorMeta.App
             {
                 var p = s.Properties.FirstOrDefault(x => x.Set == id.Set && x.Pid == id.Pid && x.Name == id.Name);
                 if (p != null) return p.Display;
-                return !s.IsActive && active != null && Has(active, id) ? "(not cached)" : "—";
+                return !s.IsActive && active != null && Has(active, id) ? "(not cached)" : "-";
             }
             var ids = states.SelectMany(s => s.Properties).Select(p => (p.Set, p.Pid, p.Name))
                             .Distinct().OrderBy(i => i.Set).ThenBy(i => i.Pid).ToList();

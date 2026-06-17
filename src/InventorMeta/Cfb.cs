@@ -7,9 +7,9 @@ namespace InventorMeta
 {
     /// <summary>
     /// Self-contained reader for the OLE Compound File Binary (CFB / "Structured
-    /// Storage") format — the container Autodesk Inventor uses for .ipt/.iam/.idw/.ipn.
+    /// Storage") format - the container Autodesk Inventor uses for .ipt/.iam/.idw/.ipn.
     /// Implements enough of [MS-CFB] to enumerate the storage tree and read any stream.
-    /// No COM, no external dependencies — pure managed byte parsing.
+    /// No COM, no external dependencies - pure managed byte parsing.
     /// </summary>
     public sealed class CompoundFile : IDisposable
     {

@@ -11,7 +11,7 @@ namespace InventorMeta
     /// <summary>
     /// High-level, friendly view of an Inventor document, built from the raw CFB
     /// container: document type, resolved iProperties, thumbnail, referenced files,
-    /// model states, and version provenance — all without Autodesk Inventor installed.
+    /// model states, and version provenance - all without Autodesk Inventor installed.
     /// </summary>
     public sealed class InventorDocument
     {
@@ -52,7 +52,7 @@ namespace InventorMeta
         public List<PropEntry> Properties { get; } = new();
         /// <summary>Best-effort key iProperties pulled from Design Tracking + Summary sets.</summary>
         public Dictionary<string, string> Summary { get; } = new();
-        /// <summary>Per-model-state properties, read directly from embedded member docs — no Inventor needed.</summary>
+        /// <summary>Per-model-state properties, read directly from embedded member docs - no Inventor needed.</summary>
         public List<ModelState> ModelStateDetails { get; } = new();
         public bool HasModelStates => ModelStateDetails.Count > 0;
         private readonly Dictionary<string, string> _storageToState = new(StringComparer.OrdinalIgnoreCase);
@@ -81,7 +81,7 @@ namespace InventorMeta
             CfbVersionInfo = $"CFB v{cf.MajorVersion}, {cf.SectorSize}-byte sectors";
 
             // Member storages under /MemberDocs/ are the model states (and iPart/iAssembly
-            // members) — each is a full embedded sub-document with its own property sets.
+            // members) - each is a full embedded sub-document with its own property sets.
             var memberStorages = new HashSet<string>(
                 cf.Directory.Where(d => d.Type == 1)
                   .Select(d => Regex.Match(d.Path, @"^/MemberDocs/([^/]+)$", RegexOptions.IgnoreCase))
@@ -200,7 +200,7 @@ namespace InventorMeta
             string txt = Encoding.Unicode.GetString(data);
 
             // model-state name ↔ member-storage mapping: a member-storage id sits next to
-            // its "Model State<n>" name in the token stream — but the order varies (name
+            // its "Model State<n>" name in the token stream - but the order varies (name
             // before storage in parts, storage before name in assemblies), so check both.
             var tokens = Regex.Matches(txt, @"[\x20-\x7E]{3,}").Select(m => m.Value).ToList();
             bool IsState(string t) => Regex.IsMatch(t, @"^Model State\d*$");

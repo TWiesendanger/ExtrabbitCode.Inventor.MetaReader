@@ -9,7 +9,7 @@ Encoding.RegisterProvider(CodePagesEncodingProvider.Instance);
 if (args.Length < 2)
 {
     Console.WriteLine("""
-        Inventor metadata reader — reads .ipt/.iam/.idw/.ipn without Autodesk Inventor.
+        Inventor metadata reader - reads .ipt/.iam/.idw/.ipn without Autodesk Inventor.
 
           invmeta info    <file>              friendly report (type, iProperties, refs, version)
           invmeta states  <file>              per-model-state iProperties (parts/assemblies)
@@ -79,7 +79,7 @@ static void Info(InventorDocument doc)
 static void States(InventorDocument doc)
 {
     Line('=');
-    Console.WriteLine($"  {doc.FileName} — {doc.DocumentType}");
+    Console.WriteLine($"  {doc.FileName} - {doc.DocumentType}");
     Line('=');
     if (!doc.HasModelStates)
     {
@@ -103,7 +103,7 @@ static void States(InventorDocument doc)
         if (p != null) return p.Display;
         // present in the active document but absent here = Inventor hasn't flushed this
         // state's override into its cache (only happens once the state is recomputed/saved)
-        return !s.IsActive && active != null && Has(active, id) ? "(not cached)" : "—";
+        return !s.IsActive && active != null && Has(active, id) ? "(not cached)" : "-";
     }
     var ids = states.SelectMany(s => s.Properties).Select(p => (p.Set, p.Pid, p.Name))
                     .Distinct().OrderBy(i => i.Set).ThenBy(i => i.Pid).ToList();
@@ -141,7 +141,7 @@ static void States(InventorDocument doc)
     {
         if (!states.Any(s => s.Summary.ContainsKey(lbl))) continue;
         Console.Write($"  {lbl,-16}");
-        foreach (var s in states) Console.Write($"{(s.Summary.TryGetValue(lbl, out var v) ? v : "—"),-22}");
+        foreach (var s in states) Console.Write($"{(s.Summary.TryGetValue(lbl, out var v) ? v : "-"),-22}");
         Console.WriteLine();
     }
     Console.WriteLine("\n  (* = active state; the top-level / [Primary] document)");
