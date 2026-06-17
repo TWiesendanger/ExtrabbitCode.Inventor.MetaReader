@@ -1,4 +1,9 @@
 <Solution>
+  <Folder Name="/SolutionFolder/">
+    <File Path=".editorconfig" />
+    <File Path=".gitignore" />
+    <File Path="README.md" />
+  </Folder>
   <Folder Name="/src/">
     <Project Path="src/InventorMeta.App/InventorMeta.App.csproj">
       <Platform Project="x64" />
