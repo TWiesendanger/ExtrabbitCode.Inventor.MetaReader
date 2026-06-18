@@ -27,10 +27,143 @@ public sealed partial class DocumentView
     private readonly List<(UIElement body, FontIcon chevron)> _collapsibles = [];
     private bool _allExpanded = true;
 
-    public DocumentView() { InitializeComponent(); }
+    public DocumentView()
+    {
+        InitializeComponent();
+        WireTabHide(PropsTab, "All Properties");
+        WireTabHide(StatesTab, "Model States");
+        WireTabHide(RefsTab, "References");
+        WireTabHide(StructureTab, "File Structure");
+    }
 
     private static string G(int code) => ((char)code).ToString();   // Segoe Fluent glyph
-    private const int ChevronUp = 0xE70E, ChevronDown = 0xE70D;
+    private const int ChevronUp = 0xE70E, ChevronDown = 0xE70D, HideGlyph = 0xED1A;
+
+    private void RebuildView()
+    {
+        if (Document != null)
+        {
+            Populate(Document);
+        }
+    }
+
+    /// <summary>A small hover "hide" button that hides the item with the given key.</summary>
+    private Button MakeHideButton(string key, string tooltip)
+    {
+        Button b = new()
+        {
+            Content = new FontIcon { Glyph = G(HideGlyph), FontSize = 12 },
+            Padding = new Thickness(6, 3, 6, 3), MinWidth = 0, MinHeight = 0,
+            CornerRadius = new CornerRadius(4), BorderThickness = new Thickness(0),
+            Background = new SolidColorBrush(Microsoft.UI.Colors.Transparent),
+            VerticalAlignment = VerticalAlignment.Center
+        };
+        ToolTipService.SetToolTip(b, tooltip);
+        b.Click += (_, _) => { HideStore.Set(key, true); RebuildView(); };
+        return b;
+    }
+
+    private void WireTabHide(TabViewItem tab, string name)
+    {
+        MenuFlyout mf = new();
+        MenuFlyoutItem item = new() { Text = $"Hide “{name}” tab", Icon = new FontIcon { Glyph = G(HideGlyph) } };
+        item.Click += (_, _) => { HideStore.Set(HideStore.TabKey(name), true); RebuildView(); };
+        mf.Items.Add(item);
+        tab.ContextFlyout = mf;
+    }
+
+    private void ApplyTabVisibility()
+    {
+        PropsTab.Visibility = TabVis("All Properties", true);
+        StatesTab.Visibility = TabVis("Model States", Document?.HasModelStates == true);
+        RefsTab.Visibility = TabVis("References", true);
+        StructureTab.Visibility = TabVis("File Structure", true);
+
+        if (DetailTabs.SelectedItem is TabViewItem sel && sel.Visibility == Visibility.Collapsed)
+        {
+            DetailTabs.SelectedItem = DetailTabs.TabItems.OfType<TabViewItem>()
+                .FirstOrDefault(t => t.Visibility == Visibility.Visible);
+        }
+
+        Visibility TabVis(string name, bool applicable) =>
+            applicable && !HideStore.IsHidden(HideStore.TabKey(name)) ? Visibility.Visible : Visibility.Collapsed;
+    }
+
+    private void RefreshHiddenUi()
+    {
+        List<(string key, string label)> items = CollectHidden();
+        HiddenButton.Visibility = items.Count > 0 ? Visibility.Visible : Visibility.Collapsed;
+        HiddenCountText.Text = items.Count == 1 ? "1 hidden" : $"{items.Count} hidden";
+
+        HiddenFlyoutPanel.Children.Clear();
+        HiddenFlyoutPanel.Children.Add(new TextBlock
+        {
+            Text = "Hidden - click Show to restore", FontWeight = FontWeights.SemiBold,
+            Margin = new Thickness(4, 2, 4, 8)
+        });
+        foreach ((string key, string label) in items)
+        {
+            Grid row = new() { ColumnSpacing = 10, Padding = new Thickness(4, 2, 4, 2) };
+            row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+            row.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+            TextBlock lbl = new() { Text = label, VerticalAlignment = VerticalAlignment.Center,
+                TextTrimming = TextTrimming.CharacterEllipsis, MaxWidth = 320, FontSize = 12 };
+            Button show = new()
+            {
+                Padding = new Thickness(8, 2, 8, 2),
+                Content = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 6,
+                    Children = { new FontIcon { Glyph = G(0xE7B3), FontSize = 12 }, new TextBlock { Text = "Show" } } }
+            };
+            string k = key;
+            show.Click += (_, _) => { HideStore.Set(k, false); RebuildView(); };
+            Grid.SetColumn(show, 1);
+            row.Children.Add(lbl);
+            row.Children.Add(show);
+            HiddenFlyoutPanel.Children.Add(row);
+        }
+        if (items.Count == 0)
+        {
+            HiddenFlyout.Hide();
+        }
+    }
+
+    private List<(string key, string label)> CollectHidden()
+    {
+        List<(string, string)> list = [];
+        if (Document == null)
+        {
+            return list;
+        }
+
+        void Tab(string name, bool applicable)
+        {
+            if (applicable && HideStore.IsHidden(HideStore.TabKey(name)))
+            {
+                list.Add((HideStore.TabKey(name), "Tab · " + name));
+            }
+        }
+        Tab("All Properties", true);
+        Tab("Model States", Document.HasModelStates);
+        Tab("References", true);
+        Tab("File Structure", true);
+
+        foreach (string set in Document.Properties.Select(p => p.Set).Distinct())
+        {
+            if (HideStore.IsHidden(HideStore.SetKey(set)))
+            {
+                list.Add((HideStore.SetKey(set), "Set · " + set));
+            }
+        }
+
+        foreach (InventorDocument.PropEntry p in Document.Properties)
+        {
+            if (!HideStore.IsHidden(HideStore.SetKey(p.Set)) && HideStore.IsHidden(HideStore.PropKey(p.Set, p.Pid)))
+            {
+                list.Add((HideStore.PropKey(p.Set, p.Pid), $"Property · {p.Name}  ({p.Set})"));
+            }
+        }
+        return list;
+    }
 
     private void SetAllExpanded(bool expanded)
     {
@@ -140,8 +273,13 @@ public sealed partial class DocumentView
         PropsPanel.Children.Add(BuildExpandCollapseAll());
         foreach (IGrouping<string, InventorDocument.PropEntry> grp in doc.Properties.GroupBy(p => p.Set).OrderBy(g => SetOrder(g.Key)))
         {
-            StackPanel table = PropTable(grp.OrderBy(x => x.Pid).Select(p => (p.Pid, p.Name, p.Display)));
-            PropsPanel.Children.Add(Card(grp.Key, grp.Count().ToString(), table));
+            if (HideStore.IsHidden(HideStore.SetKey(grp.Key)))
+            {
+                continue;
+            }
+
+            StackPanel table = PropTable(grp.Key, grp.OrderBy(x => x.Pid).Select(p => (p.Pid, p.Name, p.Display)));
+            PropsPanel.Children.Add(Card(grp.Key, grp.Count().ToString(), table, HideStore.SetKey(grp.Key)));
         }
 
         PopulateStates(doc);
@@ -163,6 +301,9 @@ public sealed partial class DocumentView
             sb.AppendLine($"{en.Path,-46}{en.TypeName,-8}{size,12}");
         }
         TreeText.Text = sb.ToString();
+
+        ApplyTabVisibility();
+        RefreshHiddenUi();
     }
 
     private void PopulateStates(InventorDocument doc)
@@ -260,8 +401,8 @@ public sealed partial class DocumentView
 
     // ---- card / table builders ----
 
-    /// <summary>Wraps a row in a hover area with a copy-to-clipboard button on the right.</summary>
-    private static Border CopyableRow(UIElement content, string copyText, Thickness padding)
+    /// <summary>Wraps a row in a hover area with copy (and optional hide) buttons on the right.</summary>
+    private Border CopyableRow(UIElement content, string copyText, Thickness padding, string? hideKey = null)
     {
         Grid grid = new();
         grid.Children.Add(content);
@@ -269,16 +410,33 @@ public sealed partial class DocumentView
         Button btn = new()
         {
             Content = new FontIcon { Glyph = "", FontSize = 12 },
-            HorizontalAlignment = HorizontalAlignment.Right,
             VerticalAlignment = VerticalAlignment.Center,
             Padding = new Thickness(7, 3, 7, 3), MinWidth = 0, MinHeight = 0,
-            CornerRadius = new CornerRadius(4),
-            Opacity = 0, IsHitTestVisible = false   // stays in layout so the row never resizes
+            CornerRadius = new CornerRadius(4), BorderThickness = new Thickness(0),
+            Background = new SolidColorBrush(Microsoft.UI.Colors.Transparent)
         };
         ToolTipService.SetToolTip(btn, "Copy value");
         bool can = !string.IsNullOrEmpty(copyText);
         btn.Click += (_, _) => Copy(copyText);
-        grid.Children.Add(btn);
+
+        // hide + copy live in a right-aligned panel that stays in layout (row never resizes)
+        StackPanel actions = new()
+        {
+            Orientation = Orientation.Horizontal, Spacing = 4,
+            HorizontalAlignment = HorizontalAlignment.Right, VerticalAlignment = VerticalAlignment.Center,
+            Opacity = 0, IsHitTestVisible = false
+        };
+        if (hideKey != null)
+        {
+            actions.Children.Add(MakeHideButton(hideKey, "Hide this property"));
+        }
+
+        if (can)
+        {
+            actions.Children.Add(btn);
+        }
+
+        grid.Children.Add(actions);
 
         Border row = new()
         {
@@ -290,8 +448,9 @@ public sealed partial class DocumentView
             ToolTipService.SetToolTip(row, "Click to copy");
         }
 
-        row.PointerEntered += (_, _) => { if (can) { btn.Opacity = 1; btn.IsHitTestVisible = true; } };
-        row.PointerExited += (_, _) => { btn.Opacity = 0; btn.IsHitTestVisible = false; };
+        bool has = can || hideKey != null;
+        row.PointerEntered += (_, _) => { if (has) { actions.Opacity = 1; actions.IsHitTestVisible = true; } };
+        row.PointerExited += (_, _) => { actions.Opacity = 0; actions.IsHitTestVisible = false; };
         row.Tapped += (_, e) => { if (can) { Copy(copyText); e.Handled = true; } };
         return row;
     }
@@ -319,14 +478,14 @@ public sealed partial class DocumentView
 
 
     /// <summary>A rounded, bordered, elevated card with a clickable (collapsible) header and a body.</summary>
-    private Border Card(string title, string? badge, UIElement body)
+    private Border Card(string title, string? badge, UIElement body, string? hideKey = null)
     {
         FontIcon chevron = new()
         {
             Glyph = G(ChevronUp), FontSize = 11, Opacity = 0.6,
             VerticalAlignment = VerticalAlignment.Center
         };
-        StackPanel headerContent = new() { Orientation = Orientation.Horizontal, Spacing = 8 };
+        StackPanel headerContent = new() { Orientation = Orientation.Horizontal, Spacing = 8, VerticalAlignment = VerticalAlignment.Center };
         headerContent.Children.Add(chevron);
         headerContent.Children.Add(new TextBlock
         {
@@ -342,8 +501,28 @@ public sealed partial class DocumentView
             });
         }
 
-        Border header = new() { Style = (Style)Resources["CardHeaderRow"], Child = headerContent };
+        Grid headerGrid = new();
+        headerGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        headerGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        headerGrid.Children.Add(headerContent);
+
+        Button? hideBtn = null;
+        if (hideKey != null)
+        {
+            hideBtn = MakeHideButton(hideKey, "Hide this property set");
+            hideBtn.Opacity = 0;
+            hideBtn.IsHitTestVisible = false;
+            Grid.SetColumn(hideBtn, 1);
+            headerGrid.Children.Add(hideBtn);
+        }
+
+        Border header = new() { Style = (Style)Resources["CardHeaderRow"], Child = headerGrid };
         ToolTipService.SetToolTip(header, "Click to collapse / expand");
+        if (hideBtn != null)
+        {
+            header.PointerEntered += (_, _) => { hideBtn.Opacity = 1; hideBtn.IsHitTestVisible = true; };
+            header.PointerExited += (_, _) => { hideBtn.Opacity = 0; hideBtn.IsHitTestVisible = false; };
+        }
 
         StackPanel stack = new();
         stack.Children.Add(header);
@@ -388,9 +567,10 @@ public sealed partial class DocumentView
     }
 
     /// <summary>PID / Name / Value table with divider lines between rows.</summary>
-    private StackPanel PropTable(IEnumerable<(uint pid, string name, string val)> rows)
+    private StackPanel PropTable(string setName, IEnumerable<(uint pid, string name, string val)> rows)
     {
-        List<(uint pid, string name, string val)> list = rows.ToList();
+        List<(uint pid, string name, string val)> list = rows
+            .Where(r => !HideStore.IsHidden(HideStore.PropKey(setName, r.pid))).ToList();
         StackPanel sp = new();
         for (int i = 0; i < list.Count; i++)
         {
@@ -402,7 +582,7 @@ public sealed partial class DocumentView
             Cell(g, 0, pid.ToString(), 0.45, mono: true);
             Cell(g, 1, name, 0.9, semibold: true);
             Cell(g, 2, val, 0.8);
-            sp.Children.Add(CopyableRow(g, val, new Thickness(14, 7, 14, 7)));
+            sp.Children.Add(CopyableRow(g, val, new Thickness(14, 7, 14, 7), HideStore.PropKey(setName, pid)));
         }
         return sp;
     }
@@ -489,7 +669,7 @@ public sealed partial class DocumentView
         g.Children.Add(t);
     }
 
-    private static Border KeyRow(string label, string value)
+    private Border KeyRow(string label, string value)
     {
         Grid g = new();
         g.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(118) });
