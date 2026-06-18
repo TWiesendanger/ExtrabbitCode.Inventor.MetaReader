@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Numerics;
@@ -260,6 +261,25 @@ public sealed partial class DocumentView
     }
 
     private void OnRefresh(object sender, RoutedEventArgs e) => Refresh();
+
+    private void OnShowInExplorer(object sender, RoutedEventArgs e) => RevealInExplorer(FilePath);
+
+    /// <summary>Opens File Explorer with the file selected (or its folder if only that exists).</summary>
+    private static void RevealInExplorer(string path)
+    {
+        try
+        {
+            if (File.Exists(path))
+            {
+                Process.Start(new ProcessStartInfo { FileName = "explorer.exe", Arguments = $"/select,\"{path}\"", UseShellExecute = true });
+            }
+            else if (Directory.Exists(path))
+            {
+                Process.Start(new ProcessStartInfo { FileName = "explorer.exe", Arguments = $"\"{path}\"", UseShellExecute = true });
+            }
+        }
+        catch { /* best-effort */ }
+    }
 
     private async void OnExportJson(object sender, RoutedEventArgs e)
     {
@@ -1220,10 +1240,31 @@ public sealed partial class DocumentView
         }
         ToolTipService.SetToolTip(box, n.Path);
 
-        if (n.Resolved && n.Depth > 0 && !n.Cyclic && !n.IsLinkedFile)
+        bool canOpen = n.Resolved && n.Depth > 0 && !n.Cyclic && !n.IsLinkedFile;
+        if (canOpen)
         {
             box.Tapped += (_, _) => HostWindow?.OpenDocument(n.Path);
-            ToolTipService.SetToolTip(box, n.Path + "\nClick to open in a tab");
+            ToolTipService.SetToolTip(box, n.Path + "\nClick to open · right-click for more");
+        }
+
+        if (n.Resolved)
+        {
+            box.ContextRequested += (_, e) =>
+            {
+                MenuFlyout menu = new();
+                if (canOpen)
+                {
+                    MenuFlyoutItem open = new() { Text = "Open in a tab", Icon = new FontIcon { Glyph = G(0xE8E5) } };
+                    open.Click += (_, _) => HostWindow?.OpenDocument(n.Path);
+                    menu.Items.Add(open);
+                }
+                MenuFlyoutItem reveal = new() { Text = "Show in Explorer", Icon = new FontIcon { Glyph = G(0xEC50) } };
+                reveal.Click += (_, _) => RevealInExplorer(n.Path);
+                menu.Items.Add(reveal);
+                if (e.TryGetPosition(box, out Windows.Foundation.Point p)) { menu.ShowAt(box, p); }
+                else { menu.ShowAt(box); }
+                e.Handled = true;
+            };
         }
         return box;
     }
