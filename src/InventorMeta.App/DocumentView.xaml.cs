@@ -48,6 +48,16 @@ public sealed partial class DocumentView
         // Sidebar layout is global too, but only the (cheap) sidebar needs re-rendering.
         WeakReferenceMessenger.Default.Register<SidebarConfigChangedMessage>(this,
             static (recipient, _) => ((DocumentView)recipient).RenderSidebar());
+
+        // Expand/collapse-all lives in the tab strip footer (shown only for card tabs).
+        TabStripActions.Children.Add(BuildExpandCollapseAll());
+    }
+
+    private void OnDetailTabChanged(object sender, SelectionChangedEventArgs e)
+    {
+        bool hasCards = ReferenceEquals(DetailTabs.SelectedItem, PropsTab)
+                     || ReferenceEquals(DetailTabs.SelectedItem, StatesTab);
+        TabStripActions.Visibility = hasCards ? Visibility.Visible : Visibility.Collapsed;
     }
 
     private bool _editingSidebar;
@@ -296,7 +306,6 @@ public sealed partial class DocumentView
         _collapsibles.Clear();
 
         PropsPanel.Children.Clear();
-        PropsPanel.Children.Add(BuildExpandCollapseAll());
         foreach (IGrouping<string, InventorDocument.PropEntry> grp in doc.Properties.GroupBy(p => p.Set).OrderBy(g => SetOrder(g.Key)))
         {
             if (HideStore.IsHidden(HideStore.SetKey(grp.Key)))

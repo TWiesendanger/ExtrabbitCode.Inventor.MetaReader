@@ -142,7 +142,12 @@
             <Border Grid.Column="1" Style="{StaticResource Surface}" Translation="0,0,16">
                 <Border.Shadow><ThemeShadow/></Border.Shadow>
                 <muxc:TabView x:Name="DetailTabs" Background="Transparent" IsAddTabButtonVisible="False"
-                              CanReorderTabs="False" CanDragTabs="False">
+                              CanReorderTabs="False" CanDragTabs="False"
+                              SelectionChanged="OnDetailTabChanged">
+                    <muxc:TabView.TabStripFooter>
+                        <StackPanel x:Name="TabStripActions" Orientation="Horizontal"
+                                    VerticalAlignment="Center" HorizontalAlignment="Right" Margin="0,0,10,0"/>
+                    </muxc:TabView.TabStripFooter>
                     <muxc:TabViewItem x:Name="PropsTab" Header="All Properties" IsClosable="False">
                         <muxc:TabViewItem.IconSource><muxc:SymbolIconSource Symbol="AllApps"/></muxc:TabViewItem.IconSource>
                         <ScrollViewer Padding="10,10"><StackPanel x:Name="PropsPanel" Spacing="10"/></ScrollViewer>
