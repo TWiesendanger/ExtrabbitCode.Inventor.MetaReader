@@ -22,8 +22,12 @@ public sealed partial class DocumentView
     public InventorDocument? Document { get; private set; }
     public string TabTitle => Document?.FileName ?? Path.GetFileName(FilePath);
 
-    /// <summary>Raised with a status message after (re)load; the window shows it in the footer.</summary>
-    public event Action<string>? StatusChanged;
+    /// <summary>Status messages after (re)load go here; the host window shows them in its footer.
+    /// Reassigned when the tab is adopted by another window (tear-out / reattach).</summary>
+    public Action<string>? StatusSink { get; set; }
+
+    /// <summary>The window currently hosting this view (may change after a tab tear-out).</summary>
+    private MainWindow? HostWindow => App.GetWindowForElement(this) as MainWindow;
 
     private readonly List<(UIElement body, FontIcon chevron)> _collapsibles = [];
 
@@ -78,11 +82,24 @@ public sealed partial class DocumentView
 
     private void WireTabHide(TabViewItem tab, string name)
     {
-        MenuFlyout mf = new();
-        MenuFlyoutItem item = new() { Text = $"Hide “{name}” tab", Icon = new FontIcon { Glyph = G(HideGlyph) } };
-        item.Click += (_, _) => HideStore.Set(HideStore.TabKey(name), true);
-        mf.Items.Add(item);
-        tab.ContextFlyout = mf;
+        // Build the flyout fresh per right-click so it binds to the tab's current XamlRoot
+        // (the document can move to another window via tab tear-out).
+        tab.ContextRequested += (_, e) =>
+        {
+            MenuFlyout mf = new();
+            MenuFlyoutItem item = new() { Text = $"Hide “{name}” tab", Icon = new FontIcon { Glyph = G(HideGlyph) } };
+            item.Click += (_, _) => HideStore.Set(HideStore.TabKey(name), true);
+            mf.Items.Add(item);
+            if (e.TryGetPosition(tab, out Windows.Foundation.Point p))
+            {
+                mf.ShowAt(tab, p);
+            }
+            else
+            {
+                mf.ShowAt(tab);
+            }
+            e.Handled = true;
+        };
     }
 
     private void ApplyTabVisibility()
@@ -104,17 +121,24 @@ public sealed partial class DocumentView
 
     private void RefreshHiddenUi()
     {
-        List<(string key, string label)> items = CollectHidden();
-        HiddenButton.Visibility = items.Count > 0 ? Visibility.Visible : Visibility.Collapsed;
-        HiddenCountText.Text = items.Count == 1 ? "1 hidden" : $"{items.Count} hidden";
+        int count = CollectHidden().Count;
+        HiddenButton.Visibility = count > 0 ? Visibility.Visible : Visibility.Collapsed;
+        HiddenCountText.Text = count == 1 ? "1 hidden" : $"{count} hidden";
+    }
 
-        HiddenFlyoutPanel.Children.Clear();
-        HiddenFlyoutPanel.Children.Add(new TextBlock
+    /// <summary>Builds the hidden-items list fresh on click so it binds to the current
+    /// window's XamlRoot (the document can move windows via tab tear-out).</summary>
+    private void OnHiddenButtonClick(object sender, RoutedEventArgs e)
+    {
+        StackPanel panel = new() { MinWidth = 260, Spacing = 2 };
+        panel.Children.Add(new TextBlock
         {
             Text = "Hidden - click Show to restore", FontWeight = FontWeights.SemiBold,
             Margin = new Thickness(4, 2, 4, 8)
         });
-        foreach ((string key, string label) in items)
+
+        Flyout flyout = new() { Placement = Microsoft.UI.Xaml.Controls.Primitives.FlyoutPlacementMode.Bottom };
+        foreach ((string key, string label) in CollectHidden())
         {
             Grid row = new() { ColumnSpacing = 10, Padding = new Thickness(4, 2, 4, 2) };
             row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
@@ -128,16 +152,15 @@ public sealed partial class DocumentView
                     Children = { new FontIcon { Glyph = G(0xE7B3), FontSize = 12 }, new TextBlock { Text = "Show" } } }
             };
             string k = key;
-            show.Click += (_, _) => HideStore.Set(k, false);
+            show.Click += (_, _) => { flyout.Hide(); HideStore.Set(k, false); };
             Grid.SetColumn(show, 1);
             row.Children.Add(lbl);
             row.Children.Add(show);
-            HiddenFlyoutPanel.Children.Add(row);
+            panel.Children.Add(row);
         }
-        if (items.Count == 0)
-        {
-            HiddenFlyout.Hide();
-        }
+
+        flyout.Content = panel;
+        flyout.ShowAt(HiddenButton);
     }
 
     private List<(string key, string label)> CollectHidden()
@@ -195,18 +218,18 @@ public sealed partial class DocumentView
         {
             if (!CompoundFile.LooksLikeCompoundFile(path))
             {
-                StatusChanged?.Invoke($"{Path.GetFileName(path)} is not an Inventor / OLE compound file.");
+                StatusSink?.Invoke($"{Path.GetFileName(path)} is not an Inventor / OLE compound file.");
                 return false;
             }
             Document = new InventorDocument(path);
             Populate(Document);
-            StatusChanged?.Invoke($"Loaded {Document.FileName} - {Document.Properties.Count} properties, " +
+            StatusSink?.Invoke($"Loaded {Document.FileName} - {Document.Properties.Count} properties, " +
                                   $"{Document.References.Count} reference(s).");
             return true;
         }
         catch (Exception ex)
         {
-            StatusChanged?.Invoke("Error: " + ex.Message);
+            StatusSink?.Invoke("Error: " + ex.Message);
             return false;
         }
     }
@@ -218,10 +241,10 @@ public sealed partial class DocumentView
             return;
         }
 
-        if (!File.Exists(FilePath)) { StatusChanged?.Invoke("File no longer exists: " + FilePath); return; }
+        if (!File.Exists(FilePath)) { StatusSink?.Invoke("File no longer exists: " + FilePath); return; }
         if (Load(FilePath))
         {
-            StatusChanged?.Invoke($"Refreshed {TabTitle} at {DateTime.Now:HH:mm:ss}.");
+            StatusSink?.Invoke($"Refreshed {TabTitle} at {DateTime.Now:HH:mm:ss}.");
         }
     }
 
@@ -235,7 +258,8 @@ public sealed partial class DocumentView
         }
 
         FileSavePicker picker = new();
-        IntPtr hwnd = WinRT.Interop.WindowNative.GetWindowHandle(App.MainWindowInstance);
+        Window owner = HostWindow ?? App.MainWindowInstance;
+        IntPtr hwnd = WinRT.Interop.WindowNative.GetWindowHandle(owner);
         WinRT.Interop.InitializeWithWindow.Initialize(picker, hwnd);
         picker.FileTypeChoices.Add("JSON", new List<string> { ".json" });
         picker.SuggestedFileName = Path.GetFileNameWithoutExtension(Document.FileName) + "_metadata";
@@ -243,7 +267,7 @@ public sealed partial class DocumentView
         if (file != null)
         {
             await FileIO.WriteTextAsync(file, Document.ToJson());
-            StatusChanged?.Invoke("Exported " + file.Name);
+            StatusSink?.Invoke("Exported " + file.Name);
         }
     }
 
@@ -457,7 +481,7 @@ public sealed partial class DocumentView
         return row;
     }
 
-    private static void Copy(string text)
+    private void Copy(string text)
     {
         if (string.IsNullOrEmpty(text))
         {
@@ -470,7 +494,7 @@ public sealed partial class DocumentView
             dp.SetText(text);
             Clipboard.SetContent(dp);
             string shown = text.Length > 48 ? text[..48] + "…" : text;
-            (App.MainWindowInstance as MainWindow)?.ShowToast($"Copied  “{shown}”");
+            (HostWindow ?? App.MainWindowInstance as MainWindow)?.ShowToast($"Copied  “{shown}”");
         }
         catch
         {
@@ -706,14 +730,11 @@ public sealed partial class DocumentView
         ThumbHost.Visibility = showThumb ? Visibility.Visible : Visibility.Collapsed;
         ThumbDivider.Visibility = showThumb ? Visibility.Visible : Visibility.Collapsed;
 
-        // present, non-empty properties keyed for lookup by the configured keys
+        // every property present in the file, keyed for lookup (value may be empty)
         Dictionary<string, InventorDocument.PropEntry> byKey = new(StringComparer.Ordinal);
         foreach (InventorDocument.PropEntry p in Document.Properties)
         {
-            if (p.Display.Length > 0)
-            {
-                byKey[SidebarConfig.K(p.SetId, p.Pid)] = p;
-            }
+            byKey[SidebarConfig.K(p.SetId, p.Pid)] = p;
         }
 
         List<string> keys = SidebarConfig.Keys;
@@ -726,26 +747,22 @@ public sealed partial class DocumentView
             SidebarEditPanel.Children.Add(thumb);
             SidebarEditPanel.Children.Add(new TextBlock
             {
-                Text = "Reorder with the arrows, remove with ✕, or add more below.",
+                Text = "Drag to reorder, remove with ✕, or add more below.",
                 Opacity = 0.6, FontSize = 12, TextWrapping = TextWrapping.Wrap
             });
         }
 
+        // Render EVERY configured property so the sidebar layout is identical across files;
+        // a property that's absent from this file (or blank) simply shows an empty value.
         KeyPropsPanel.Children.Clear();
-        int shown = 0;
         foreach (string key in keys)
         {
-            if (!byKey.TryGetValue(key, out InventorDocument.PropEntry? p))
-            {
-                continue;
-            }
-
+            (string label, string value) = ResolveRow(key, byKey);
             KeyPropsPanel.Children.Add(_editingSidebar
-                ? EditableKeyRow(key, p.Name, p.Display, byKey)
-                : KeyRow(p.Name, p.Display));
-            shown++;
+                ? EditableKeyRow(key, label, value)
+                : KeyRow(label, value));
         }
-        if (shown == 0 && !_editingSidebar)
+        if (keys.Count == 0 && !_editingSidebar)
         {
             KeyPropsPanel.Children.Add(new TextBlock { Text = "No properties to show", Opacity = 0.5, FontSize = 12 });
         }
@@ -760,9 +777,22 @@ public sealed partial class DocumentView
         }
     }
 
+    /// <summary>Resolves a configured key to its (label, value). Value is empty when the
+    /// property is absent from this file or blank, keeping the sidebar consistent.</summary>
+    private static (string label, string value) ResolveRow(
+        string key, IReadOnlyDictionary<string, InventorDocument.PropEntry> byKey)
+    {
+        if (byKey.TryGetValue(key, out InventorDocument.PropEntry? p))
+        {
+            return (p.Name, p.Display);
+        }
+
+        (Guid setId, uint pid) = SidebarConfig.Parse(key);
+        return (InventorProps.Name(setId, pid), "");
+    }
+
     /// <summary>A draggable sidebar property row with a remove control (edit mode).</summary>
-    private Border EditableKeyRow(string key, string label, string value,
-        IReadOnlyDictionary<string, InventorDocument.PropEntry> present)
+    private Border EditableKeyRow(string key, string label, string value)
     {
         Grid g = new() { ColumnSpacing = 8 };
         g.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
@@ -805,7 +835,7 @@ public sealed partial class DocumentView
         row.Drop += (s, e) =>
         {
             bool after = e.GetPosition((UIElement)s).Y > ((FrameworkElement)s).ActualHeight / 2;
-            ReorderTo(key, after, present);
+            ReorderTo(key, after);
         };
         return row;
     }
@@ -828,48 +858,54 @@ public sealed partial class DocumentView
     {
         HashSet<string> shownKeys = new(current, StringComparer.Ordinal);
         List<InventorDocument.PropEntry> candidates = present
-            .Where(kv => !shownKeys.Contains(kv.Key)).Select(kv => kv.Value)
+            .Where(kv => !shownKeys.Contains(kv.Key) && kv.Value.Display.Length > 0).Select(kv => kv.Value)
             .OrderBy(p => p.Set, StringComparer.OrdinalIgnoreCase)
             .ThenBy(p => p.Name, StringComparer.OrdinalIgnoreCase)
             .ToList();
 
-        StackPanel menu = new() { Spacing = 1, MinWidth = 280 };
-        Flyout flyout = new() { Placement = Microsoft.UI.Xaml.Controls.Primitives.FlyoutPlacementMode.Bottom };
-
-        if (candidates.Count == 0)
+        Button add = new()
         {
-            menu.Children.Add(new TextBlock { Text = "All available properties are shown",
-                Opacity = 0.6, FontSize = 12, Margin = new Thickness(4) });
-        }
-        foreach (InventorDocument.PropEntry p in candidates)
-        {
-            string key = SidebarConfig.K(p.SetId, p.Pid);
-            Button row = new()
-            {
-                HorizontalAlignment = HorizontalAlignment.Stretch,
-                HorizontalContentAlignment = HorizontalAlignment.Left,
-                Background = new SolidColorBrush(Microsoft.UI.Colors.Transparent), BorderThickness = new Thickness(0),
-                Padding = new Thickness(8, 5, 8, 5),
-                Content = new StackPanel { Children =
-                {
-                    new TextBlock { Text = p.Name, FontSize = 13 },
-                    new TextBlock { Text = p.Set + "  ·  " + p.Display, Opacity = 0.55, FontSize = 11,
-                        TextTrimming = TextTrimming.CharacterEllipsis, MaxWidth = 300 }
-                } }
-            };
-            row.Click += (_, _) => { flyout.Hide(); AddKey(key); };
-            menu.Children.Add(row);
-        }
-
-        flyout.Content = new ScrollViewer { MaxHeight = 360, Content = menu };
-        return new Button
-        {
-            Flyout = flyout,
             Content = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8, Children =
             {
                 new FontIcon { Glyph = G(0xE710), FontSize = 12 }, new TextBlock { Text = "Add property" }
             } }
         };
+
+        // Build the flyout fresh on click so it binds to the current window's XamlRoot.
+        add.Click += (_, _) =>
+        {
+            StackPanel menu = new() { Spacing = 1, MinWidth = 280 };
+            Flyout flyout = new() { Placement = Microsoft.UI.Xaml.Controls.Primitives.FlyoutPlacementMode.Bottom };
+
+            if (candidates.Count == 0)
+            {
+                menu.Children.Add(new TextBlock { Text = "All available properties are shown",
+                    Opacity = 0.6, FontSize = 12, Margin = new Thickness(4) });
+            }
+            foreach (InventorDocument.PropEntry p in candidates)
+            {
+                string key = SidebarConfig.K(p.SetId, p.Pid);
+                Button row = new()
+                {
+                    HorizontalAlignment = HorizontalAlignment.Stretch,
+                    HorizontalContentAlignment = HorizontalAlignment.Left,
+                    Background = new SolidColorBrush(Microsoft.UI.Colors.Transparent), BorderThickness = new Thickness(0),
+                    Padding = new Thickness(8, 5, 8, 5),
+                    Content = new StackPanel { Children =
+                    {
+                        new TextBlock { Text = p.Name, FontSize = 13 },
+                        new TextBlock { Text = p.Set + "  ·  " + p.Display, Opacity = 0.55, FontSize = 11,
+                            TextTrimming = TextTrimming.CharacterEllipsis, MaxWidth = 300 }
+                    } }
+                };
+                row.Click += (_, _) => { flyout.Hide(); AddKey(key); };
+                menu.Children.Add(row);
+            }
+
+            flyout.Content = new ScrollViewer { MaxHeight = 360, Content = menu };
+            flyout.ShowAt(add);
+        };
+        return add;
     }
 
     private static void AddKey(string key)
@@ -892,7 +928,7 @@ public sealed partial class DocumentView
     }
 
     /// <summary>Moves the dragged key before/after a target key, then persists the new order.</summary>
-    private void ReorderTo(string targetKey, bool after, IReadOnlyDictionary<string, InventorDocument.PropEntry> present)
+    private void ReorderTo(string targetKey, bool after)
     {
         string? drag = _dragKey;
         _dragKey = null;
@@ -901,22 +937,20 @@ public sealed partial class DocumentView
             return;
         }
 
-        List<string> full = SidebarConfig.Keys;
-        // reorder only the visible (present) keys, then fold the new order back into the
-        // full list so keys for properties absent from this file keep their slots.
-        List<string> visible = full.Where(present.ContainsKey).ToList();
-        if (!visible.Contains(drag) || !visible.Contains(targetKey))
+        List<string> keys = SidebarConfig.Keys;
+        if (!keys.Remove(drag))
         {
             return;
         }
 
-        visible.Remove(drag);
-        int ti = visible.IndexOf(targetKey);
-        visible.Insert(after ? ti + 1 : ti, drag);
+        int ti = keys.IndexOf(targetKey);
+        if (ti < 0)
+        {
+            return;
+        }
 
-        int p = 0;
-        List<string> merged = full.Select(k => present.ContainsKey(k) ? visible[p++] : k).ToList();
-        SidebarConfig.SetKeys(merged);
+        keys.Insert(after ? ti + 1 : ti, drag);
+        SidebarConfig.SetKeys(keys);
     }
 
     private static StackPanel Section(string title, string[] lines)

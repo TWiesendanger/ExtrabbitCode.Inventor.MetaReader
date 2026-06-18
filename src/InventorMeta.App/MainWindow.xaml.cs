@@ -5,6 +5,7 @@ using System.Linq;
 using System.Text;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
+using Microsoft.UI.Xaml.Media;
 using Windows.ApplicationModel.DataTransfer;
 using Windows.Storage;
 using Windows.Storage.Pickers;
@@ -18,9 +19,24 @@ public sealed partial class MainWindow
 {
     private ElementTheme _theme;
 
-    public MainWindow()
+    /// <summary>The first window; torn-out tab windows are created with <c>isPrimary: false</c>.</summary>
+    private readonly bool _isPrimary;
+
+    public MainWindow() : this(isPrimary: true) { }
+
+    public MainWindow(bool isPrimary)
     {
+        _isPrimary = isPrimary;
         InitializeComponent();
+
+        // Torn-out windows are shown by the framework the instant they're created, before
+        // their XAML paints. A Mica backdrop fills that gap (DWM-level) so the window never
+        // flashes black during a tear-out drag.
+        if (!isPrimary)
+        {
+            SystemBackdrop = new MicaBackdrop();
+        }
+
         Title = "Inventor Metadata Viewer";
         try { Encoding.RegisterProvider(CodePagesEncodingProvider.Instance); }
         catch
@@ -40,15 +56,21 @@ public sealed partial class MainWindow
 
         UpdateEmptyState();
 
-        // open any files passed on the command line
-        string[] cli = Environment.GetCommandLineArgs();
-        DispatcherQueue.TryEnqueue(() =>
+        App.ActiveWindows.Add(this);
+        Closed += (_, _) => App.ActiveWindows.Remove(this);
+
+        // open any files passed on the command line (primary window only)
+        if (_isPrimary)
         {
-            foreach (string a in cli.Skip(1).Where(File.Exists))
+            string[] cli = Environment.GetCommandLineArgs();
+            DispatcherQueue.TryEnqueue(() =>
             {
-                OpenFile(a);
-            }
-        });
+                foreach (string a in cli.Skip(1).Where(File.Exists))
+                {
+                    OpenFile(a);
+                }
+            });
+        }
     }
 
     private AppWindow? _appWindow;
@@ -65,6 +87,13 @@ public sealed partial class MainWindow
             if (File.Exists(ico))
             {
                 _appWindow.SetIcon(ico);
+            }
+
+            // Torn-out windows are sized and positioned by the tear-out drag; don't
+            // restore or persist the primary window's saved bounds for them.
+            if (!_isPrimary)
+            {
+                return;
             }
 
             DisplayArea? area = DisplayArea.GetFromWindowId(
@@ -189,8 +218,7 @@ public sealed partial class MainWindow
             { DocTabs.SelectedItem = t; return; }
         }
 
-        DocumentView dv = new();
-        dv.StatusChanged += s => StatusText.Text = s;
+        DocumentView dv = new() { StatusSink = SetStatus };
         if (!dv.Load(path))
         {
             return;   // invalid file: status already set, no tab added
@@ -203,6 +231,7 @@ public sealed partial class MainWindow
             IconSource = AppIcons.IconSource(dv.Document?.Kind ?? InventorDocument.DocKind.Unknown)
         };
         ToolTipService.SetToolTip(tab, path);
+        WireTabContextMenu(tab);
         DocTabs.TabItems.Add(tab);
         DocTabs.SelectedItem = tab;
         UpdateEmptyState();
@@ -212,7 +241,7 @@ public sealed partial class MainWindow
     private void OnTabClose(TabView sender, TabViewTabCloseRequestedEventArgs args)
     {
         DocTabs.TabItems.Remove(args.Tab);
-        UpdateEmptyState();
+        AfterTabRemoved();
     }
 
     private void OnTabSelectionChanged(object sender, SelectionChangedEventArgs e)
@@ -223,11 +252,123 @@ public sealed partial class MainWindow
         }
     }
 
+    public void SetStatus(string message) => StatusText.Text = message;
+
     private void UpdateEmptyState()
     {
-        bool any = DocTabs.TabItems.Count > 0;
-        EmptyState.Visibility = any ? Visibility.Collapsed : Visibility.Visible;
-        DocTabs.Visibility    = any ? Visibility.Visible : Visibility.Collapsed;
+        // Only the primary window shows the empty drop-zone; a torn-out window keeps its
+        // TabView visible and closes itself once its last tab leaves.
+        bool showEmpty = _isPrimary && DocTabs.TabItems.Count == 0;
+        EmptyState.Visibility = showEmpty ? Visibility.Visible : Visibility.Collapsed;
+        DocTabs.Visibility    = showEmpty ? Visibility.Collapsed : Visibility.Visible;
+    }
+
+    /// <summary>After a tab leaves this window: refresh the empty state, and close the
+    /// window if it's a torn-out (non-primary) window that now has no tabs.</summary>
+    private void AfterTabRemoved()
+    {
+        UpdateEmptyState();
+        if (!_isPrimary && DocTabs.TabItems.Count == 0)
+        {
+            // Defer so we don't close the window while its own context-menu click is unwinding.
+            DispatcherQueue.TryEnqueue(Close);
+        }
+    }
+
+    // ---------- move a tab to / from its own window ----------
+    // Done explicitly via the tab's right-click menu rather than WinUI's CanTearOutTabs
+    // drag feature, which access-violates inside Microsoft.UI.Xaml.dll on micro-drags.
+
+    /// <summary>Right-click menu on a tab: open it in a new window, or (in a torn-out
+    /// window) move it back to the main window. The menu is built fresh on each request
+    /// and bound to the tab's <em>current</em> window, so it survives moving between windows.</summary>
+    private void WireTabContextMenu(TabViewItem tab)
+    {
+        tab.ContextRequested += (_, e) =>
+        {
+            if (App.GetWindowForElement(tab) is not MainWindow host)
+            {
+                return;
+            }
+
+            MenuFlyout menu = new();
+            MenuFlyoutItem newWin = new()
+            {
+                Text = "Open in new window",
+                Icon = new FontIcon { Glyph = ((char)0xE78B).ToString() }
+            };
+            newWin.Click += (_, _) => host.OpenInNewWindow(tab);
+            menu.Items.Add(newWin);
+
+            if (!host._isPrimary)
+            {
+                MenuFlyoutItem toMain = new()
+                {
+                    Text = "Move to main window",
+                    Icon = new FontIcon { Glyph = ((char)0xE8A7).ToString() }
+                };
+                toMain.Click += (_, _) => host.MoveToMain(tab);
+                menu.Items.Add(toMain);
+            }
+
+            if (e.TryGetPosition(tab, out Windows.Foundation.Point p))
+            {
+                menu.ShowAt(tab, p);
+            }
+            else
+            {
+                menu.ShowAt(tab);
+            }
+            e.Handled = true;
+        };
+    }
+
+    private void OpenInNewWindow(TabViewItem tab)
+    {
+        if (!_isPrimary && DocTabs.TabItems.Count <= 1)
+        {
+            return; // already alone in its own window
+        }
+
+        MainWindow torn = new(isPrimary: false);
+        ThemeManager.Apply(torn, _theme);
+
+        DocTabs.TabItems.Remove(tab);
+        torn.AdoptTab(tab);
+
+        if (_appWindow is { } a)
+        {
+            torn.AppWindow.Resize(a.Size);
+            torn.AppWindow.Move(new PointInt32(a.Position.X + 48, a.Position.Y + 48));
+        }
+        torn.Activate();
+        AfterTabRemoved();
+    }
+
+    private void MoveToMain(TabViewItem tab)
+    {
+        if (App.MainWindowInstance is not MainWindow main || ReferenceEquals(main, this))
+        {
+            return;
+        }
+
+        DocTabs.TabItems.Remove(tab);
+        main.AdoptTab(tab);
+        main.Activate();
+        AfterTabRemoved();
+    }
+
+    /// <summary>Takes ownership of a tab (re-homes its status sink, selects it). The tab's
+    /// context menu resolves its host window on demand, so it needs no re-wiring here.</summary>
+    public void AdoptTab(TabViewItem tab)
+    {
+        if (tab.Content is DocumentView dv)
+        {
+            dv.StatusSink = SetStatus;
+        }
+        DocTabs.TabItems.Add(tab);
+        DocTabs.SelectedItem = tab;
+        UpdateEmptyState();
     }
 
     // ---------- drag & drop ----------

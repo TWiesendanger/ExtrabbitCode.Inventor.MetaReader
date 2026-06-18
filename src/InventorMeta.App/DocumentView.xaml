@@ -68,15 +68,10 @@
             <TextBlock x:Name="PathText" Grid.Column="1" Margin="6,0" VerticalAlignment="Center"
                        FontSize="12" Opacity="0.7" TextTrimming="CharacterEllipsis"
                        IsTextSelectionEnabled="True"/>
-            <Button x:Name="HiddenButton" Grid.Column="2" Visibility="Collapsed"
+            <Button x:Name="HiddenButton" Grid.Column="2" Visibility="Collapsed" Click="OnHiddenButtonClick"
                     ToolTipService.ToolTip="Hidden items - click to manage"
                     Background="{ThemeResource AccentFillColorDefaultBrush}"
                     Foreground="{ThemeResource TextOnAccentFillColorPrimaryBrush}">
-                <Button.Flyout>
-                    <Flyout x:Name="HiddenFlyout" Placement="Bottom">
-                        <StackPanel x:Name="HiddenFlyoutPanel" MinWidth="260" Spacing="2"/>
-                    </Flyout>
-                </Button.Flyout>
                 <StackPanel Orientation="Horizontal" Spacing="8">
                     <FontIcon Glyph="&#xE7B3;" FontSize="14"/>
                     <TextBlock x:Name="HiddenCountText"/>

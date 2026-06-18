@@ -34,6 +34,13 @@ internal static class SidebarConfig
     public static string K(Guid setId, uint pid) => setId.ToString().ToLowerInvariant() + "#" + pid;
     private static string K(string setId, uint pid) => setId + "#" + pid;
 
+    /// <summary>Inverse of <see cref="K(Guid,uint)"/>.</summary>
+    public static (Guid setId, uint pid) Parse(string key)
+    {
+        int h = key.IndexOf('#');
+        return (Guid.Parse(key[..h]), uint.Parse(key[(h + 1)..]));
+    }
+
     public static bool ShowThumbnail
     {
         get => (AppSettings.Get("sidebar.thumb") ?? "1") != "0";
