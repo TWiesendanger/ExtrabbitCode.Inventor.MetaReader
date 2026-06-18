@@ -58,6 +58,9 @@ public sealed class InventorDocument
     private readonly Dictionary<string, string> _storageToState = new(StringComparer.OrdinalIgnoreCase);
     private string _primaryName = "[Primary]";
     public List<string> References { get; } = [];
+
+    /// <summary>Linked non-model files (images, imported CAD, …) referenced by the document.</summary>
+    public List<string> LinkedFiles { get; } = [];
     public List<string> ModelStates { get; } = [];
     public Dictionary<string, string> VersionInfo { get; } = new();
     public byte[]? Thumbnail { get; private set; }      // normalized PNG (or BMP) bytes
@@ -271,15 +274,36 @@ public sealed class InventorDocument
         Match tm = Regex.Match(txt, @"Document ([A-Za-z]:\\[^\x00-\x1F]*?\.(?:ipt|iam|idw|ipn)) was created", RegexOptions.IgnoreCase);
         if (tm.Success) { template = tm.Groups[1].Value; VersionInfo["Template"] = template; }
 
-        // referenced document paths (non-anchored: trailing separator bytes are common)
-        foreach (Match m in Regex.Matches(txt, @"[A-Za-z]:\\[^\x00-\x1F""<>|*?]*?\.(?:ipt|iam|idw|ipn)", RegexOptions.IgnoreCase))
+        // Referenced documents + linked non-model files. Scan both UTF-16 byte alignments:
+        // a path can sit at an odd byte offset (after a variable-length binary blob), which
+        // a single pairwise decode from byte 0 would garble and miss.
+        string[] scans = data.Length > 1
+            ? [txt, Encoding.Unicode.GetString(data, 1, data.Length - 1)]
+            : [txt];
+        foreach (string scan in scans)
         {
-            string p = m.Value;
-            bool self = string.Equals(Path.GetFileName(p), FileName, StringComparison.OrdinalIgnoreCase);
-            bool isTemplate = template != null && string.Equals(p, template, StringComparison.OrdinalIgnoreCase);
-            if (!self && !isTemplate && !References.Contains(p, StringComparer.OrdinalIgnoreCase))
+            // referenced document paths (non-anchored: trailing separator bytes are common)
+            foreach (Match m in Regex.Matches(scan, @"[A-Za-z]:\\[^\x00-\x1F""<>|*?]*?\.(?:ipt|iam|idw|ipn)", RegexOptions.IgnoreCase))
             {
-                References.Add(p);
+                string p = m.Value;
+                bool self = string.Equals(Path.GetFileName(p), FileName, StringComparison.OrdinalIgnoreCase);
+                bool isTemplate = template != null && string.Equals(p, template, StringComparison.OrdinalIgnoreCase);
+                if (!self && !isTemplate && !References.Contains(p, StringComparer.OrdinalIgnoreCase))
+                {
+                    References.Add(p);
+                }
+            }
+
+            // linked non-model files (images, imported CAD) - same absolute-path form
+            foreach (Match m in Regex.Matches(scan,
+                @"[A-Za-z]:\\[^\x00-\x1F""<>|*?]*?\.(?:png|jpg|jpeg|bmp|tif|tiff|gif|dwg|dxf|stp|step|igs|iges|sat)",
+                RegexOptions.IgnoreCase))
+            {
+                string p = m.Value;
+                if (!LinkedFiles.Contains(p, StringComparer.OrdinalIgnoreCase))
+                {
+                    LinkedFiles.Add(p);
+                }
             }
         }
 
@@ -343,6 +367,7 @@ public sealed class InventorDocument
                     g => g.Key, g => g.Select(p => new { pid = p.Pid, name = p.Name, type = p.Type, value = p.Display }).ToArray())
             }).ToArray(),
             references = References,
+            linkedFiles = LinkedFiles,
             hasThumbnail = Thumbnail != null,
             properties = Properties
                 .GroupBy(p => p.Set)

@@ -57,3 +57,7 @@ $RECYCLE.BIN/
 
 # Keep image assets that live under an Assets folder even though *.dll/*.exe are ignored
 !src/**/Assets/*.png
+
+# Large / binary assembly test archives (keep the small SampleBg set, ignore big imports)
+src/InventorMeta.App/Assets/SampleFiles/*.zip
+src/InventorMeta.App/Assets/SampleFiles/Jet_Engine_Model/

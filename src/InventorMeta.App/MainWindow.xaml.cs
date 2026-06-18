@@ -208,6 +208,9 @@ public sealed partial class MainWindow
 
     private void OnAddTab(TabView sender, object args) => OnOpenClick(sender, null!);
 
+    /// <summary>Opens a document in a tab (used by the reference graph's click-to-open).</summary>
+    public void OpenDocument(string path) => OpenFile(path);
+
     private void OpenFile(string path)
     {
         // if already open, just select that tab

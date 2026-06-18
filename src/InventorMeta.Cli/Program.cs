@@ -16,6 +16,7 @@ if (args.Length < 2)
           invmeta states  <file>              per-model-state iProperties (parts/assemblies)
           invmeta json    <file>              full metadata as JSON
           invmeta props   <file>              every property in every OLE property set
+          invmeta graph   <file>              recursive reference tree (resolved on disk)
           invmeta tree    <file>              raw CFB storage/stream tree
           invmeta thumb   <file> [outBase]    extract the embedded preview image
           invmeta extract <file> <outDir>     dump every stream to disk
@@ -40,12 +41,39 @@ switch (cmd)
     case "json":    Console.WriteLine(new InventorDocument(file).ToJson()); break;
     case "thumb":   Thumb(new InventorDocument(file), args.Length > 2 ? args[2] : Path.GetFileNameWithoutExtension(file) + "_thumb"); break;
     case "props":   Props(file); break;
+    case "graph":   Graph(new InventorDocument(file)); break;
     case "tree":    Tree(file); break;
     case "extract": Extract(file, args[2]); break;
     case "cat":     Cat(file, args[2]); break;
     default: Console.Error.WriteLine($"Unknown command '{cmd}'."); return 1;
 }
 return 0;
+
+static void Graph(InventorDocument doc)
+{
+    RefNode root = ReferenceGraph.Build(doc);
+    void Print(RefNode n, string indent, bool last)
+    {
+        string branch = n.Depth == 0 ? "" : (last ? "└─ " : "├─ ");
+        string flag = !n.Resolved ? "  [NOT FOUND]" : n.Cyclic ? "  [cyclic]" : n.ReadError ? "  [unreadable]" : "";
+        string type = n.IsLinkedFile ? "linked" : n.Kind.ToString();
+        Console.WriteLine($"{indent}{branch}{n.Name}  ({type}){flag}");
+        if (!n.Resolved && n.Depth > 0)
+        {
+            Console.WriteLine($"{indent}{(n.Depth == 0 ? "" : last ? "   " : "│  ")}   ↳ {n.Path}");
+        }
+        string childIndent = indent + (n.Depth == 0 ? "" : last ? "   " : "│  ");
+        for (int i = 0; i < n.Children.Count; i++)
+        {
+            Print(n.Children[i], childIndent, i == n.Children.Count - 1);
+        }
+        if (n.Truncated)
+        {
+            Console.WriteLine($"{childIndent}… (truncated)");
+        }
+    }
+    Print(root, "", true);
+}
 
 static void Info(InventorDocument doc)
 {

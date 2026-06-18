@@ -158,7 +158,7 @@
                     </muxc:TabViewItem>
                     <muxc:TabViewItem x:Name="RefsTab" Header="References" IsClosable="False">
                         <muxc:TabViewItem.IconSource><muxc:SymbolIconSource Symbol="Link"/></muxc:TabViewItem.IconSource>
-                        <ScrollViewer Padding="14"><StackPanel x:Name="RefsPanel" Spacing="12"/></ScrollViewer>
+                        <Grid x:Name="RefsRoot"/>
                     </muxc:TabViewItem>
                     <muxc:TabViewItem x:Name="StructureTab" Header="File Structure" IsClosable="False">
                         <muxc:TabViewItem.IconSource><muxc:SymbolIconSource Symbol="List"/></muxc:TabViewItem.IconSource>

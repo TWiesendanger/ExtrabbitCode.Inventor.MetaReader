@@ -4,6 +4,7 @@ using System.IO;
 using System.Linq;
 using System.Numerics;
 using System.Text;
+using System.Threading.Tasks;
 using CommunityToolkit.Mvvm.Messaging;
 using Microsoft.UI.Text;
 using Microsoft.UI.Xaml;
@@ -319,11 +320,7 @@ public sealed partial class DocumentView
 
         PopulateStates(doc);
 
-        RefsPanel.Children.Clear();
-        RefsPanel.Children.Add(Section("Referenced files",
-            doc.References.Count > 0 ? doc.References.ToArray() : ["(none)"]));
-        RefsPanel.Children.Add(Section("Version / provenance",
-            doc.VersionInfo.Select(kv => $"{kv.Key}: {kv.Value}").ToArray()));
+        PopulateReferences(doc);
 
         using CompoundFile cf = new(doc.FilePath);
         StringBuilder sb = new();
@@ -975,4 +972,318 @@ public sealed partial class DocumentView
 
         return sp;
     }
+
+    // ---- references node graph -----------------------------------------------------
+    private int _refGen;
+
+    private void PopulateReferences(InventorDocument doc)
+    {
+        RefsRoot.RowDefinitions.Clear();
+        RefsRoot.Children.Clear();
+        RefsRoot.RowDefinitions.Add(new RowDefinition { Height = new GridLength(1, GridUnitType.Star) });
+        RefsRoot.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+
+        Border graphHost = new();
+        Grid.SetRow(graphHost, 0);
+        RefsRoot.Children.Add(graphHost);
+
+        // provenance footer (always available, cheap)
+        Border prov = new()
+        {
+            BorderThickness = new Thickness(0, 1, 0, 0),
+            BorderBrush = new SolidColorBrush(Windows.UI.Color.FromArgb(40, 128, 128, 128)),
+            Child = new ScrollViewer
+            {
+                MaxHeight = 132, Padding = new Thickness(14, 8, 14, 12),
+                Content = Section("Version / provenance",
+                    doc.VersionInfo.Select(kv => $"{kv.Key}: {kv.Value}").ToArray())
+            }
+        };
+        Grid.SetRow(prov, 1);
+        RefsRoot.Children.Add(prov);
+
+        int gen = ++_refGen;
+        _ = BuildAndShowGraphAsync(doc, graphHost, gen);
+    }
+
+    private async Task BuildAndShowGraphAsync(InventorDocument doc, Border host, int gen)
+    {
+        if (doc.References.Count == 0)
+        {
+            host.Child = GraphInfo("No referenced files.");
+            return;
+        }
+
+        host.Child = GraphInfo("Building reference graph…");
+
+        RefNode? root = null;
+        try { root = await Task.Run(() => ReferenceGraph.Build(doc)); }
+        catch { /* fall through to error message */ }
+
+        if (gen != _refGen)
+        {
+            return; // a newer load superseded this build
+        }
+
+        host.Child = root != null ? RenderRefGraph(root) : GraphInfo("Couldn't build the reference graph.");
+    }
+
+    private static TextBlock GraphInfo(string text) => new()
+    {
+        Text = text, Opacity = 0.6, Margin = new Thickness(20),
+        HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center
+    };
+
+    private UIElement RenderRefGraph(RefNode root)
+    {
+        // start with only level 1 visible: root expanded, everything deeper collapsed
+        ForEachNode(root, n => n.Expanded = n.Depth == 0);
+
+        CompositeTransform xf = new();
+        Canvas canvas = new()
+        {
+            Background = new SolidColorBrush(Microsoft.UI.Colors.Transparent),
+            RenderTransform = xf,
+            // pin to the viewport's top-left so the pan/zoom transform's origin is (0,0)
+            HorizontalAlignment = HorizontalAlignment.Left,
+            VerticalAlignment = VerticalAlignment.Top
+        };
+
+        // Pan/zoom via a render transform on a clipped viewport. We avoid ScrollViewer: its
+        // ZoomMode + a Canvas hits a WinUI "Layout cycle detected" crash, and it also eats
+        // the left-drag we want for panning.
+        Grid viewport = new() { Background = new SolidColorBrush(Microsoft.UI.Colors.Transparent) };
+        bool fitted = false;
+        viewport.SizeChanged += (_, e) =>
+        {
+            viewport.Clip = new RectangleGeometry { Rect = new Windows.Foundation.Rect(0, 0, e.NewSize.Width, e.NewSize.Height) };
+            if (!fitted && e.NewSize.Width > 0 && e.NewSize.Height > 0)
+            {
+                fitted = true;
+                ZoomToFit(viewport, canvas, xf);
+            }
+        };
+        viewport.Children.Add(canvas);
+
+        LayoutAndDraw(canvas, root);
+        WirePanZoom(viewport, canvas, xf);
+
+        // floating toolbar (top-right)
+        StackPanel toolbar = new()
+        {
+            Orientation = Orientation.Horizontal, Spacing = 4,
+            HorizontalAlignment = HorizontalAlignment.Right, VerticalAlignment = VerticalAlignment.Top,
+            Margin = new Thickness(0, 8, 14, 0)
+        };
+        Button fit = new() { Content = "Fit", Padding = new Thickness(10, 4, 10, 4), FontSize = 12 };
+        fit.Click += (_, _) => ZoomToFit(viewport, canvas, xf);
+        Button expandAll = new() { Content = "Expand all", Padding = new Thickness(10, 4, 10, 4), FontSize = 12 };
+        expandAll.Click += (_, _) => { ForEachNode(root, n => n.Expanded = n.Children.Count > 0); LayoutAndDraw(canvas, root); };
+        Button collapseAll = new() { Content = "Collapse all", Padding = new Thickness(10, 4, 10, 4), FontSize = 12 };
+        collapseAll.Click += (_, _) => { ForEachNode(root, n => n.Expanded = n.Depth == 0); LayoutAndDraw(canvas, root); };
+        toolbar.Children.Add(fit);
+        toolbar.Children.Add(expandAll);
+        toolbar.Children.Add(collapseAll);
+        viewport.Children.Add(toolbar);
+
+        return viewport;
+    }
+
+    /// <summary>Scales and centres the graph so all of it fits the viewport (zoom extents).</summary>
+    private static void ZoomToFit(Grid viewport, Canvas canvas, CompositeTransform xf)
+    {
+        double vw = viewport.ActualWidth, vh = viewport.ActualHeight, cw = canvas.Width, ch = canvas.Height;
+        if (vw <= 0 || vh <= 0 || cw <= 0 || ch <= 0) { return; }
+
+        const double margin = 28;
+        double scale = Math.Clamp(Math.Min((vw - margin) / cw, (vh - margin) / ch), 0.2, 1.0);
+        xf.ScaleX = xf.ScaleY = scale;
+        xf.TranslateX = (vw - cw * scale) / 2;
+        xf.TranslateY = (vh - ch * scale) / 2;
+    }
+
+    private static void ForEachNode(RefNode n, Action<RefNode> action)
+    {
+        action(n);
+        foreach (RefNode c in n.Children) { ForEachNode(c, action); }
+    }
+
+    /// <summary>Lays out the visible (expanded) part of the tree and (re)draws the canvas.</summary>
+    private void LayoutAndDraw(Canvas canvas, RefNode root)
+    {
+        const double colStep = 288, rowStep = 74, nodeW = 224, nodeH = 56, pad = 16;
+
+        // tidy left-to-right layout over visible nodes; a collapsed node counts as a leaf
+        int leaf = 0, maxDepth = 0;
+        void Assign(RefNode n)
+        {
+            maxDepth = Math.Max(maxDepth, n.Depth);
+            if (!n.Expanded || n.Children.Count == 0) { n.Row = leaf++; return; }
+            foreach (RefNode c in n.Children) { Assign(c); }
+            n.Row = (n.Children[0].Row + n.Children[^1].Row) / 2.0;
+        }
+        Assign(root);
+
+        List<RefNode> vis = [];
+        void Collect(RefNode n) { vis.Add(n); if (n.Expanded) { foreach (RefNode c in n.Children) { Collect(c); } } }
+        Collect(root);
+
+        double X(RefNode n) => pad + n.Depth * colStep;
+        double Y(RefNode n) => pad + n.Row * rowStep;
+
+        canvas.Children.Clear();
+        canvas.Width = pad * 2 + maxDepth * colStep + nodeW;
+        canvas.Height = pad * 2 + Math.Max(0, leaf - 1) * rowStep + nodeH;
+
+        Brush link = new SolidColorBrush(Windows.UI.Color.FromArgb(150, 130, 130, 130));
+        foreach (RefNode n in vis)
+        {
+            if (!n.Expanded) { continue; }
+            foreach (RefNode c in n.Children)
+            {
+                double sx = X(n) + nodeW, sy = Y(n) + nodeH / 2, ex = X(c), ey = Y(c) + nodeH / 2;
+                double dx = (ex - sx) * 0.5;
+                PathFigure fig = new() { StartPoint = new Windows.Foundation.Point(sx, sy) };
+                fig.Segments.Add(new BezierSegment
+                {
+                    Point1 = new Windows.Foundation.Point(sx + dx, sy),
+                    Point2 = new Windows.Foundation.Point(ex - dx, ey),
+                    Point3 = new Windows.Foundation.Point(ex, ey)
+                });
+                PathGeometry geo = new();
+                geo.Figures.Add(fig);
+                canvas.Children.Add(new Microsoft.UI.Xaml.Shapes.Path { Data = geo, Stroke = link, StrokeThickness = 1.5 });
+            }
+        }
+
+        foreach (RefNode n in vis)
+        {
+            Border box = RefNodeBox(n, nodeW, nodeH, canvas, root);
+            Canvas.SetLeft(box, X(n));
+            Canvas.SetTop(box, Y(n));
+            canvas.Children.Add(box);
+        }
+    }
+
+    private Border RefNodeBox(RefNode n, double w, double h, Canvas canvas, RefNode root)
+    {
+        Grid g = new() { ColumnSpacing = 8, Padding = new Thickness(10, 6, 8, 6) };
+        g.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        g.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        g.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+
+        FrameworkElement iconEl = n.IsLinkedFile
+            ? new FontIcon { Glyph = G(IsImageFile(n.Name) ? 0xE8B9 : 0xE7C3), FontSize = 22,
+                Width = 30, Opacity = 0.85, VerticalAlignment = VerticalAlignment.Center }
+            : new Image { Width = 30, Height = 30, Source = AppIcons.Bitmap(n.Kind),
+                VerticalAlignment = VerticalAlignment.Center };
+
+        StackPanel text = new() { VerticalAlignment = VerticalAlignment.Center };
+        text.Children.Add(new TextBlock { Text = n.Name, FontWeight = FontWeights.SemiBold, FontSize = 13,
+            TextTrimming = TextTrimming.CharacterEllipsis });
+        string sub = n.Cyclic ? "↻ already shown above"
+            : !n.Resolved ? (n.IsLinkedFile ? "linked file - not found" : "file not found")
+            : n.ReadError ? "unreadable"
+            : n.IsLinkedFile ? "linked " + Path.GetExtension(n.Name).TrimStart('.').ToLowerInvariant()
+            : KindLabel(n.Kind);
+        TextBlock subtitle = new() { Text = sub, FontSize = 11, Opacity = 0.6, TextTrimming = TextTrimming.CharacterEllipsis };
+        if (!n.Resolved)
+        {
+            subtitle.Foreground = new SolidColorBrush(Windows.UI.Color.FromArgb(255, 209, 96, 96));
+            subtitle.Opacity = 0.95;
+        }
+        text.Children.Add(subtitle);
+        Grid.SetColumn(text, 1);
+        g.Children.Add(iconEl);
+        g.Children.Add(text);
+
+        // +/- toggle for nodes that have children
+        if (n.Children.Count > 0)
+        {
+            Button toggle = new()
+            {
+                Width = 24, Height = 24, MinWidth = 0, Padding = new Thickness(0),
+                CornerRadius = new CornerRadius(12), VerticalAlignment = VerticalAlignment.Center,
+                Content = new FontIcon { Glyph = G(n.Expanded ? 0xE738 : 0xE710), FontSize = 11 }
+            };
+            ToolTipService.SetToolTip(toggle, n.Expanded ? "Collapse" : $"Expand ({n.Children.Count})");
+            toggle.Click += (_, _) => { n.Expanded = !n.Expanded; LayoutAndDraw(canvas, root); };
+            Grid.SetColumn(toggle, 2);
+            g.Children.Add(toggle);
+        }
+
+        Border box = new() { Style = (Style)Resources["DataCard"], Width = w, Height = h, Child = g };
+        if (n.Depth == 0)
+        {
+            box.BorderBrush = (Brush)Application.Current.Resources["AccentFillColorDefaultBrush"];
+            box.BorderThickness = new Thickness(2);
+        }
+        ToolTipService.SetToolTip(box, n.Path);
+
+        if (n.Resolved && n.Depth > 0 && !n.Cyclic && !n.IsLinkedFile)
+        {
+            box.Tapped += (_, _) => HostWindow?.OpenDocument(n.Path);
+            ToolTipService.SetToolTip(box, n.Path + "\nClick to open in a tab");
+        }
+        return box;
+    }
+
+    private static bool IsImageFile(string name) =>
+        Path.GetExtension(name).ToLowerInvariant() is ".png" or ".jpg" or ".jpeg" or ".bmp" or ".tif" or ".tiff" or ".gif";
+
+    /// <summary>Left-drag on empty space (or middle-drag anywhere) pans; wheel zooms at the cursor.</summary>
+    private static void WirePanZoom(Grid viewport, Canvas canvas, CompositeTransform xf)
+    {
+        bool panning = false;
+        Windows.Foundation.Point start = default;
+        double tx0 = 0, ty0 = 0;
+
+        viewport.PointerPressed += (_, e) =>
+        {
+            Microsoft.UI.Input.PointerPoint pp = e.GetCurrentPoint(viewport);
+            bool onBackground = ReferenceEquals(e.OriginalSource, canvas) || ReferenceEquals(e.OriginalSource, viewport);
+            if (!pp.Properties.IsMiddleButtonPressed && !(pp.Properties.IsLeftButtonPressed && onBackground))
+            {
+                return;
+            }
+            panning = true; start = pp.Position; tx0 = xf.TranslateX; ty0 = xf.TranslateY;
+            viewport.CapturePointer(e.Pointer);
+        };
+        viewport.PointerMoved += (_, e) =>
+        {
+            if (!panning) { return; }
+            Windows.Foundation.Point p = e.GetCurrentPoint(viewport).Position;
+            xf.TranslateX = tx0 + (p.X - start.X);
+            xf.TranslateY = ty0 + (p.Y - start.Y);
+        };
+        void End(object _, Microsoft.UI.Xaml.Input.PointerRoutedEventArgs e)
+        {
+            if (panning) { panning = false; viewport.ReleasePointerCapture(e.Pointer); }
+        }
+        viewport.PointerReleased += End;
+        viewport.PointerCanceled += End;
+        viewport.PointerCaptureLost += (_, _) => panning = false;
+
+        viewport.PointerWheelChanged += (_, e) =>
+        {
+            Microsoft.UI.Input.PointerPoint pp = e.GetCurrentPoint(viewport);
+            double factor = pp.Properties.MouseWheelDelta > 0 ? 1.12 : 1 / 1.12;
+            double scale = Math.Clamp(xf.ScaleX * factor, 0.2, 3.0);
+            factor = scale / xf.ScaleX;
+            Windows.Foundation.Point c = pp.Position;
+            xf.TranslateX = c.X - (c.X - xf.TranslateX) * factor;
+            xf.TranslateY = c.Y - (c.Y - xf.TranslateY) * factor;
+            xf.ScaleX = xf.ScaleY = scale;
+            e.Handled = true;
+        };
+    }
+
+    private static string KindLabel(InventorDocument.DocKind k) => k switch
+    {
+        InventorDocument.DocKind.Part => "Part",
+        InventorDocument.DocKind.Assembly => "Assembly",
+        InventorDocument.DocKind.Drawing => "Drawing",
+        InventorDocument.DocKind.Presentation => "Presentation",
+        _ => "Document"
+    };
 }
