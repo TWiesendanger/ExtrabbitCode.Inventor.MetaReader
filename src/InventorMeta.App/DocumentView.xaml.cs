@@ -26,7 +26,6 @@ public sealed partial class DocumentView
     public event Action<string>? StatusChanged;
 
     private readonly List<(UIElement body, FontIcon chevron)> _collapsibles = [];
-    private bool _allExpanded = true;
 
     public DocumentView()
     {
@@ -174,7 +173,6 @@ public sealed partial class DocumentView
 
     private void SetAllExpanded(bool expanded)
     {
-        _allExpanded = expanded;
         foreach ((UIElement body, FontIcon chevron) in _collapsibles)
         {
             body.Visibility = expanded ? Visibility.Visible : Visibility.Collapsed;
@@ -274,7 +272,6 @@ public sealed partial class DocumentView
         }
 
         _collapsibles.Clear();
-        _allExpanded = true;
 
         PropsPanel.Children.Clear();
         PropsPanel.Children.Add(BuildExpandCollapseAll());
@@ -549,24 +546,29 @@ public sealed partial class DocumentView
         return card;
     }
 
-    /// <summary>An "Expand all / Collapse all" toggle button bound to the cards in this view.</summary>
-    private Button BuildExpandCollapseAll()
+    /// <summary>A pair of buttons that collapse (up) or expand (down) every card in this view.</summary>
+    private UIElement BuildExpandCollapseAll() => new StackPanel
     {
-        FontIcon icon = new() { Glyph = G(ChevronDown), FontSize = 12 };
-        TextBlock label = new() { Text = "Collapse all" };
-        Button btn = new()
+        Orientation = Orientation.Horizontal,
+        Spacing = 6,
+        HorizontalAlignment = HorizontalAlignment.Right,
+        Children =
         {
-            HorizontalAlignment = HorizontalAlignment.Right,
-            Content = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8,
-                Children = { icon, label } }
-        };
-        btn.Click += (_, _) =>
+            ExpandCollapseButton(ChevronUp, "Collapse all", false),
+            ExpandCollapseButton(ChevronDown, "Expand all", true)
+        }
+    };
+
+    private Button ExpandCollapseButton(int glyph, string tooltip, bool expand)
+    {
+        Button b = new()
         {
-            SetAllExpanded(!_allExpanded);
-            label.Text = _allExpanded ? "Collapse all" : "Expand all";
-            icon.Glyph = G(_allExpanded ? ChevronDown : ChevronUp);
+            Content = new FontIcon { Glyph = G(glyph), FontSize = 12 },
+            Padding = new Thickness(11, 6, 11, 6), MinWidth = 0
         };
-        return btn;
+        ToolTipService.SetToolTip(b, tooltip);
+        b.Click += (_, _) => SetAllExpanded(expand);
+        return b;
     }
 
     /// <summary>PID / Name / Value table with divider lines between rows.</summary>
