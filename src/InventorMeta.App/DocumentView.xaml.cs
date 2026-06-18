@@ -40,7 +40,13 @@ public sealed partial class DocumentView
         // lets a closed tab be collected without manual unregistration.
         WeakReferenceMessenger.Default.Register<HideChangedMessage>(this,
             static (recipient, _) => ((DocumentView)recipient).RebuildView());
+
+        // Sidebar layout is global too, but only the (cheap) sidebar needs re-rendering.
+        WeakReferenceMessenger.Default.Register<SidebarConfigChangedMessage>(this,
+            static (recipient, _) => ((DocumentView)recipient).RenderSidebar());
     }
+
+    private bool _editingSidebar;
 
     private static string G(int code) => ((char)code).ToString();   // Segoe Fluent glyph
     private const int ChevronUp = 0xE70E, ChevronDown = 0xE70D, HideGlyph = 0xED1A;
@@ -260,16 +266,7 @@ public sealed partial class DocumentView
             NoThumb.Visibility = Visibility.Visible;
         }
 
-        KeyPropsPanel.Children.Clear();
-        foreach (KeyValuePair<string, string> kv in doc.Summary)
-        {
-            KeyPropsPanel.Children.Add(KeyRow(kv.Key, kv.Value));
-        }
-
-        if (doc.VersionInfo.TryGetValue("Saved From", out string? sf))
-        {
-            KeyPropsPanel.Children.Add(KeyRow("Saved From", sf));
-        }
+        RenderSidebar();
 
         _collapsibles.Clear();
 
@@ -686,6 +683,209 @@ public sealed partial class DocumentView
         Grid.SetColumn(v, 1);
         g.Children.Add(l); g.Children.Add(v);
         return CopyableRow(g, value, new Thickness(0, 3, 0, 3));
+    }
+
+    // ---- configurable left sidebar -------------------------------------------------
+
+    private void OnToggleSidebarEdit(object sender, RoutedEventArgs e)
+    {
+        _editingSidebar = EditSidebarToggle.IsChecked == true;
+        RenderSidebar();
+    }
+
+    /// <summary>Renders the sidebar (thumbnail + chosen properties) per the current SidebarConfig.</summary>
+    private void RenderSidebar()
+    {
+        if (Document == null)
+        {
+            return;
+        }
+
+        bool showThumb = SidebarConfig.ShowThumbnail;
+        ThumbHost.Visibility = showThumb ? Visibility.Visible : Visibility.Collapsed;
+        ThumbDivider.Visibility = showThumb ? Visibility.Visible : Visibility.Collapsed;
+
+        // present, non-empty properties keyed for lookup by the configured keys
+        Dictionary<string, InventorDocument.PropEntry> byKey = new(StringComparer.Ordinal);
+        foreach (InventorDocument.PropEntry p in Document.Properties)
+        {
+            if (p.Display.Length > 0)
+            {
+                byKey[SidebarConfig.K(p.SetId, p.Pid)] = p;
+            }
+        }
+
+        List<string> keys = SidebarConfig.Keys;
+
+        SidebarEditPanel.Children.Clear();
+        if (_editingSidebar)
+        {
+            ToggleSwitch thumb = new() { Header = "Show thumbnail", IsOn = showThumb };
+            thumb.Toggled += (_, _) => SidebarConfig.ShowThumbnail = thumb.IsOn;
+            SidebarEditPanel.Children.Add(thumb);
+            SidebarEditPanel.Children.Add(new TextBlock
+            {
+                Text = "Reorder with the arrows, remove with ✕, or add more below.",
+                Opacity = 0.6, FontSize = 12, TextWrapping = TextWrapping.Wrap
+            });
+        }
+
+        KeyPropsPanel.Children.Clear();
+        int shown = 0;
+        foreach (string key in keys)
+        {
+            if (!byKey.TryGetValue(key, out InventorDocument.PropEntry? p))
+            {
+                continue;
+            }
+
+            KeyPropsPanel.Children.Add(_editingSidebar
+                ? EditableKeyRow(key, p.Name, p.Display, byKey)
+                : KeyRow(p.Name, p.Display));
+            shown++;
+        }
+        if (shown == 0 && !_editingSidebar)
+        {
+            KeyPropsPanel.Children.Add(new TextBlock { Text = "No properties to show", Opacity = 0.5, FontSize = 12 });
+        }
+
+        SidebarAddPanel.Children.Clear();
+        if (_editingSidebar)
+        {
+            SidebarAddPanel.Children.Add(BuildAddPropertyButton(byKey, keys));
+            HyperlinkButton reset = new() { Content = "Reset to defaults", Padding = new Thickness(0, 2, 0, 0) };
+            reset.Click += (_, _) => SidebarConfig.ResetDefaults();
+            SidebarAddPanel.Children.Add(reset);
+        }
+    }
+
+    /// <summary>A sidebar property row with reorder / remove controls (edit mode).</summary>
+    private Border EditableKeyRow(string key, string label, string value,
+        IReadOnlyDictionary<string, InventorDocument.PropEntry> present)
+    {
+        Grid g = new() { ColumnSpacing = 4 };
+        g.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        g.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+
+        StackPanel text = new();
+        text.Children.Add(new TextBlock { Text = label, Opacity = 0.6, FontSize = 12, TextWrapping = TextWrapping.Wrap });
+        text.Children.Add(new TextBlock { Text = value, FontSize = 13, TextWrapping = TextWrapping.Wrap });
+
+        StackPanel actions = new() { Orientation = Orientation.Horizontal, Spacing = 2,
+            VerticalAlignment = VerticalAlignment.Center };
+        actions.Children.Add(MiniButton(ChevronUp, "Move up", () => MoveKey(key, -1, present)));
+        actions.Children.Add(MiniButton(ChevronDown, "Move down", () => MoveKey(key, +1, present)));
+        actions.Children.Add(MiniButton(0xE711, "Remove", () => RemoveKey(key)));
+        Grid.SetColumn(actions, 1);
+
+        g.Children.Add(text);
+        g.Children.Add(actions);
+        return new Border { Padding = new Thickness(0, 3, 0, 3), Child = g };
+    }
+
+    private Button MiniButton(int glyph, string tooltip, Action onClick)
+    {
+        Button b = new()
+        {
+            Content = new FontIcon { Glyph = G(glyph), FontSize = 12 },
+            Padding = new Thickness(6, 4, 6, 4), MinWidth = 0,
+            Background = new SolidColorBrush(Microsoft.UI.Colors.Transparent), BorderThickness = new Thickness(0)
+        };
+        ToolTipService.SetToolTip(b, tooltip);
+        b.Click += (_, _) => onClick();
+        return b;
+    }
+
+    private Button BuildAddPropertyButton(
+        IReadOnlyDictionary<string, InventorDocument.PropEntry> present, List<string> current)
+    {
+        HashSet<string> shownKeys = new(current, StringComparer.Ordinal);
+        List<InventorDocument.PropEntry> candidates = present
+            .Where(kv => !shownKeys.Contains(kv.Key)).Select(kv => kv.Value)
+            .OrderBy(p => p.Set, StringComparer.OrdinalIgnoreCase)
+            .ThenBy(p => p.Name, StringComparer.OrdinalIgnoreCase)
+            .ToList();
+
+        StackPanel menu = new() { Spacing = 1, MinWidth = 280 };
+        Flyout flyout = new() { Placement = Microsoft.UI.Xaml.Controls.Primitives.FlyoutPlacementMode.Bottom };
+
+        if (candidates.Count == 0)
+        {
+            menu.Children.Add(new TextBlock { Text = "All available properties are shown",
+                Opacity = 0.6, FontSize = 12, Margin = new Thickness(4) });
+        }
+        foreach (InventorDocument.PropEntry p in candidates)
+        {
+            string key = SidebarConfig.K(p.SetId, p.Pid);
+            Button row = new()
+            {
+                HorizontalAlignment = HorizontalAlignment.Stretch,
+                HorizontalContentAlignment = HorizontalAlignment.Left,
+                Background = new SolidColorBrush(Microsoft.UI.Colors.Transparent), BorderThickness = new Thickness(0),
+                Padding = new Thickness(8, 5, 8, 5),
+                Content = new StackPanel { Children =
+                {
+                    new TextBlock { Text = p.Name, FontSize = 13 },
+                    new TextBlock { Text = p.Set + "  ·  " + p.Display, Opacity = 0.55, FontSize = 11,
+                        TextTrimming = TextTrimming.CharacterEllipsis, MaxWidth = 300 }
+                } }
+            };
+            row.Click += (_, _) => { flyout.Hide(); AddKey(key); };
+            menu.Children.Add(row);
+        }
+
+        flyout.Content = new ScrollViewer { MaxHeight = 360, Content = menu };
+        return new Button
+        {
+            Flyout = flyout,
+            Content = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8, Children =
+            {
+                new FontIcon { Glyph = G(0xE710), FontSize = 12 }, new TextBlock { Text = "Add property" }
+            } }
+        };
+    }
+
+    private static void AddKey(string key)
+    {
+        List<string> keys = SidebarConfig.Keys;
+        if (!keys.Contains(key))
+        {
+            keys.Add(key);
+            SidebarConfig.SetKeys(keys);
+        }
+    }
+
+    private static void RemoveKey(string key)
+    {
+        List<string> keys = SidebarConfig.Keys;
+        if (keys.Remove(key))
+        {
+            SidebarConfig.SetKeys(keys);
+        }
+    }
+
+    /// <summary>Swaps a key with its nearest <em>visible</em> neighbour in the given direction.</summary>
+    private static void MoveKey(string key, int dir, IReadOnlyDictionary<string, InventorDocument.PropEntry> present)
+    {
+        List<string> keys = SidebarConfig.Keys;
+        int i = keys.IndexOf(key);
+        if (i < 0)
+        {
+            return;
+        }
+
+        int j = i + dir;
+        while (j >= 0 && j < keys.Count && !present.ContainsKey(keys[j]))
+        {
+            j += dir;
+        }
+        if (j < 0 || j >= keys.Count)
+        {
+            return;
+        }
+
+        (keys[i], keys[j]) = (keys[j], keys[i]);
+        SidebarConfig.SetKeys(keys);
     }
 
     private static StackPanel Section(string title, string[] lines)

@@ -118,11 +118,12 @@
                                        HorizontalAlignment="Center" VerticalAlignment="Center"
                                        Visibility="Collapsed"/>
                         </Border>
-                        <Border Height="1" Background="{ThemeResource DividerStrokeColorDefaultBrush}"/>
+                        <Border x:Name="ThumbDivider" Height="1" Background="{ThemeResource DividerStrokeColorDefaultBrush}"/>
                         <Grid Padding="16,12,16,4" ColumnSpacing="12">
                             <Grid.ColumnDefinitions>
                                 <ColumnDefinition Width="Auto"/>
                                 <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="Auto"/>
                             </Grid.ColumnDefinitions>
                             <Image x:Name="TypeIcon" Grid.Column="0" Width="36" Height="36"
                                    VerticalAlignment="Top"/>
@@ -130,8 +131,15 @@
                                 <TextBlock x:Name="FileNameText" FontSize="16" FontWeight="SemiBold" TextWrapping="Wrap"/>
                                 <TextBlock x:Name="DocTypeText" Opacity="0.7" FontSize="13" TextWrapping="Wrap"/>
                             </StackPanel>
+                            <ToggleButton x:Name="EditSidebarToggle" Grid.Column="2" VerticalAlignment="Top"
+                                          Click="OnToggleSidebarEdit" Padding="7,5" MinWidth="0"
+                                          ToolTipService.ToolTip="Customize sidebar">
+                                <FontIcon Glyph="&#xE70F;" FontSize="14"/>
+                            </ToggleButton>
                         </Grid>
-                        <StackPanel x:Name="KeyPropsPanel" Padding="16,4,16,16" Spacing="8"/>
+                        <StackPanel x:Name="SidebarEditPanel" Padding="16,4,16,0" Spacing="8"/>
+                        <StackPanel x:Name="KeyPropsPanel" Padding="16,4,16,8" Spacing="8"/>
+                        <StackPanel x:Name="SidebarAddPanel" Padding="16,0,16,16" Spacing="8"/>
                     </StackPanel>
                 </ScrollViewer>
             </Border>
