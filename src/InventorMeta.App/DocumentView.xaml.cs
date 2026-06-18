@@ -47,6 +47,7 @@ public sealed partial class DocumentView
     }
 
     private bool _editingSidebar;
+    private string? _dragKey;
 
     private static string G(int code) => ((char)code).ToString();   // Segoe Fluent glyph
     private const int ChevronUp = 0xE70E, ChevronDown = 0xE70D, HideGlyph = 0xED1A;
@@ -759,28 +760,54 @@ public sealed partial class DocumentView
         }
     }
 
-    /// <summary>A sidebar property row with reorder / remove controls (edit mode).</summary>
+    /// <summary>A draggable sidebar property row with a remove control (edit mode).</summary>
     private Border EditableKeyRow(string key, string label, string value,
         IReadOnlyDictionary<string, InventorDocument.PropEntry> present)
     {
-        Grid g = new() { ColumnSpacing = 4 };
+        Grid g = new() { ColumnSpacing = 8 };
+        g.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
         g.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
         g.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+
+        FontIcon grip = new() { Glyph = G(0xE76F), FontSize = 14, Opacity = 0.4,
+            VerticalAlignment = VerticalAlignment.Center };
+        ToolTipService.SetToolTip(grip, "Drag to reorder");
 
         StackPanel text = new();
         text.Children.Add(new TextBlock { Text = label, Opacity = 0.6, FontSize = 12, TextWrapping = TextWrapping.Wrap });
         text.Children.Add(new TextBlock { Text = value, FontSize = 13, TextWrapping = TextWrapping.Wrap });
+        Grid.SetColumn(text, 1);
 
-        StackPanel actions = new() { Orientation = Orientation.Horizontal, Spacing = 2,
-            VerticalAlignment = VerticalAlignment.Center };
-        actions.Children.Add(MiniButton(ChevronUp, "Move up", () => MoveKey(key, -1, present)));
-        actions.Children.Add(MiniButton(ChevronDown, "Move down", () => MoveKey(key, +1, present)));
-        actions.Children.Add(MiniButton(0xE711, "Remove", () => RemoveKey(key)));
-        Grid.SetColumn(actions, 1);
+        Button remove = MiniButton(0xE711, "Remove", () => RemoveKey(key));
+        Grid.SetColumn(remove, 2);
 
+        g.Children.Add(grip);
         g.Children.Add(text);
-        g.Children.Add(actions);
-        return new Border { Padding = new Thickness(0, 3, 0, 3), Child = g };
+        g.Children.Add(remove);
+
+        Border row = new()
+        {
+            Padding = new Thickness(0, 4, 0, 4), Child = g, Tag = key,
+            Background = new SolidColorBrush(Microsoft.UI.Colors.Transparent), // hit-testable drop target
+            CanDrag = true, AllowDrop = true
+        };
+        row.DragStarting += (_, e) =>
+        {
+            _dragKey = key;
+            e.Data.RequestedOperation = DataPackageOperation.Move;
+            e.Data.SetText(key);
+        };
+        row.DragOver += (_, e) =>
+        {
+            e.AcceptedOperation = _dragKey != null && _dragKey != key
+                ? DataPackageOperation.Move : DataPackageOperation.None;
+        };
+        row.Drop += (s, e) =>
+        {
+            bool after = e.GetPosition((UIElement)s).Y > ((FrameworkElement)s).ActualHeight / 2;
+            ReorderTo(key, after, present);
+        };
+        return row;
     }
 
     private Button MiniButton(int glyph, string tooltip, Action onClick)
@@ -864,28 +891,32 @@ public sealed partial class DocumentView
         }
     }
 
-    /// <summary>Swaps a key with its nearest <em>visible</em> neighbour in the given direction.</summary>
-    private static void MoveKey(string key, int dir, IReadOnlyDictionary<string, InventorDocument.PropEntry> present)
+    /// <summary>Moves the dragged key before/after a target key, then persists the new order.</summary>
+    private void ReorderTo(string targetKey, bool after, IReadOnlyDictionary<string, InventorDocument.PropEntry> present)
     {
-        List<string> keys = SidebarConfig.Keys;
-        int i = keys.IndexOf(key);
-        if (i < 0)
+        string? drag = _dragKey;
+        _dragKey = null;
+        if (drag == null || drag == targetKey)
         {
             return;
         }
 
-        int j = i + dir;
-        while (j >= 0 && j < keys.Count && !present.ContainsKey(keys[j]))
-        {
-            j += dir;
-        }
-        if (j < 0 || j >= keys.Count)
+        List<string> full = SidebarConfig.Keys;
+        // reorder only the visible (present) keys, then fold the new order back into the
+        // full list so keys for properties absent from this file keep their slots.
+        List<string> visible = full.Where(present.ContainsKey).ToList();
+        if (!visible.Contains(drag) || !visible.Contains(targetKey))
         {
             return;
         }
 
-        (keys[i], keys[j]) = (keys[j], keys[i]);
-        SidebarConfig.SetKeys(keys);
+        visible.Remove(drag);
+        int ti = visible.IndexOf(targetKey);
+        visible.Insert(after ? ti + 1 : ti, drag);
+
+        int p = 0;
+        List<string> merged = full.Select(k => present.ContainsKey(k) ? visible[p++] : k).ToList();
+        SidebarConfig.SetKeys(merged);
     }
 
     private static StackPanel Section(string title, string[] lines)
