@@ -57,7 +57,7 @@
 
             <!-- shown when no documents are open -->
             <Grid x:Name="EmptyState" Padding="48" AllowDrop="True" DragOver="OnDragOver" Drop="OnDrop">
-                <Border MaxWidth="640" MaxHeight="460" CornerRadius="16" Translation="0,0,16"
+                <Border MaxWidth="640" MaxHeight="460" CornerRadius="16" Translation="0,0,32"
                         BorderThickness="1" BorderBrush="{ThemeResource CardStrokeColorDefaultSolidBrush}">
                     <Border.Shadow><ThemeShadow/></Border.Shadow>
                     <Border.Background>

@@ -536,13 +536,9 @@ public sealed partial class DocumentView
         };
         _collapsibles.Add((body, chevron));
 
-        Border card = new() { Style = (Style)Resources["DataCard"], Child = stack, Margin = new Thickness(0, 0, 0, 4) };
-        try { card.Shadow = new ThemeShadow(); card.Translation = new Vector3(0, 0, 8); }
-        catch
-        {
-            // ignored
-        }
-
+        Border card = new() { Style = (Style)Resources["DataCard"], Child = stack, Margin = new Thickness(0, 0, 0, 8) };
+        card.Shadow = new ThemeShadow();
+        card.Translation = new Vector3(0, 0, 8);
         return card;
     }
 

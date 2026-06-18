@@ -136,7 +136,7 @@
                 </ScrollViewer>
             </Border>
 
-            <Border Grid.Column="1" Style="{StaticResource Surface}" Translation="0,0,10">
+            <Border Grid.Column="1" Style="{StaticResource Surface}" Translation="0,0,16">
                 <Border.Shadow><ThemeShadow/></Border.Shadow>
                 <muxc:TabView x:Name="DetailTabs" Background="Transparent" IsAddTabButtonVisible="False"
                               CanReorderTabs="False" CanDragTabs="False">
