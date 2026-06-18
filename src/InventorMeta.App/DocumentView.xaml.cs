@@ -4,6 +4,7 @@ using System.IO;
 using System.Linq;
 using System.Numerics;
 using System.Text;
+using CommunityToolkit.Mvvm.Messaging;
 using Microsoft.UI.Text;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
@@ -34,6 +35,12 @@ public sealed partial class DocumentView
         WireTabHide(StatesTab, "Model States");
         WireTabHide(RefsTab, "References");
         WireTabHide(StructureTab, "File Structure");
+
+        // Hide/show state is global; rebuild this view whenever it changes (any tab).
+        // Static handler => no capture of 'this', so the messenger's weak reference
+        // lets a closed tab be collected without manual unregistration.
+        WeakReferenceMessenger.Default.Register<HideChangedMessage>(this,
+            static (recipient, _) => ((DocumentView)recipient).RebuildView());
     }
 
     private static string G(int code) => ((char)code).ToString();   // Segoe Fluent glyph
@@ -59,7 +66,7 @@ public sealed partial class DocumentView
             VerticalAlignment = VerticalAlignment.Center
         };
         ToolTipService.SetToolTip(b, tooltip);
-        b.Click += (_, _) => { HideStore.Set(key, true); RebuildView(); };
+        b.Click += (_, _) => HideStore.Set(key, true);
         return b;
     }
 
@@ -67,7 +74,7 @@ public sealed partial class DocumentView
     {
         MenuFlyout mf = new();
         MenuFlyoutItem item = new() { Text = $"Hide “{name}” tab", Icon = new FontIcon { Glyph = G(HideGlyph) } };
-        item.Click += (_, _) => { HideStore.Set(HideStore.TabKey(name), true); RebuildView(); };
+        item.Click += (_, _) => HideStore.Set(HideStore.TabKey(name), true);
         mf.Items.Add(item);
         tab.ContextFlyout = mf;
     }
@@ -115,7 +122,7 @@ public sealed partial class DocumentView
                     Children = { new FontIcon { Glyph = G(0xE7B3), FontSize = 12 }, new TextBlock { Text = "Show" } } }
             };
             string k = key;
-            show.Click += (_, _) => { HideStore.Set(k, false); RebuildView(); };
+            show.Click += (_, _) => HideStore.Set(k, false);
             Grid.SetColumn(show, 1);
             row.Children.Add(lbl);
             row.Children.Add(show);

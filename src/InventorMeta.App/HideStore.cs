@@ -1,8 +1,12 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using CommunityToolkit.Mvvm.Messaging;
 
 namespace InventorMeta.App;
+
+/// <summary>Broadcast when any hide/show state changes; views rebuild in response.</summary>
+internal sealed record HideChangedMessage(string Key);
 
 /// <summary>
 /// Tracks which tabs / property sets / individual properties are hidden.
@@ -41,5 +45,6 @@ internal static class HideStore
         }
 
         AppSettings.SetMany(("hide.on", string.Join('|', On)), ("hide.off", string.Join('|', Off)));
+        WeakReferenceMessenger.Default.Send(new HideChangedMessage(key));
     }
 }
