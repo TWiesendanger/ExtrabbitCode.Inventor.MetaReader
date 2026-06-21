@@ -8,8 +8,11 @@ using System.Text;
 using System.Threading.Tasks;
 using CommunityToolkit.Mvvm.Messaging;
 using Microsoft.UI.Text;
+using Microsoft.UI.Windowing;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
+using Microsoft.UI.Xaml.Controls.Primitives;
+using Microsoft.UI.Xaml.Input;
 using Microsoft.UI.Xaml.Media;
 using Microsoft.UI.Xaml.Media.Imaging;
 using Windows.ApplicationModel.DataTransfer;
@@ -1108,7 +1111,7 @@ public sealed partial class DocumentView
             return; // a newer load superseded this build
         }
 
-        host.Child = root != null ? RenderRefGraph(root) : GraphInfo("Couldn't build the reference graph.");
+        host.Child = root != null ? RenderRefGraph(root, host) : GraphInfo("Couldn't build the reference graph.");
     }
 
     private static TextBlock GraphInfo(string text) => new()
@@ -1117,7 +1120,10 @@ public sealed partial class DocumentView
         HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center
     };
 
-    private UIElement RenderRefGraph(RefNode root)
+    private bool _graphFs;
+    private bool _showThumbs;
+
+    private UIElement RenderRefGraph(RefNode root, Border host)
     {
         // start with only level 1 visible: root expanded, everything deeper collapsed
         ForEachNode(root, n => n.Expanded = n.Depth == 0);
@@ -1158,15 +1164,75 @@ public sealed partial class DocumentView
             HorizontalAlignment = HorizontalAlignment.Right, VerticalAlignment = VerticalAlignment.Top,
             Margin = new Thickness(0, 8, 14, 0)
         };
-        Button fit = new() { Content = "Fit", Padding = new Thickness(10, 4, 10, 4), FontSize = 12 };
+        static Button IconBtn(int glyph, string tip)
+        {
+            Button b = new() { Content = new FontIcon { Glyph = G(glyph), FontSize = 14 },
+                Padding = new Thickness(8, 5, 8, 5), MinWidth = 0 };
+            ToolTipService.SetToolTip(b, tip);
+            return b;
+        }
+
+        Button fit = IconBtn(0xE9A6, "Fit to view");
         fit.Click += (_, _) => ZoomToFit(viewport, canvas, xf);
-        Button expandAll = new() { Content = "Expand all", Padding = new Thickness(10, 4, 10, 4), FontSize = 12 };
+        Button expandAll = IconBtn(0xE710, "Expand all");
         expandAll.Click += (_, _) => { ForEachNode(root, n => n.Expanded = n.Children.Count > 0); LayoutAndDraw(canvas, root); };
-        Button collapseAll = new() { Content = "Collapse all", Padding = new Thickness(10, 4, 10, 4), FontSize = 12 };
+        Button collapseAll = IconBtn(0xE738, "Collapse all");
         collapseAll.Click += (_, _) => { ForEachNode(root, n => n.Expanded = n.Depth == 0); LayoutAndDraw(canvas, root); };
+
+        // thumbnails toggle: redraw the graph with each node showing its document's preview
+        ToggleButton thumbs = new()
+        {
+            Content = new FontIcon { Glyph = G(0xE8B9), FontSize = 14 },
+            Padding = new Thickness(8, 5, 8, 5), MinWidth = 0, IsChecked = _showThumbs
+        };
+        ToolTipService.SetToolTip(thumbs, "Show thumbnails");
+        thumbs.Click += (_, _) => { _showThumbs = thumbs.IsChecked == true; LayoutAndDraw(canvas, root); ZoomToFit(viewport, canvas, xf); };
+
+        // Fullscreen: pop the whole viewport (graph + this toolbar) into a window-filling overlay
+        // and switch the OS window to true fullscreen; the button toggles back, as does Esc.
+        FontIcon fullIcon = new() { Glyph = G(0xE740), FontSize = 14 };
+        Button full = new() { Content = fullIcon, Padding = new Thickness(8, 5, 8, 5), MinWidth = 0 };
+        ToolTipService.SetToolTip(full, "Fullscreen");
+        Grid? overlay = null;
+        void SetFullscreen(bool on)
+        {
+            MainWindow? win = HostWindow;
+            if (win is null || on == _graphFs) { return; }
+
+            if (on)
+            {
+                host.Child = null;                       // detach from the References tab
+                overlay = new Grid();
+                overlay.Children.Add(viewport);
+                win.ShowOverlay(overlay);
+                win.AppWindow.SetPresenter(AppWindowPresenterKind.FullScreen);
+                _graphFs = true;
+            }
+            else
+            {
+                win.AppWindow.SetPresenter(AppWindowPresenterKind.Default);
+                overlay?.Children.Remove(viewport);
+                win.HideOverlay();
+                host.Child = viewport;                   // reattach to the tab
+                overlay = null;
+                _graphFs = false;
+            }
+
+            fullIcon.Glyph = G(_graphFs ? 0xE73F : 0xE740);   // BackToWindow / FullScreen
+            ToolTipService.SetToolTip(full, _graphFs ? "Exit fullscreen" : "Fullscreen");
+            fitted = false;                              // re-fit once the new size settles
+            full.Focus(FocusState.Programmatic);
+        }
+        full.Click += (_, _) => SetFullscreen(!_graphFs);
+        KeyboardAccelerator esc = new() { Key = Windows.System.VirtualKey.Escape };
+        esc.Invoked += (_, e) => { if (_graphFs) { SetFullscreen(false); e.Handled = true; } };
+        full.KeyboardAccelerators.Add(esc);
+
         toolbar.Children.Add(fit);
         toolbar.Children.Add(expandAll);
         toolbar.Children.Add(collapseAll);
+        toolbar.Children.Add(thumbs);
+        toolbar.Children.Add(full);
         viewport.Children.Add(toolbar);
 
         return viewport;
@@ -1194,7 +1260,11 @@ public sealed partial class DocumentView
     /// <summary>Lays out the visible (expanded) part of the tree and (re)draws the canvas.</summary>
     private void LayoutAndDraw(Canvas canvas, RefNode root)
     {
-        const double colStep = 288, rowStep = 74, nodeW = 224, nodeH = 56, pad = 16;
+        const double colStep = 300, pad = 16;
+        // bigger nodes when thumbnails are shown so each preview has room
+        double nodeW = _showThumbs ? 252 : 224;
+        double nodeH = _showThumbs ? 104 : 56;
+        double rowStep = _showThumbs ? 120 : 74;
 
         // tidy left-to-right layout over visible nodes; a collapsed node counts as a leaf
         int leaf = 0, maxDepth = 0;
@@ -1255,11 +1325,30 @@ public sealed partial class DocumentView
         g.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
         g.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
 
-        FrameworkElement iconEl = n.IsLinkedFile
-            ? new FontIcon { Glyph = G(IsImageFile(n.Name) ? 0xE8B9 : 0xE7C3), FontSize = 22,
-                Width = 30, Opacity = 0.85, VerticalAlignment = VerticalAlignment.Center }
-            : new Image { Width = 30, Height = 30, Source = AppIcons.Bitmap(n.Kind),
+        ImageSource? thumb = _showThumbs ? BitmapFromBytes(n.Thumbnail) : null;
+        FrameworkElement iconEl;
+        if (thumb != null)
+        {
+            iconEl = new Border
+            {
+                Width = h - 20, Height = h - 20, CornerRadius = new CornerRadius(4),
+                VerticalAlignment = VerticalAlignment.Center,
+                Background = new SolidColorBrush(Windows.UI.Color.FromArgb(28, 128, 128, 128)),
+                Child = new Image { Source = thumb, Stretch = Stretch.Uniform, Margin = new Thickness(2) }
+            };
+        }
+        else if (n.IsLinkedFile)
+        {
+            iconEl = new FontIcon { Glyph = G(IsImageFile(n.Name) ? 0xE8B9 : 0xE7C3),
+                FontSize = _showThumbs ? 40 : 22, Width = _showThumbs ? 56 : 30, Opacity = 0.85,
                 VerticalAlignment = VerticalAlignment.Center };
+        }
+        else
+        {
+            double s = _showThumbs ? 48 : 30;
+            iconEl = new Image { Width = s, Height = s, Source = AppIcons.Bitmap(n.Kind),
+                VerticalAlignment = VerticalAlignment.Center };
+        }
 
         StackPanel text = new() { VerticalAlignment = VerticalAlignment.Center };
         text.Children.Add(new TextBlock { Text = n.Name, FontWeight = FontWeights.SemiBold, FontSize = 13,
@@ -1352,6 +1441,20 @@ public sealed partial class DocumentView
 
     private static bool IsImageFile(string name) =>
         Path.GetExtension(name).ToLowerInvariant() is ".png" or ".jpg" or ".jpeg" or ".bmp" or ".tif" or ".tiff" or ".gif";
+
+    /// <summary>Decodes raw image bytes (a document's cached preview) into a usable image source.</summary>
+    private static ImageSource? BitmapFromBytes(byte[]? bytes)
+    {
+        if (bytes is not { Length: > 0 }) { return null; }
+        try
+        {
+            BitmapImage bmp = new();
+            using MemoryStream ms = new(bytes);
+            bmp.SetSource(ms.AsRandomAccessStream());
+            return bmp;
+        }
+        catch { return null; }
+    }
 
     /// <summary>Left-drag on empty space (or middle-drag anywhere) pans; wheel zooms at the cursor.</summary>
     private static void WirePanZoom(Grid viewport, Canvas canvas, CompositeTransform xf)

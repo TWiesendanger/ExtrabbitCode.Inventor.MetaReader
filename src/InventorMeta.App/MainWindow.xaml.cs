@@ -211,6 +211,21 @@ public sealed partial class MainWindow
     /// <summary>Opens a document in a tab (used by the reference graph's click-to-open).</summary>
     public void OpenDocument(string path) => OpenFile(path);
 
+    /// <summary>Shows <paramref name="content"/> as a window-filling overlay (used by the
+    /// reference graph's fullscreen mode). <see cref="HideOverlay"/> tears it back down.</summary>
+    public void ShowOverlay(UIElement content)
+    {
+        OverlayHost.Children.Clear();
+        OverlayHost.Children.Add(content);
+        OverlayHost.Visibility = Visibility.Visible;
+    }
+
+    public void HideOverlay()
+    {
+        OverlayHost.Children.Clear();
+        OverlayHost.Visibility = Visibility.Collapsed;
+    }
+
     private void OpenFile(string path)
     {
         // if already open, just select that tab
