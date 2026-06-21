@@ -404,10 +404,9 @@ public sealed partial class DocumentView
         if (states.Count > 1)
         {
             string[] headers = states.Select(s => s.Name).ToArray();
-            bool[] act = states.Select(s => s.IsActive).ToArray();
             List<(string Name, string[])> rows = diffIds.Select(id => (id.Name, states.Select(s => ValueOf(s, id)).ToArray())).ToList();
             UIElement body = rows.Count > 0
-                ? Matrix(headers, act, rows)
+                ? Matrix(headers, rows)
                 : new TextBlock { Text = "No user-facing properties differ between states.",
                     Opacity = 0.7, Margin = new Thickness(14, 10, 14, 12), TextWrapping = TextWrapping.Wrap };
             StatesPanel.Children.Add(Card("Differences between states",
@@ -433,7 +432,7 @@ public sealed partial class DocumentView
                 Text = $"{s.Properties.Count} properties · storage {s.StorageName}",
                 Opacity = 0.5, FontSize = 11, FontFamily = new FontFamily("Consolas"),
                 TextWrapping = TextWrapping.Wrap, Margin = new Thickness(14, 8, 14, 12) });
-            StatesPanel.Children.Add(Card(s.Name, s.IsActive ? "active" : null, body));
+            StatesPanel.Children.Add(Card(s.Name, null, body));
         }
     }
 
@@ -658,7 +657,7 @@ public sealed partial class DocumentView
     }
 
     /// <summary>Per-state comparison matrix: a header strip + zebra rows, active column tinted.</summary>
-    private Grid Matrix(string[] headers, bool[] active, List<(string label, string[] vals)> rows)
+    private Grid Matrix(string[] headers, List<(string label, string[] vals)> rows)
     {
         int cols = headers.Length + 1;
         Grid grid = new();
@@ -675,7 +674,7 @@ public sealed partial class DocumentView
         MCell(grid, 0, 0, "Property", true, 0.7);
         for (int c = 0; c < headers.Length; c++)
         {
-            MCell(grid, 0, c + 1, headers[c] + (active[c] ? "  ●" : ""), true, 0.7);
+            MCell(grid, 0, c + 1, headers[c], true, 0.7);
         }
 
         for (int ri = 0; ri < rows.Count; ri++)

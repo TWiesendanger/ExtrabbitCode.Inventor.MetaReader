@@ -248,11 +248,21 @@ public sealed class InventorDocument
     {
         string txt = Encoding.Unicode.GetString(data);
 
-        // model-state name ↔ member-storage mapping: a member-storage id sits next to
-        // its "Model State<n>" name in the token stream - but the order varies (name
-        // before storage in parts, storage before name in assemblies), so check both.
+        // model-state name ↔ member-storage mapping.
         List<string> tokens = Regex.Matches(txt, @"[\x20-\x7E]{3,}").Select(m => m.Value).ToList();
         bool IsState(string t) => Regex.IsMatch(t, @"^Model State\d*$");
+
+        // A custom state name (not "Model State<n>") sits in a readable token right beside the
+        // storage id. Exclude things that are clearly not a name: other storage ids, the
+        // bracketed primary token, file paths/names.
+        bool IsName(string t) =>
+            t.Length is >= 2 and <= 64 &&
+            !memberStorages.Contains(t) &&
+            t.IndexOfAny(['\\', '/', ':']) < 0 &&
+            !Regex.IsMatch(t, @"^\[.*\]$") &&
+            !Regex.IsMatch(t, @"\.(?:ipt|iam|idw|ipn)$", RegexOptions.IgnoreCase) &&
+            Regex.IsMatch(t, @"[A-Za-z]");
+
         HashSet<string> usedNames = [];
         foreach (string storage in memberStorages)
         {
@@ -262,7 +272,8 @@ public sealed class InventorDocument
                 continue;
             }
 
-            // expand outward from the storage id, nearest first, to find its state name
+            // Prefer a real "Model State<n>" token near the id (order varies: name before the id
+            // in parts, after it in assemblies, so scan outward both ways).
             string? name = null;
             for (int d = 1; d <= 8 && name == null; d++)
             {
@@ -275,6 +286,20 @@ public sealed class InventorDocument
                     name = tokens[i + d];
                 }
             }
+
+            // Otherwise fall back to the readable token immediately beside the id (custom name).
+            if (name == null)
+            {
+                foreach (int j in new[] { i - 1, i + 1 })
+                {
+                    if (j >= 0 && j < tokens.Count && IsName(tokens[j]) && usedNames.Add(tokens[j]))
+                    {
+                        name = tokens[j];
+                        break;
+                    }
+                }
+            }
+
             if (name != null)
             {
                 _storageToState[storage] = name;
