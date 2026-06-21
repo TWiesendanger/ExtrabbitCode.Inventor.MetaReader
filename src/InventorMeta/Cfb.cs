@@ -88,7 +88,7 @@ public sealed class CompoundFile : IDisposable
         for (int i = 0; i < 109; i++)
         {
             uint v = U32(76 + i * 4);
-            if (v == FREESECT || v == ENDOFCHAIN)
+            if (v is FREESECT or ENDOFCHAIN)
             {
                 break;
             }
@@ -104,7 +104,7 @@ public sealed class CompoundFile : IDisposable
             for (int i = 0; i < entriesPerDifat; i++)
             {
                 uint v = U32(baseOff + i * 4);
-                if (v == FREESECT || v == ENDOFCHAIN)
+                if (v is FREESECT or ENDOFCHAIN)
                 {
                     continue;
                 }
@@ -123,7 +123,7 @@ public sealed class CompoundFile : IDisposable
             int off = SectorOffset(s);
             for (int i = 0; i < SectorSize / 4; i++)
             {
-                Fat[fi++] = U32(off + i * 4);
+                Fat[fi++] = U32(off + (i * 4));
             }
         }
 
@@ -135,7 +135,7 @@ public sealed class CompoundFile : IDisposable
             int off = SectorOffset(ms);
             for (int i = 0; i < SectorSize / 4; i++)
             {
-                miniFat.Add(U32(off + i * 4));
+                miniFat.Add(U32(off + (i * 4)));
             }
 
             ms = NextFat(ms);
