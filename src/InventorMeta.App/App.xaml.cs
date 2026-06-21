@@ -38,6 +38,14 @@ public partial class App
             return;
         }
 
+        // Headless 3D test: "--gen-svf <file> [--inv-year N]" detects Inventor, computes the cache
+        // key, generates the SVF into the store, prints the result to the console, and exits.
+        if (Array.IndexOf(cli, "--gen-svf") >= 0)
+        {
+            SvfTestRunner.Run(cli);
+            return;
+        }
+
         MainWindowInstance = new MainWindow();
         MainWindowInstance.Activate();
     }

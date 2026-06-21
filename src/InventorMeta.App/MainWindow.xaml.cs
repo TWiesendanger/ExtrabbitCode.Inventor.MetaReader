@@ -211,10 +211,14 @@ public sealed partial class MainWindow
     /// <summary>Opens a document in a tab (used by the reference graph's click-to-open).</summary>
     public void OpenDocument(string path) => OpenFile(path);
 
-    /// <summary>Shows <paramref name="content"/> as a window-filling overlay (used by the
-    /// reference graph's fullscreen mode). <see cref="HideOverlay"/> tears it back down.</summary>
-    public void ShowOverlay(UIElement content)
+    /// <summary>Shows <paramref name="content"/> as a window-filling overlay. With
+    /// <paramref name="dimmed"/> the host is a translucent scrim (so the app shows through behind a
+    /// centred panel - the 3D viewer); otherwise it's opaque (the reference graph fullscreen).</summary>
+    public void ShowOverlay(UIElement content, bool dimmed = false)
     {
+        OverlayHost.Background = dimmed
+            ? new Microsoft.UI.Xaml.Media.SolidColorBrush(Windows.UI.Color.FromArgb(0xB3, 0, 0, 0))
+            : (Microsoft.UI.Xaml.Media.Brush)Application.Current.Resources["SolidBackgroundFillColorBaseBrush"];
         OverlayHost.Children.Clear();
         OverlayHost.Children.Add(content);
         OverlayHost.Visibility = Visibility.Visible;

@@ -325,7 +325,7 @@ public sealed partial class DocumentView
             NoThumb.Visibility = Visibility.Visible;
         }
 
-        RenderSidebar();
+        RenderSidebar();   // also sets the 3D triggers (button visible only when the thumbnail is off)
 
         _collapsibles.Clear();
 
@@ -757,6 +757,12 @@ public sealed partial class DocumentView
         bool showThumb = SidebarConfig.ShowThumbnail;
         ThumbHost.Visibility = showThumb ? Visibility.Visible : Visibility.Collapsed;
         ThumbDivider.Visibility = showThumb ? Visibility.Visible : Visibility.Collapsed;
+
+        // 3D triggers (parts/assemblies): the thumbnail is the primary trigger when shown; the
+        // command-bar icon is the fallback only when the thumbnail is off.
+        bool is3D = Document.Kind is InventorDocument.DocKind.Part or InventorDocument.DocKind.Assembly;
+        View3DButton.Visibility = is3D && !showThumb ? Visibility.Visible : Visibility.Collapsed;
+        ThreeDHint.Visibility = is3D && showThumb ? Visibility.Visible : Visibility.Collapsed;
 
         // every property present in the file, keyed for lookup (value may be empty)
         Dictionary<string, InventorDocument.PropEntry> byKey = new(StringComparer.Ordinal);
