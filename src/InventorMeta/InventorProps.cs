@@ -76,6 +76,7 @@ public static class InventorProps
     // ---- Design Tracking Control: {D861FB30-...} (internal, inferred) ----
     public static readonly Dictionary<uint, string> DesignTrackingControl = new()
     {
+        [13]="Next Version", [14]="Current Version", [15]="Previous Version",
         [16]="Last Saved By (internal)", [17]="Last Save Time (internal)",
         [22]="Build Number (internal)",
     };

@@ -992,6 +992,40 @@ public sealed partial class DocumentView
         return sp;
     }
 
+    /// <summary>A titled label/value grid (one row per field), like Inventor's iProperties
+    /// "Details" page - long values ellipsize with the full text on hover.</summary>
+    private static StackPanel KeyValueSection(string title, List<(string label, string value)> items)
+    {
+        StackPanel sp = new() { Spacing = 8 };
+        sp.Children.Add(new TextBlock { Text = title, FontWeight = FontWeights.SemiBold, FontSize = 14 });
+
+        Grid g = new() { ColumnSpacing = 16, RowSpacing = 5 };
+        g.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        g.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+
+        for (int i = 0; i < items.Count; i++)
+        {
+            g.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+
+            TextBlock lbl = new() { Text = items[i].label, FontSize = 12, Opacity = 0.6,
+                FontWeight = FontWeights.SemiBold, VerticalAlignment = VerticalAlignment.Center };
+            Grid.SetRow(lbl, i);
+            Grid.SetColumn(lbl, 0);
+            g.Children.Add(lbl);
+
+            TextBlock val = new() { Text = items[i].value, FontSize = 12, Opacity = 0.95,
+                TextWrapping = TextWrapping.NoWrap, TextTrimming = TextTrimming.CharacterEllipsis,
+                IsTextSelectionEnabled = true, VerticalAlignment = VerticalAlignment.Center };
+            ToolTipService.SetToolTip(val, items[i].value);
+            Grid.SetRow(val, i);
+            Grid.SetColumn(val, 1);
+            g.Children.Add(val);
+        }
+
+        sp.Children.Add(g);
+        return sp;
+    }
+
     // ---- references node graph -----------------------------------------------------
     private int _refGen;
 
@@ -999,6 +1033,38 @@ public sealed partial class DocumentView
     {
         RefsRoot.RowDefinitions.Clear();
         RefsRoot.Children.Clear();
+
+        // version/provenance details - version history first, then schema/template
+        string[] detailOrder = ["Current Version", "Previous Version", "Next Version", "Last update with", "Last saved by"];
+        List<(string, string)> provItems = [];
+        foreach (string k in detailOrder)
+        {
+            if (doc.VersionInfo.TryGetValue(k, out string? v)) { provItems.Add((k, v)); }
+        }
+        foreach (KeyValuePair<string, string> kv in doc.VersionInfo)
+        {
+            if (!detailOrder.Contains(kv.Key)) { provItems.Add((kv.Key, kv.Value)); }
+        }
+        StackPanel details = KeyValueSection("Version / provenance", provItems);
+
+        // No references (e.g. a standalone part): no graph to show, so let the details
+        // panel take the whole tab - it grows naturally and only scrolls if it overflows.
+        if (doc.References.Count == 0)
+        {
+            RefsRoot.RowDefinitions.Add(new RowDefinition { Height = new GridLength(1, GridUnitType.Star) });
+            ScrollViewer full = new()
+            {
+                Padding = new Thickness(16, 14, 16, 16),
+                VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
+                VerticalContentAlignment = VerticalAlignment.Top,
+                Content = details
+            };
+            Grid.SetRow(full, 0);
+            RefsRoot.Children.Add(full);
+            return;
+        }
+
+        // References present: graph fills the space, details sit in a bounded footer.
         RefsRoot.RowDefinitions.Add(new RowDefinition { Height = new GridLength(1, GridUnitType.Star) });
         RefsRoot.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
 
@@ -1006,16 +1072,14 @@ public sealed partial class DocumentView
         Grid.SetRow(graphHost, 0);
         RefsRoot.Children.Add(graphHost);
 
-        // provenance footer (always available, cheap)
         Border prov = new()
         {
             BorderThickness = new Thickness(0, 1, 0, 0),
             BorderBrush = new SolidColorBrush(Windows.UI.Color.FromArgb(40, 128, 128, 128)),
             Child = new ScrollViewer
             {
-                MaxHeight = 132, Padding = new Thickness(14, 8, 14, 12),
-                Content = Section("Version / provenance",
-                    doc.VersionInfo.Select(kv => $"{kv.Key}: {kv.Value}").ToArray())
+                MaxHeight = 240, Padding = new Thickness(14, 10, 14, 12),
+                Content = details
             }
         };
         Grid.SetRow(prov, 1);

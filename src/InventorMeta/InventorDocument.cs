@@ -148,6 +148,7 @@ public sealed class InventorDocument
             }
         }
         BuildSummaryInto(Properties, Summary);
+        ExtractVersionDetails();
 
         // Build one ModelState per member storage (these are the NON-active states).
         foreach (KeyValuePair<string, List<byte[]>> kv in memberStreams)
@@ -181,6 +182,27 @@ public sealed class InventorDocument
     }
 
     private static readonly Guid DesignTrackingFmt = new("32853F0F-3444-11D1-9E93-0060B03C1CA6");
+    private static readonly Guid DesignTrackingControlFmt = new("D861FB30-3136-11D1-9E92-0060B03C1CA6");
+
+    /// <summary>Surface the fields shown on Windows Explorer's "Details" tab (version history,
+    /// who/what last touched the file) into <see cref="VersionInfo"/>. "Created with" and
+    /// "Needs Migrating" are computed by Inventor, not stored, so they can't be recreated.</summary>
+    private void ExtractVersionDetails()
+    {
+        void Add(string label, Guid set, uint pid)
+        {
+            PropEntry? p = Properties.FirstOrDefault(x => x.SetId == set && x.Pid == pid && x.Display.Length > 0);
+            if (p != null && !VersionInfo.ContainsKey(label))
+            {
+                VersionInfo[label] = p.Display;
+            }
+        }
+        Add("Current Version", DesignTrackingControlFmt, 14);
+        Add("Previous Version", DesignTrackingControlFmt, 15);
+        Add("Next Version", DesignTrackingControlFmt, 13);
+        Add("Last update with", DesignTrackingFmt, 67);
+        Add("Last saved by", DesignTrackingControlFmt, 16);
+    }
 
     /// <summary>Parse one OLE property set, appending entries to <paramref name="into"/>.</summary>
     private void ParsePropertySetInto(byte[] data, List<PropEntry> into, bool allowThumbnail)
