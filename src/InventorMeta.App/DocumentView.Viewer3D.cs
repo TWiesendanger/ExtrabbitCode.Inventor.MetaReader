@@ -167,10 +167,6 @@ public sealed partial class DocumentView
             {
                 try { ViewerLog.Write("js: " + a.TryGetWebMessageAsString()); } catch { /* ignore */ }
             };
-            // pass viewer display settings into the page before it loads
-            await web.CoreWebView2.AddScriptToExecuteOnDocumentCreatedAsync(
-                $"window.__displayEdges = {(ViewerSettings.DisplayEdges ? "true" : "false")};");
-
             web.CoreWebView2.NavigationCompleted += (_, _) => statusHost.Visibility = Visibility.Collapsed;
             web.CoreWebView2.Navigate($"https://{ViewerHost}/viewer.html");
         }
@@ -271,8 +267,6 @@ public sealed partial class DocumentView
       // lock the fitted view in as the home view (correct method lives on autocam)
       try { viewer.autocam.setHomeViewFrom(viewer.getCamera()); report("home set"); }
       catch (e) { report("autocam.setHomeViewFrom: " + e); }
-      // apply display settings injected from the app
-      try { viewer.setDisplayEdges(!!window.__displayEdges); } catch (e) { report("setDisplayEdges: " + e); }
     });
     Autodesk.Viewing.Document.load(
       "./bubble.json",

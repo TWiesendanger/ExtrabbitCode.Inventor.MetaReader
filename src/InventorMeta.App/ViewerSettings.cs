@@ -6,7 +6,6 @@ internal static class ViewerSettings
 {
     private const string NetworkKey = "viewer.networkPath";
     private const string YearKey = "viewer.inventorYear";
-    private const string EdgesKey = "viewer.displayEdges";
 
     /// <summary>Optional shared cache path; null/empty means local-only.</summary>
     public static string? NetworkPath
@@ -24,12 +23,5 @@ internal static class ViewerSettings
     {
         get => AppSettings.GetInt(YearKey, 0);
         set => AppSettings.Set(YearKey, value.ToString());
-    }
-
-    /// <summary>Draw model edges (surface outlines) in the 3D viewer.</summary>
-    public static bool DisplayEdges
-    {
-        get => AppSettings.Get(EdgesKey) == "true";
-        set => AppSettings.Set(EdgesKey, value ? "true" : "false");
     }
 }

@@ -30,8 +30,6 @@ internal static class SettingsDialog
             PlaceholderText = @"\\server\share\svf-cache  (optional)"
         };
 
-        ToggleSwitch edges = new() { IsOn = ViewerSettings.DisplayEdges, OnContent = "", OffContent = "", MinWidth = 0 };
-
         TextBlock cacheInfo = new() { Opacity = 0.7, FontSize = 12, VerticalAlignment = VerticalAlignment.Center };
         void RefreshCache() => cacheInfo.Text = $"Local cache: {Mb(store.LocalSizeBytes())}";
         RefreshCache();
@@ -60,7 +58,6 @@ internal static class SettingsDialog
         body.Children.Add(SectionHeader("3D Viewer"));
         body.Children.Add(Row("Inventor version", "Which installed Inventor generates the 3D viewable.", version));
         body.Children.Add(Row("Shared cache folder", "A network path so viewables are reused across users. Leave empty for local only.", network));
-        body.Children.Add(Row("Display edges", "Show outline of model surfaces.", edges));
         body.Children.Add(Row("Cached viewables", "SVF files generated on this PC.", cacheCtl));
 
         Button openLog = new() { Content = "Open log" };
@@ -79,7 +76,6 @@ internal static class SettingsDialog
 
         ViewerSettings.NetworkPath = string.IsNullOrWhiteSpace(network.Text) ? null : network.Text.Trim();
         ViewerSettings.InventorYear = version.SelectedIndex <= 0 ? 0 : installs[version.SelectedIndex - 1].Year;
-        ViewerSettings.DisplayEdges = edges.IsOn;
     }
 
     private static TextBlock SectionHeader(string text) =>
