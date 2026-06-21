@@ -1,0 +1,151 @@
+name: Release
+
+# On a version tag (e.g. v1.4.2) publishes a GitHub Release with:
+#  - the self-contained invmeta CLI binaries (win/linux/macOS),
+#  - the self-contained desktop app as a zip (unpackaged - unzip and run the .exe), and
+#  - the Microsoft Store submission package (.msixupload) to upload in Partner Center.
+# The tag drives the version (v1.4.2 -> 1.4.2.0) for both the app exe and the MSIX.
+# Run manually (workflow_dispatch) to get all artifacts (version 0.0.0.0) without a release.
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build-cli:
+    name: Build invmeta (${{ matrix.rid }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        rid: [win-x64, linux-x64, osx-x64, osx-arm64]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Publish
+        run: >
+          dotnet publish src/InventorMeta.Cli/InventorMeta.Cli.csproj
+          -c Release
+          -r ${{ matrix.rid }}
+          --self-contained true
+          -p:PublishSingleFile=true
+          -p:IncludeNativeLibrariesForSelfExtract=true
+          -o out/${{ matrix.rid }}
+
+      - name: Package
+        run: |
+          mkdir -p dist
+          if [ "${{ matrix.rid }}" = "win-x64" ]; then
+            cp "out/${{ matrix.rid }}/invmeta.exe" "dist/invmeta-${{ matrix.rid }}.exe"
+          else
+            chmod +x "out/${{ matrix.rid }}/invmeta"
+            tar -C "out/${{ matrix.rid }}" -czf "dist/invmeta-${{ matrix.rid }}.tar.gz" invmeta
+          fi
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: invmeta-${{ matrix.rid }}
+          path: dist/*
+
+  build-app:
+    name: Build desktop app (exe + Store MSIX)
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Resolve version from tag
+        id: ver
+        shell: pwsh
+        run: |
+          $ref = "${{ github.ref_name }}"
+          if ($ref -match '^v?(\d+)\.(\d+)(?:\.(\d+))?$') {
+            $v = "{0}.{1}.{2}.0" -f $Matches[1], $Matches[2], ($Matches[3] ? $Matches[3] : '0')
+          } else { $v = "0.0.0.0" }
+          "value=$v" | Out-File $env:GITHUB_OUTPUT -Append
+          Write-Host "Version: $v"
+
+      # Unpackaged + self-contained: a folder you unzip and run, no .NET or runtime install.
+      - name: Publish app (self-contained exe)
+        run: >
+          dotnet publish src/InventorMeta.App/InventorMeta.App.csproj
+          -c Release -r win-x64 --self-contained true
+          -p:Version=${{ steps.ver.outputs.value }}
+          -o publish/app
+
+      - name: Zip exe
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force dist | Out-Null
+          Compress-Archive -Path publish/app/* -DestinationPath dist/InventorMetaReader-win-x64.zip
+
+      # Stamp the tag version into the package manifest, then build the Store .msixupload.
+      - name: Stamp MSIX version
+        shell: pwsh
+        run: |
+          $m = "src/InventorMeta.App/Package.appxmanifest"
+          (Get-Content $m -Raw) -replace '(<Identity[^>]*\bVersion=")[^"]*(")', "`${1}${{ steps.ver.outputs.value }}`${2}" | Set-Content $m -NoNewline
+
+      - name: Build Store MSIX
+        run: >
+          dotnet build src/InventorMeta.App/InventorMeta.App.csproj
+          -c Release
+          -p:Platform=x64
+          -p:WindowsPackageType=MSIX
+          -p:GenerateAppxPackageOnBuild=true
+          -p:AppxBundle=Never
+          -p:UapAppxPackageBuildMode=StoreUpload
+          -p:AppxPackageSigningEnabled=false
+          -p:AppxSymbolPackageEnabled=false
+
+      - name: Collect .msixupload
+        shell: pwsh
+        run: |
+          Get-ChildItem src/InventorMeta.App/AppPackages -Recurse -Filter *.msixupload |
+            ForEach-Object { Copy-Item $_.FullName dist/ }
+          Get-ChildItem dist
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: app
+          path: dist/*
+
+  release:
+    name: Publish GitHub Release
+    if: startsWith(github.ref, 'refs/tags/')
+    needs: [build-cli, build-app]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: dist
+          merge-multiple: true
+
+      - uses: softprops/action-gh-release@v2
+        with:
+          files: dist/*
+          generate_release_notes: true
+          body: |
+            ## Install
+
+            ### Desktop app — `InventorMetaReader-win-x64.zip`
+            Download, unzip anywhere, and run `InventorMeta.App.exe`. Self-contained — no .NET or
+            Windows App Runtime needed. *(A Microsoft Store version is the recommended way to get it
+            with automatic updates.)*
+
+            ### Command line — `invmeta`
+            Download the binary for your platform (`invmeta-win-x64.exe`, or the `.tar.gz` for
+            Linux/macOS). Self-contained, no .NET required.
+
+            ---
+            `InventorMetaReader-win-x64.msixupload` is the **Microsoft Store submission package**
+            (uploaded in Partner Center) — not for direct install.

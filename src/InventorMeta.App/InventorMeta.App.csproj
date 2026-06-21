@@ -36,4 +36,14 @@
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </Content>
   </ItemGroup>
+
+  <!-- MSIX packaging. Only active when built with -p:WindowsPackageType=MSIX; the default
+       unpackaged build excludes the manifest, so the loose .exe and DocShooter are unaffected
+       (an AppxManifest with WindowsPackageType=None is a build error). -->
+  <ItemGroup Condition="'$(WindowsPackageType)' == 'MSIX'">
+    <AppxManifest Include="Package.appxmanifest">
+      <SubType>Designer</SubType>
+    </AppxManifest>
+    <Content Include="Images\*.png" />
+  </ItemGroup>
 </Project>
