@@ -1,0 +1,42 @@
+---
+title: 3D Viewer
+description: Spin the model in 3D - viewables are generated once with Inventor and cached, locally or on a shared network store.
+---
+
+MetaReader can show the **3D model**, not just its metadata. On a part or assembly, **click the
+preview thumbnail** (or the **3D** button next to the file icon, shown when the thumbnail is hidden)
+to open an interactive viewer that fills most of the window. Use its toolbar to orbit, pan, zoom and
+fit; click outside the panel, press the **✕**, or hit **Esc** to close.
+
+## Generate once, then cache
+
+The 3D view is an Autodesk **SVF** viewable rendered by the Autodesk viewer. The first time you open a
+given model, MetaReader **generates the SVF with Inventor** (driving its translator add-in) and caches
+it. Every time after that - and for anyone else pointing at the same shared cache - it loads straight
+from the cache.
+
+- **Cached** → opens immediately, **no Inventor needed**.
+- **Not cached** → MetaReader generates it first (it opens the model in Inventor in the background; the
+  first run on a large model can take a while), then shows it.
+
+<Callout type="info">
+  *Generating* a viewable needs **Autodesk Inventor installed** (any release - you choose which);
+  *viewing* an already-cached one does not. The viewer loads its rendering engine from Autodesk's CDN,
+  so the 3D view needs an internet connection.
+</Callout>
+
+## The cache (and a shared store)
+
+Viewables are keyed by the **content hash** of the model, so the same file yields the same key on any
+machine. A **shared network store** therefore dedupes across users and PCs: the first person to open a
+model generates it; everyone else gets a cache hit.
+
+Configure it in **Settings → 3D Viewer**:
+
+- **Inventor version** - which installed release generates viewables, or *Ask each time*.
+- **Shared cache folder** - a network path so viewables are reused across users; leave empty for a
+  local-only cache under your profile.
+- **Cached viewables** - **Open** the local cache folder, or **Clear** it to reclaim space.
+
+When several Inventor releases are installed and none is chosen yet, the first generation asks which to
+use and remembers it.

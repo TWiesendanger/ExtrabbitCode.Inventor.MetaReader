@@ -2,6 +2,7 @@
   "pages": [
     "index",
     "the-viewer",
+    "3d-view",
     "model-states",
     "references",
     "file-structure",
