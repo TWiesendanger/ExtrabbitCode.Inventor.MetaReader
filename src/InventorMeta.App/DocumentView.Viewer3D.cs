@@ -19,13 +19,7 @@ namespace InventorMeta.App;
 public sealed partial class DocumentView
 {
     private const string ViewerHost = "inventormeta.viewer";
-    private static readonly string ViewerLogPath = Path.Combine(Path.GetTempPath(), "invmeta-viewer.log");
     private bool _viewerOpen;
-
-    private static void ViewerLog(string message)
-    {
-        try { File.AppendAllText(ViewerLogPath, message + Environment.NewLine); } catch { /* best effort */ }
-    }
 
     private void OnOpen3D(object sender, RoutedEventArgs e) => _ = OpenViewer3DAsync();
 
@@ -45,7 +39,7 @@ public sealed partial class DocumentView
         }
 
         _viewerOpen = true;
-        try { File.Delete(ViewerLogPath); } catch { /* fresh log per open */ }
+        ViewerLog.Clear();   // fresh log per open
 
         // ---- overlay: dim backdrop (click-out closes) + centred panel with the WebView2 + status ----
         WebView2 web = new();
@@ -115,8 +109,10 @@ public sealed partial class DocumentView
             SvfStore store = new(ViewerSettings.NetworkPath);
             statusText.Text = "Checking cache…";
             string key = await Task.Run(() => SvfStore.ComputeKey(FilePath));
+            bool cached = store.Has(key);
+            Serilog.Log.Information("3D view for {File} (cached={Cached})", Path.GetFileName(FilePath), cached);
 
-            if (!store.Has(key))
+            if (!cached)
             {
                 InventorInstall? inv = await ResolveInventorAsync(win);
                 if (inv == null)
@@ -129,13 +125,16 @@ public sealed partial class DocumentView
                 }
 
                 statusText.Text = $"Generating the 3D view with {inv.DisplayName}…\nThis opens the model in Inventor and can take a while.";
+                Serilog.Log.Information("Generating SVF with {Version} for {File}", inv.DisplayName, Path.GetFileName(FilePath));
                 SvfGenerator.Result res = await GenerateOnStaThread(inv, FilePath, store.EntryDir(key));
                 if (!res.Ok)
                 {
+                    Serilog.Log.Error("SVF generation failed for {File}: {Error}", FilePath, res.Error);
                     ring.IsActive = false;
                     statusText.Text = "Couldn't generate the 3D view:\n" + res.Error;
                     return;
                 }
+                Serilog.Log.Information("SVF generated for {File}", Path.GetFileName(FilePath));
             }
 
             string? bubble = store.FindBubble(key);
@@ -161,18 +160,23 @@ public sealed partial class DocumentView
             // diagnostics: log failed resource fetches and JS messages to %TEMP%\invmeta-viewer.log
             web.CoreWebView2.WebResourceResponseReceived += (_, a) =>
             {
-                try { int s = a.Response.StatusCode; if (s is 0 or >= 400) { ViewerLog($"HTTP {s}  {a.Request.Uri}"); } }
+                try { int s = a.Response.StatusCode; if (s is 0 or >= 400) { ViewerLog.Write($"HTTP {s}  {a.Request.Uri}"); } }
                 catch { /* ignore */ }
             };
             web.CoreWebView2.WebMessageReceived += (_, a) =>
             {
-                try { ViewerLog("js: " + a.TryGetWebMessageAsString()); } catch { /* ignore */ }
+                try { ViewerLog.Write("js: " + a.TryGetWebMessageAsString()); } catch { /* ignore */ }
             };
+            // pass viewer display settings into the page before it loads
+            await web.CoreWebView2.AddScriptToExecuteOnDocumentCreatedAsync(
+                $"window.__displayEdges = {(ViewerSettings.DisplayEdges ? "true" : "false")};");
+
             web.CoreWebView2.NavigationCompleted += (_, _) => statusHost.Visibility = Visibility.Collapsed;
             web.CoreWebView2.Navigate($"https://{ViewerHost}/viewer.html");
         }
         catch (Exception ex)
         {
+            Serilog.Log.Error(ex, "3D view error for {File}", FilePath);
             ring.IsActive = false;
             statusText.Text = "3D view error:\n" + ex.Message;
         }
@@ -267,6 +271,8 @@ public sealed partial class DocumentView
       // lock the fitted view in as the home view (correct method lives on autocam)
       try { viewer.autocam.setHomeViewFrom(viewer.getCamera()); report("home set"); }
       catch (e) { report("autocam.setHomeViewFrom: " + e); }
+      // apply display settings injected from the app
+      try { viewer.setDisplayEdges(!!window.__displayEdges); } catch (e) { report("setDisplayEdges: " + e); }
     });
     Autodesk.Viewing.Document.load(
       "./bubble.json",

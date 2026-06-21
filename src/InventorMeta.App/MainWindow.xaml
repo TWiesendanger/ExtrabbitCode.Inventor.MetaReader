@@ -134,13 +134,20 @@
             </Grid.ColumnDefinitions>
             <TextBlock x:Name="StatusText" Grid.Column="0" VerticalAlignment="Center" Opacity="0.7"
                        FontSize="12" Text="Ready. Open or drop an Inventor file to begin."/>
-            <Button Grid.Column="1" Click="OnInfoClick" VerticalAlignment="Center"
-                    ToolTipService.ToolTip="About">
-                <StackPanel Orientation="Horizontal" Spacing="8">
-                    <FontIcon Glyph="&#xE946;" FontSize="14"/>
-                    <TextBlock Text="About"/>
-                </StackPanel>
-            </Button>
+            <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+                <Button Click="OnSettingsClick" ToolTipService.ToolTip="Settings">
+                    <StackPanel Orientation="Horizontal" Spacing="8">
+                        <FontIcon Glyph="&#xE713;" FontSize="14"/>
+                        <TextBlock Text="Settings"/>
+                    </StackPanel>
+                </Button>
+                <Button Click="OnInfoClick" ToolTipService.ToolTip="About">
+                    <StackPanel Orientation="Horizontal" Spacing="8">
+                        <FontIcon Glyph="&#xE946;" FontSize="14"/>
+                        <TextBlock Text="About"/>
+                    </StackPanel>
+                </Button>
+            </StackPanel>
         </Grid>
 
         <!-- fullscreen overlay host (e.g. the reference graph blown up to fill the window) -->

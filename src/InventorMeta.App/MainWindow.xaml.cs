@@ -152,6 +152,8 @@ public sealed partial class MainWindow
         await dlg.ShowAsync();
     }
 
+    private async void OnSettingsClick(object sender, RoutedEventArgs e) => await SettingsDialog.ShowAsync(Content.XamlRoot);
+
     private void OnThemeButtonClick(object sender, RoutedEventArgs e)
     {
         _theme = _theme == ElementTheme.Light ? ElementTheme.Dark : ElementTheme.Light;
@@ -243,8 +245,11 @@ public sealed partial class MainWindow
         DocumentView dv = new() { StatusSink = SetStatus };
         if (!dv.Load(path))
         {
+            Serilog.Log.Warning("Could not open {File}", path);
             return;   // invalid file: status already set, no tab added
         }
+
+        Serilog.Log.Information("Opened {File} ({Kind})", path, dv.Document?.Kind);
 
         TabViewItem tab = new()
         {

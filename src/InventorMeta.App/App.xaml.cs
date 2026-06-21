@@ -22,6 +22,9 @@ public partial class App
     protected override void OnLaunched(LaunchActivatedEventArgs args)
     {
         UnhandledException += OnUnhandledException;
+        AppLog.Init();
+        Serilog.Log.Information("Inventor MetaReader starting (v{Version})",
+            typeof(App).Assembly.GetName().Version?.ToString() ?? "?");
 
         // Headless docs mode: "--shoot-docs <outDir> [--samples <dir>]" renders one PNG per view
         // (light + dark) and exits, without ever showing the normal app.
@@ -50,9 +53,10 @@ public partial class App
         MainWindowInstance.Activate();
     }
 
-    /// <summary>Append any unhandled UI-thread exception to a crash log for diagnosis.</summary>
+    /// <summary>Log any unhandled UI-thread exception (also to a crash.log for the launcher to check).</summary>
     private static void OnUnhandledException(object sender, Microsoft.UI.Xaml.UnhandledExceptionEventArgs e)
     {
+        Serilog.Log.Error(e.Exception, "Unhandled UI-thread exception: {Message}", e.Message);
         try
         {
             string path = Path.Combine(

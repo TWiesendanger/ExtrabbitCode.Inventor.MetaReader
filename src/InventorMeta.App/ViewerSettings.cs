@@ -6,6 +6,7 @@ internal static class ViewerSettings
 {
     private const string NetworkKey = "viewer.networkPath";
     private const string YearKey = "viewer.inventorYear";
+    private const string EdgesKey = "viewer.displayEdges";
 
     /// <summary>Optional shared cache path; null/empty means local-only.</summary>
     public static string? NetworkPath
@@ -18,10 +19,17 @@ internal static class ViewerSettings
         set => AppSettings.Set(NetworkKey, value ?? "");
     }
 
-    /// <summary>The Inventor release year selected for generation (0 = none chosen yet).</summary>
+    /// <summary>The Inventor release year selected for generation (0 = ask each time).</summary>
     public static int InventorYear
     {
         get => AppSettings.GetInt(YearKey, 0);
         set => AppSettings.Set(YearKey, value.ToString());
+    }
+
+    /// <summary>Draw model edges (surface outlines) in the 3D viewer.</summary>
+    public static bool DisplayEdges
+    {
+        get => AppSettings.Get(EdgesKey) == "true";
+        set => AppSettings.Set(EdgesKey, value ? "true" : "false");
     }
 }
