@@ -1,5 +1,7 @@
 # InventorMeta - read Inventor files without Inventor
 
+<img src="src/InventorMeta.App/Assets/inventor-meta-1024.png" alt="InventorMeta" width="120" align="right" />
+
 Reads metadata out of Autodesk Inventor `.ipt` / `.iam` / `.idw` / `.ipn` files
 directly from their bytes - **no Autodesk Inventor installation required**.
 
