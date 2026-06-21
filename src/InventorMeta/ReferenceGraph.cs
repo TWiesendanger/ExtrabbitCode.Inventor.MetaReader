@@ -15,6 +15,7 @@ public sealed class RefNode
     public bool ReadError;    // resolved but couldn't be parsed
     public bool Truncated;    // children omitted because the node cap was hit
     public bool IsLinkedFile; // a linked non-model file (image / imported CAD), not an Inventor document
+    public bool IsIPart;      // an iPart/iAssembly factory or member (carries the member table)
     public int Depth;
     public double Row;        // assigned at layout time by the renderer
     public bool Expanded;     // UI: whether this node's children are shown
@@ -47,7 +48,8 @@ public static class ReferenceGraph
         {
             RefNode rootNode = new()
             {
-                Path = root.FilePath, Name = root.FileName, Kind = root.Kind, Resolved = true, Depth = 0
+                Path = root.FilePath, Name = root.FileName, Kind = root.Kind,
+                Resolved = true, IsIPart = root.IsIPart, Depth = 0
             };
             HashSet<string> branch = new(StringComparer.OrdinalIgnoreCase) { Norm(root.FilePath) };
             Expand(rootNode, root, branch);
@@ -77,6 +79,7 @@ public static class ReferenceGraph
                 {
                     InventorDocument cdoc = new(child.Path);
                     child.Kind = cdoc.Kind;
+                    child.IsIPart = cdoc.IsIPart;
                     branch.Add(norm);
                     Expand(child, cdoc, branch);
                     branch.Remove(norm);

@@ -1201,16 +1201,29 @@ public sealed partial class DocumentView
         StackPanel text = new() { VerticalAlignment = VerticalAlignment.Center };
         text.Children.Add(new TextBlock { Text = n.Name, FontWeight = FontWeights.SemiBold, FontSize = 13,
             TextTrimming = TextTrimming.CharacterEllipsis });
+        // iPart classification: a member references its factory (a part child); the factory
+        // is a leaf source. Both carry the iPart marker.
+        bool isMember = n.IsIPart && !n.IsLinkedFile && n.Children.Any(c => !c.IsLinkedFile);
+        bool isFactory = n.IsIPart && !n.IsLinkedFile && !isMember;
+
         string sub = n.Cyclic ? "↻ already shown above"
             : !n.Resolved ? (n.IsLinkedFile ? "linked file - not found" : "file not found")
             : n.ReadError ? "unreadable"
             : n.IsLinkedFile ? "linked " + Path.GetExtension(n.Name).TrimStart('.').ToLowerInvariant()
+            : isFactory ? "iPart factory"
+            : isMember ? "iPart member"
             : KindLabel(n.Kind);
         TextBlock subtitle = new() { Text = sub, FontSize = 11, Opacity = 0.6, TextTrimming = TextTrimming.CharacterEllipsis };
         if (!n.Resolved)
         {
             subtitle.Foreground = new SolidColorBrush(Windows.UI.Color.FromArgb(255, 209, 96, 96));
             subtitle.Opacity = 0.95;
+        }
+        else if (isFactory || isMember)
+        {
+            subtitle.Foreground = new SolidColorBrush(Windows.UI.Color.FromArgb(255, 214, 158, 46)); // gold
+            subtitle.Opacity = 1.0;
+            subtitle.FontWeight = FontWeights.SemiBold;
         }
         text.Children.Add(subtitle);
         Grid.SetColumn(text, 1);
@@ -1236,6 +1249,11 @@ public sealed partial class DocumentView
         if (n.Depth == 0)
         {
             box.BorderBrush = (Brush)Application.Current.Resources["AccentFillColorDefaultBrush"];
+            box.BorderThickness = new Thickness(2);
+        }
+        else if (isFactory)
+        {
+            box.BorderBrush = new SolidColorBrush(Windows.UI.Color.FromArgb(255, 214, 158, 46)); // gold
             box.BorderThickness = new Thickness(2);
         }
         ToolTipService.SetToolTip(box, n.Path);

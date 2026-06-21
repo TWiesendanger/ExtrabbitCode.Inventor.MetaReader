@@ -61,6 +61,23 @@ public sealed class InventorDocument
 
     /// <summary>Linked non-model files (images, imported CAD, …) referenced by the document.</summary>
     public List<string> LinkedFiles { get; } = [];
+
+    /// <summary>True for an iPart/iAssembly factory or one of its generated members
+    /// (both carry the member table); false for an ordinary part.</summary>
+    public bool IsIPart { get; private set; }
+
+    private static readonly byte[] IPartMarker = Encoding.ASCII.GetBytes("MemberDesel");
+
+    private static bool ContainsBytes(byte[] data, byte[] pattern)
+    {
+        for (int i = 0; i + pattern.Length <= data.Length; i++)
+        {
+            int j = 0;
+            while (j < pattern.Length && data[i + j] == pattern[j]) { j++; }
+            if (j == pattern.Length) { return true; }
+        }
+        return false;
+    }
     public List<string> ModelStates { get; } = [];
     public Dictionary<string, string> VersionInfo { get; } = new();
     public byte[]? Thumbnail { get; private set; }      // normalized PNG (or BMP) bytes
@@ -97,6 +114,13 @@ public sealed class InventorDocument
         {
             byte[] data;
             try { data = cf.ReadEntry(e); } catch { continue; }
+
+            // iPart factories and their members both carry the iPart member table marker
+            // ("MemberDesel"); ordinary parts do not.
+            if (!IsIPart && ContainsBytes(data, IPartMarker))
+            {
+                IsIPart = true;
+            }
 
             // bucket model-state (member) property-set streams by their member storage
             Match mm = Regex.Match(e.Path, @"^/MemberDocs/([^/]+)/[^/]+$", RegexOptions.IgnoreCase);
@@ -368,6 +392,7 @@ public sealed class InventorDocument
             }).ToArray(),
             references = References,
             linkedFiles = LinkedFiles,
+            isIPart = IsIPart,
             hasThumbnail = Thumbnail != null,
             properties = Properties
                 .GroupBy(p => p.Set)
