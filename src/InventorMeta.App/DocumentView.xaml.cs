@@ -458,6 +458,11 @@ public sealed partial class DocumentView
     /// <summary>Wraps a row in a hover area with copy (and optional hide) buttons on the right.</summary>
     private Border CopyableRow(UIElement content, string copyText, Thickness padding, string? hideKey = null)
     {
+        // Selectable text inside the row captures the pointer for selection, which swallows the
+        // row's tap - so click-to-copy only worked on a fast click. The row copies the whole value
+        // anyway, so turn selection off here to make the click reliable.
+        DisableTextSelection(content);
+
         Grid grid = new();
         grid.Children.Add(content);
 
@@ -507,6 +512,18 @@ public sealed partial class DocumentView
         row.PointerExited += (_, _) => { actions.Opacity = 0; actions.IsHitTestVisible = false; };
         row.Tapped += (_, e) => { if (can) { Copy(copyText); e.Handled = true; } };
         return row;
+    }
+
+    /// <summary>Turns off text selection on every TextBlock within a row so it doesn't intercept
+    /// the row's copy tap.</summary>
+    private static void DisableTextSelection(UIElement element)
+    {
+        switch (element)
+        {
+            case TextBlock tb: tb.IsTextSelectionEnabled = false; break;
+            case Panel panel: foreach (UIElement child in panel.Children) { DisableTextSelection(child); } break;
+            case Border border when border.Child is { } c: DisableTextSelection(c); break;
+        }
     }
 
     private void Copy(string text)
