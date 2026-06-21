@@ -1,22 +1,26 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
-using System.Linq;
+using System.Text.Json;
 
 namespace InventorMeta.App;
 
-/// <summary>Tiny key=value settings store in %LocalAppData% (theme, window bounds, …).</summary>
+/// <summary>Tiny key/value settings store persisted as JSON in %LocalAppData% (theme, window
+/// bounds, sidebar layout, 3D-viewer options, …).</summary>
 internal static class AppSettings
 {
-    private static readonly string FilePath = Path.Combine(
+    private static readonly string Dir = Path.Combine(
         Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
-        "ExtrabbitCode.Inventor.MetaReader", "settings.ini");
+        "ExtrabbitCode.Inventor.MetaReader");
+    private static readonly string FilePath = Path.Combine(Dir, "settings.json");
+    private static readonly string LegacyIniPath = Path.Combine(Dir, "settings.ini");
+    private static readonly JsonSerializerOptions JsonOpts = new() { WriteIndented = true };
 
     private static Dictionary<string, string>? _cache;
 
-    /// <summary>When true (documentation snapshotter), settings live only in memory: the user's
-    /// settings file is neither read nor written, so screenshots use clean defaults and the run
-    /// never disturbs the user's saved layout. Set before any settings access.</summary>
+    /// <summary>When true (documentation snapshotter), settings live only in memory: the file is
+    /// neither read nor written, so screenshots use clean defaults and the run never disturbs the
+    /// user's saved layout. Set before any settings access.</summary>
     internal static bool Ephemeral { get; set; }
 
     private static Dictionary<string, string> Map()
@@ -34,13 +38,25 @@ internal static class AppSettings
 
         try
         {
-            foreach (string line in File.ReadAllLines(FilePath))
+            if (File.Exists(FilePath))
             {
-                int eq = line.IndexOf('=');
-                if (eq > 0)
+                Dictionary<string, string>? loaded =
+                    JsonSerializer.Deserialize<Dictionary<string, string>>(File.ReadAllText(FilePath));
+                if (loaded != null)
                 {
-                    _cache[line[..eq].Trim()] = line[(eq + 1)..].Trim();
+                    foreach (KeyValuePair<string, string> kv in loaded) { _cache[kv.Key] = kv.Value; }
                 }
+            }
+            else if (File.Exists(LegacyIniPath))
+            {
+                // one-time migration from the old key=value .ini, then drop it
+                foreach (string line in File.ReadAllLines(LegacyIniPath))
+                {
+                    int eq = line.IndexOf('=');
+                    if (eq > 0) { _cache[line[..eq].Trim()] = line[(eq + 1)..].Trim(); }
+                }
+                Flush();
+                try { File.Delete(LegacyIniPath); } catch { /* leave it */ }
             }
         }
         catch { /* first run / unreadable */ }
@@ -75,8 +91,8 @@ internal static class AppSettings
 
         try
         {
-            Directory.CreateDirectory(Path.GetDirectoryName(FilePath)!);
-            File.WriteAllLines(FilePath, Map().Select(kv => $"{kv.Key}={kv.Value}"));
+            Directory.CreateDirectory(Dir);
+            File.WriteAllText(FilePath, JsonSerializer.Serialize(Map(), JsonOpts));
         }
         catch { /* best-effort */ }
     }
