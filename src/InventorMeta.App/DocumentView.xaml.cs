@@ -1353,10 +1353,10 @@ public sealed partial class DocumentView
         StackPanel text = new() { VerticalAlignment = VerticalAlignment.Center };
         text.Children.Add(new TextBlock { Text = n.Name, FontWeight = FontWeights.SemiBold, FontSize = 13,
             TextTrimming = TextTrimming.CharacterEllipsis });
-        // iPart classification: a member references its factory (a part child); the factory
-        // is a leaf source. Both carry the iPart marker.
-        bool isMember = n.IsIPart && !n.IsLinkedFile && n.Children.Any(c => !c.IsLinkedFile);
-        bool isFactory = n.IsIPart && !n.IsLinkedFile && !isMember;
+        // iPart classification (done in the core graph): model-state parts carry the same marker
+        // but aren't iParts, so they classify as neither.
+        bool isMember = n.IPart == IPartRole.Member;
+        bool isFactory = n.IPart == IPartRole.Factory;
 
         string sub = n.Cyclic ? "↻ already shown above"
             : !n.Resolved ? (n.IsLinkedFile ? "linked file - not found" : "file not found")

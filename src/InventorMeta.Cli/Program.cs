@@ -57,7 +57,7 @@ static void Graph(InventorDocument doc)
         string branch = n.Depth == 0 ? "" : (last ? "└─ " : "├─ ");
         string flag = !n.Resolved ? "  [NOT FOUND]" : n.Cyclic ? "  [cyclic]" : n.ReadError ? "  [unreadable]" : "";
         string type = n.IsLinkedFile ? "linked" : n.Kind.ToString();
-        string ipart = n.IsIPart ? (n.Children.Exists(c => !c.IsLinkedFile) ? "  [iPart member]" : "  [iPart factory]") : "";
+        string ipart = n.IPart switch { IPartRole.Member => "  [iPart member]", IPartRole.Factory => "  [iPart factory]", _ => "" };
         Console.WriteLine($"{indent}{branch}{n.Name}  ({type}){ipart}{flag}");
         if (!n.Resolved && n.Depth > 0)
         {

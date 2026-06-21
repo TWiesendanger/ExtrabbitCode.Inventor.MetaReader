@@ -62,4 +62,7 @@ $RECYCLE.BIN/
 src/InventorMeta.App/Assets/SampleFiles/*.zip
 src/InventorMeta.App/Assets/SampleFiles/Jet_Engine_Model/
 
+# Inventor's automatic OldVersions/ backup folders
+**/OldVersions/
+
 .vscode/settings.json

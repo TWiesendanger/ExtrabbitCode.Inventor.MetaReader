@@ -1,8 +1,12 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 
 namespace InventorMeta;
+
+/// <summary>How a node participates in an iPart relationship, once the graph is classified.</summary>
+public enum IPartRole { None, Factory, Member }
 
 /// <summary>One node in the reference tree (a document and the documents it references).</summary>
 public sealed class RefNode
@@ -15,7 +19,9 @@ public sealed class RefNode
     public bool ReadError;    // resolved but couldn't be parsed
     public bool Truncated;    // children omitted because the node cap was hit
     public bool IsLinkedFile; // a linked non-model file (image / imported CAD), not an Inventor document
-    public bool IsIPart;      // an iPart/iAssembly factory or member (carries the member table)
+    public bool IsIPart;      // carries the member-table marker (a true iPart OR a model-state part)
+    public bool HasModelStates; // has embedded model states - the marker then comes from those, not an iPart
+    public IPartRole IPart;   // iPart role within the graph, set by classification (factory / member / none)
     public byte[]? Thumbnail; // the referenced document's preview image, if it was read
     public string ThumbnailExt = "";
     public int Depth;
@@ -51,11 +57,12 @@ public static class ReferenceGraph
             RefNode rootNode = new()
             {
                 Path = root.FilePath, Name = root.FileName, Kind = root.Kind,
-                Resolved = true, IsIPart = root.IsIPart, Depth = 0,
+                Resolved = true, IsIPart = root.IsIPart, HasModelStates = root.HasModelStates, Depth = 0,
                 Thumbnail = root.Thumbnail, ThumbnailExt = root.ThumbnailExt
             };
             HashSet<string> branch = new(StringComparer.OrdinalIgnoreCase) { Norm(root.FilePath) };
             Expand(rootNode, root, branch);
+            ClassifyIParts(rootNode);
             return rootNode;
         }
 
@@ -83,6 +90,7 @@ public static class ReferenceGraph
                     InventorDocument cdoc = new(child.Path);
                     child.Kind = cdoc.Kind;
                     child.IsIPart = cdoc.IsIPart;
+                    child.HasModelStates = cdoc.HasModelStates;
                     child.Thumbnail = cdoc.Thumbnail;
                     child.ThumbnailExt = cdoc.ThumbnailExt;
                     branch.Add(norm);
@@ -129,6 +137,20 @@ public static class ReferenceGraph
             }
             catch { /* malformed path -> unresolved */ }
             return null;
+        }
+    }
+
+    /// <summary>Tags genuine iPart nodes. The member-table marker (<see cref="RefNode.IsIPart"/>)
+    /// also fires on parts with model states, so a node only counts as an iPart when it carries the
+    /// marker <em>without</em> model states: a member references its factory (a model child), a
+    /// factory is a referenced leaf. Plain and model-state parts stay <see cref="IPartRole.None"/>.</summary>
+    private static void ClassifyIParts(RefNode node)
+    {
+        foreach (RefNode child in node.Children) { ClassifyIParts(child); }
+
+        if (node.IsIPart && !node.IsLinkedFile && !node.HasModelStates)
+        {
+            node.IPart = node.Children.Any(c => !c.IsLinkedFile) ? IPartRole.Member : IPartRole.Factory;
         }
     }
 
