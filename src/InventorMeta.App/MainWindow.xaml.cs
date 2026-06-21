@@ -271,6 +271,18 @@ public sealed partial class MainWindow
         AfterTabRemoved();
     }
 
+    /// <summary>Ctrl+W closes the selected document tab.</summary>
+    private void OnCloseTabShortcut(Microsoft.UI.Xaml.Input.KeyboardAccelerator sender,
+        Microsoft.UI.Xaml.Input.KeyboardAcceleratorInvokedEventArgs args)
+    {
+        if (DocTabs.SelectedItem is TabViewItem tab)
+        {
+            DocTabs.TabItems.Remove(tab);
+            AfterTabRemoved();
+            args.Handled = true;
+        }
+    }
+
     private void OnTabSelectionChanged(object sender, SelectionChangedEventArgs e)
     {
         if (DocTabs.SelectedItem is TabViewItem { Content: DocumentView { Document: not null } dv })

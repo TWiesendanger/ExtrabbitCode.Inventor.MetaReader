@@ -5,6 +5,9 @@
     xmlns:muxc="using:Microsoft.UI.Xaml.Controls">
 
     <Grid Background="{ThemeResource SolidBackgroundFillColorBaseBrush}">
+        <Grid.KeyboardAccelerators>
+            <KeyboardAccelerator Modifiers="Control" Key="W" Invoked="OnCloseTabShortcut"/>
+        </Grid.KeyboardAccelerators>
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto"/>
             <RowDefinition Height="*"/>
