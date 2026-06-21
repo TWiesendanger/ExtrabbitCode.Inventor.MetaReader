@@ -11,4 +11,7 @@
     <Project Path="src/InventorMeta.Cli/InventorMeta.Cli.csproj" />
     <Project Path="src/InventorMeta/InventorMeta.csproj" />
   </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/InventorMeta.Tests/InventorMeta.Tests.csproj" />
+  </Folder>
 </Solution>
