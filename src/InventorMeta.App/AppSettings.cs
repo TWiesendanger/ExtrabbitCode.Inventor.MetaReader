@@ -14,6 +14,11 @@ internal static class AppSettings
 
     private static Dictionary<string, string>? _cache;
 
+    /// <summary>When true (documentation snapshotter), settings live only in memory: the user's
+    /// settings file is neither read nor written, so screenshots use clean defaults and the run
+    /// never disturbs the user's saved layout. Set before any settings access.</summary>
+    internal static bool Ephemeral { get; set; }
+
     private static Dictionary<string, string> Map()
     {
         if (_cache != null)
@@ -22,6 +27,11 @@ internal static class AppSettings
         }
 
         _cache = new(StringComparer.OrdinalIgnoreCase);
+        if (Ephemeral)
+        {
+            return _cache;
+        }
+
         try
         {
             foreach (string line in File.ReadAllLines(FilePath))
@@ -58,6 +68,11 @@ internal static class AppSettings
 
     private static void Flush()
     {
+        if (Ephemeral)
+        {
+            return;
+        }
+
         try
         {
             Directory.CreateDirectory(Path.GetDirectoryName(FilePath)!);

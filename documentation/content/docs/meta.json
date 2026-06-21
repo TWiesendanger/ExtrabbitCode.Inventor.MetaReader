@@ -1,0 +1,12 @@
+{
+  "pages": [
+    "index",
+    "the-viewer",
+    "model-states",
+    "references",
+    "file-structure",
+    "command-line",
+    "for-developers",
+    "how-it-works"
+  ]
+}

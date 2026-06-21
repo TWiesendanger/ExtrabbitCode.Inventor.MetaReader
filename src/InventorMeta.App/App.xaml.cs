@@ -13,11 +13,31 @@ public partial class App
     /// <summary>Every open top-level window (main + torn-out tab windows).</summary>
     public static List<Window> ActiveWindows { get; } = [];
 
+    /// <summary>True while the documentation snapshotter is running; suppresses persisting
+    /// window bounds so generating screenshots never overwrites the user's saved layout.</summary>
+    public static bool ShootMode { get; private set; }
+
     public App() { InitializeComponent(); }
 
     protected override void OnLaunched(LaunchActivatedEventArgs args)
     {
         UnhandledException += OnUnhandledException;
+
+        // Headless docs mode: "--shoot-docs <outDir> [--samples <dir>]" renders one PNG per view
+        // (light + dark) and exits, without ever showing the normal app.
+        string[] cli = Environment.GetCommandLineArgs();
+        int shootIndex = Array.IndexOf(cli, "--shoot-docs");
+        if (shootIndex >= 0 && shootIndex + 1 < cli.Length)
+        {
+            ShootMode = true;
+            AppSettings.Ephemeral = true; // clean default settings; never touch the user's file
+            int samplesIndex = Array.IndexOf(cli, "--samples");
+            string? samples = samplesIndex >= 0 && samplesIndex + 1 < cli.Length
+                ? cli[samplesIndex + 1] : null;
+            _ = DocShooter.RunAsync(cli[shootIndex + 1], samples);
+            return;
+        }
+
         MainWindowInstance = new MainWindow();
         MainWindowInstance.Activate();
     }

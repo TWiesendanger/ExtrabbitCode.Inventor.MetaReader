@@ -1,0 +1,99 @@
+---
+title: For Developers
+description: Read Inventor metadata from your own .NET code with the zero-dependency InventorMeta library.
+---
+
+The desktop app and the command line are both thin front-ends over a small core library,
+**InventorMeta**. It's a `net10.0` library with **zero external dependencies** - drop it into your
+own app, service or Inventor add-in and read Inventor files directly.
+
+The packaged viewer ships on the [Microsoft Store](/docs); to build any of the three
+projects yourself, read on.
+
+## Build
+
+```bash
+# core library + CLI (cross-platform)
+dotnet build src/InventorMeta.Cli -c Release
+
+# the WinUI desktop viewer (Windows only)
+dotnet build src/InventorMeta.App -c Release -r win-x64
+```
+
+```
+InventorReader.slnx
+└─ src/
+   ├─ InventorMeta/        core library (the parser)        - net10.0
+   ├─ InventorMeta.Cli/    command-line tool ("invmeta")    - net10.0
+   └─ InventorMeta.App/    WinUI 3 desktop viewer           - net10.0-windows
+```
+
+## Open a document
+
+Everything hangs off one class, `InventorDocument`. Parsing happens in the constructor; the result
+is a read-only snapshot.
+
+```csharp
+using InventorMeta;
+
+var doc = new InventorDocument(@"C:\path\SamplePart.ipt");
+
+doc.FileName;       // "SamplePart.ipt"
+doc.DocumentType;   // "Inventor Part (.ipt)"
+doc.Kind;           // DocKind.Part | Assembly | Drawing | Presentation | Unknown
+```
+
+`Kind` comes from the file's root identifier, so it's correct even if the extension is wrong. To
+guard against non-Inventor files first:
+
+```csharp
+if (!CompoundFile.LooksLikeCompoundFile(path)) return;
+```
+
+## Read properties
+
+```csharp
+// the common iProperties, resolved for you
+foreach (var kv in doc.Summary)
+    Console.WriteLine($"{kv.Key,-20} {kv.Value}");
+
+string partNumber = doc.Summary["Part Number"];
+
+// or every property in every set
+foreach (var p in doc.Properties)
+    Console.WriteLine($"[{p.Set}] {p.Name} = {p.Display}");
+```
+
+<Callout type="warn">
+  Mass / Volume / Surface Area / Density are **cached** values and can be stale until Inventor
+  recomputes mass properties - check the *Valid Mass Props* flag before trusting them. See
+  [How it works](/docs/how-it-works).
+</Callout>
+
+## References, model states, thumbnail, JSON
+
+```csharp
+foreach (var r in doc.References) Console.WriteLine(r);
+
+if (doc.HasModelStates)
+    foreach (var s in doc.ModelStateDetails)
+        Console.WriteLine($"{s.Name}{(s.IsActive ? " (active)" : "")}");
+
+if (doc.Thumbnail != null)
+    File.WriteAllBytes("preview." + doc.ThumbnailExt, doc.Thumbnail);
+
+string json = doc.ToJson();
+```
+
+## The raw container
+
+For lower-level access, `CompoundFile` parses the OLE Compound File container directly - enumerate
+the directory, read any stream:
+
+```csharp
+using var cf = new CompoundFile(path);
+Console.WriteLine($"CFB v{cf.MajorVersion}, {cf.SectorSize}-byte sectors");
+byte[] ufrx = cf.ReadStream("/UFRxDoc");
+```
+
+To understand what these streams and property sets are, read [How it works](/docs/how-it-works).

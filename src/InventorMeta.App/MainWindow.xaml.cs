@@ -128,7 +128,7 @@ public sealed partial class MainWindow
     {
         try
         {
-            if (_appWindow == null)
+            if (_appWindow == null || App.ShootMode)
             {
                 return;
             }

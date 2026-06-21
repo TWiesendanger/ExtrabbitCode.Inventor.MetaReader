@@ -1,0 +1,76 @@
+---
+title: Command Line
+description: Read Inventor files, compare model states and export JSON from a terminal or a script - no Inventor required.
+---
+
+Prefer the terminal, or need to process many files unattended? `invmeta` is a small command-line
+tool that reads the same metadata as the desktop app. It's cross-platform (Windows, macOS, Linux)
+and, like the app, needs no Autodesk Inventor.
+
+The desktop viewer is on the [Microsoft Store](/docs); the command-line tool is for
+developers and automation, so you build it from source.
+
+## Build it
+
+You need the **.NET 10 SDK**, then:
+
+```bash
+git clone https://github.com/TWiesendanger/ExtrabbitCode.Inventor.MetaReader.git
+cd ExtrabbitCode.Inventor.MetaReader
+dotnet build src/InventorMeta.Cli -c Release
+# the binary lands in src/InventorMeta.Cli/bin/Release as invmeta(.exe)
+```
+
+## Commands
+
+```text
+invmeta info    <file>              friendly report (type, iProperties, refs, version)
+invmeta states  <file>              per-model-state iProperties (parts/assemblies)
+invmeta json    <file>              full metadata as JSON
+invmeta props   <file>              every property in every set
+invmeta tree    <file>              raw file structure
+invmeta thumb   <file> [outBase]    extract the embedded preview image
+invmeta extract <file> <outDir>     dump every stream to disk
+invmeta cat     <file> <streamPath> hex+ascii dump of one stream
+```
+
+## Everyday use
+
+A quick, readable report - document type, key iProperties, references, model states and version:
+
+```bash
+invmeta info "SamplePart.ipt"
+```
+
+Compare a multi-state part's properties (the same data as the [Model States](/docs/model-states) tab):
+
+```bash
+invmeta states "SamplePart.ipt"
+```
+
+Pull the preview image out of a file:
+
+```bash
+invmeta thumb "Assembly1.iam" preview
+# -> writes preview.png (or preview.bmp)
+```
+
+## Automating across many files
+
+Because `json` writes to standard output, it drops straight into scripts. For example, export the
+metadata of every part in a folder:
+
+```bash
+for f in *.ipt; do
+  invmeta json "$f" > "${f%.ipt}.json"
+done
+```
+
+…or pull one field out with a JSON tool like `jq`:
+
+```bash
+invmeta json "SamplePart.ipt" | jq -r '.summary."Part Number"'
+```
+
+If you'd rather call the parser directly from your own program instead of shelling out, see
+[For developers](/docs/for-developers).

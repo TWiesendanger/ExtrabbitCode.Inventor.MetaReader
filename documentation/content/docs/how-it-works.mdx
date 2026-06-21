@@ -1,0 +1,71 @@
+---
+title: How It Works
+description: Why MetaReader can read Inventor files without Inventor - and exactly what is readable and what isn't.
+---
+
+How can a tool read Inventor files when Inventor isn't installed? Because the parts that matter
+aren't actually in a secret format. An Inventor document is a standard **OLE Compound File** (the
+same container Microsoft Office once used), and every iProperty inside it is stored as a standard
+**OLE Property Set**. MetaReader reads those documented formats directly.
+
+## What is readable - and what isn't
+
+| Data | Readable without Inventor? | Where |
+|------|----------------------------|-------|
+| Document type (part/assembly/drawing/presentation) | ✅ Yes, trivially | Root storage CLSID |
+| All iProperties (Part Number, Author, Material, Project, Status, custom props…) | ✅ Yes, fully | OLE Property Sets |
+| Preview thumbnail | ✅ Yes, fully | Property Set, image blob |
+| Cached mass / volume / surface area / density | ⚠️ Yes, **but possibly stale** | Design Tracking properties |
+| Referenced files (assembly components, drawing's model) | ✅ Yes (paths) | `UFRxDoc` stream |
+| Model States + per-state iProperties | ✅ Yes, fully | `MemberDocs/` sub-docs |
+| Originating template, save/version provenance | ✅ Yes | `UFRxDoc` |
+| Parametric feature tree, sketches, parameters | ❌ Opaque | `RSeStorage` |
+| Exact solid geometry (B-Rep) | ❌ Opaque | `RSeStorage` |
+
+The green rows are MetaReader's target: metadata, properties, references and the preview. The actual
+3D **geometry and feature tree** live in a proprietary database (`RSeStorage`) that is not practically
+decodable - for geometry, export to STEP/SAT/IGES or use the Inventor API.
+
+## The container
+
+Every Inventor document starts with the bytes `D0 CF 11 E0 A1 B1 1A E1` - the signature of a
+Microsoft **Compound File Binary** (OLE2 Structured Storage), essentially "a little filesystem inside
+one file". Inside is a tree of **storages** (folders) and **streams** (files) - exactly what the
+[File Structure](/docs/file-structure) tab shows.
+
+## Document type
+
+The container's root carries a CLSID (a Microsoft class identifier) that pins down the type, so
+MetaReader detects a part vs assembly vs drawing vs presentation from the bytes - regardless of the
+file extension.
+
+| CLSID | Document |
+|-------|----------|
+| `4D29B490-49B2-11D0-93C3-7E0706000000` | Part - `.ipt` |
+| `E60F81E1-49B3-11D0-93C3-7E0706000000` | Assembly - `.iam` |
+| `BBF9FDF1-52DC-11D0-8C04-0800090BE8EC` | Drawing - `.idw` |
+| `76283A80-50DD-11D3-A7E3-00C04F79D7BC` | Presentation - `.ipn` |
+
+## iProperties
+
+Every iProperty (File → iProperties in Inventor) is stored as a standard OLE Property Set. The most
+important is the **Design Tracking Properties** set, which holds the bulk of Inventor's fields - Part
+Number, Designer, Material, Design Status, Mass, and so on - each keyed by a numeric ID that comes
+straight from the Inventor API. The stream names are scrambled, so MetaReader identifies each set by
+its format ID, not its name.
+
+<Callout type="warn">
+  **Mass properties can be stale.** Mass, Surface Area, Volume and Density are *cached* - Inventor
+  only writes correct numbers after a mass update, and there's a "Valid Mass Props" flag that says
+  whether to trust them. The bounding box is *not* stored as a property at all.
+</Callout>
+
+## References and model states
+
+The `UFRxDoc` stream holds the **referenced file paths**, the originating **template**, and **version
+provenance** (which schema/build saved the file). A separate `MemberDocs/` area holds **complete
+nested documents** - one per model state - which is what lets MetaReader read
+[per-state iProperties](/docs/model-states) all at once. A multi-state file keeps the active
+`[Primary]` state as the top-level document and the rest as members; values a state hasn't cached yet
+live only in the opaque geometry database, which is why MetaReader shows `(not cached)` rather than
+guessing.

@@ -1,0 +1,52 @@
+---
+title: The Viewer
+description: A tour of the MetaReader window - the preview, the key-property sidebar, and every iProperty grouped by set.
+---
+
+import { ThemedImage } from '@/components/themed-image';
+
+Once a file is open, the window has two halves: a **summary card** on the left and a set of **detail
+tabs** on the right.
+
+<ThemedImage slug="app__overview" alt="The MetaReader viewer with a part open" />
+
+## The summary card (left)
+
+- The **preview thumbnail** Inventor saved with the file, plus the file name and document type.
+- A **key iProperties** list - the values you most often want: Part Number, Description, Designer,
+  Material, Project, Status, and so on.
+
+### Customize the sidebar
+
+Click the **pencil** icon on the card to choose exactly which properties appear here. You can:
+
+- **Add or remove** any property in the file.
+- **Drag to reorder** them.
+- **Show or hide** the thumbnail.
+
+Your layout is remembered and applied to every file you open, so the sidebar always shows the fields
+*you* care about.
+
+## The detail tabs (right)
+
+- **All Properties** - every property in the file, grouped into cards by property set (Design
+  Tracking, Summary Information, custom properties, and so on). Click a card header to collapse it,
+  or use the expand/collapse-all buttons.
+- **Model States** - per-state properties, shown only for multi-state parts and assemblies. See
+  [Model states](/docs/model-states).
+- **References** - the files this document depends on. See [References](/docs/references).
+- **File Structure** - the raw internal layout of the file. See [File structure](/docs/file-structure).
+
+## Handy touches
+
+- **Click any value to copy it** to the clipboard - a quick toast confirms what you copied.
+- **Hide the noise.** MetaReader hides Inventor's internal bookkeeping sets by default; the
+  **N hidden** button lets you reveal them (or hide anything else you don't want to see). Right-click
+  a tab or a property to hide it; click **N hidden → Show** to bring it back.
+- **Light or dark.** Use the sun/moon button in the title bar to switch themes; your choice is
+  remembered.
+- **Show in Explorer.** The **Explorer** button opens File Explorer with the current file selected,
+  so you can jump straight to it on disk. You can also reveal any referenced file this way - see
+  [References](/docs/references).
+- **Refresh** re-reads the file from disk - handy after you re-save it in Inventor.
+- **Export JSON** writes all the metadata to a file. See [File structure](/docs/file-structure#export-json).

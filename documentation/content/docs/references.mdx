@@ -1,0 +1,59 @@
+---
+title: References
+description: See the files a document depends on - an assembly's parts, a drawing's model - as an interactive graph.
+---
+
+import { ThemedImage } from '@/components/themed-image';
+
+Inventor documents point at other files: an assembly references its parts and sub-assemblies, a
+drawing references the model it documents. The **References** tab draws those relationships as a
+graph you can explore.
+
+<ThemedImage slug="app__references" alt="The References tab showing an assembly's reference graph" />
+
+## Exploring the graph
+
+- The document you opened is the highlighted node on the left; the files it references branch off to
+  the right.
+- Click the **+ / −** on any node to expand or collapse its children.
+- **Click a referenced document** to open it in its own tab and keep drilling down.
+- **Right-click a node** for more: **Open in a tab**, or **Show in Explorer** to reveal that file on
+  disk. Show in Explorer works for any found file - including linked images and imported CAD that
+  can't be opened as a document.
+- **Drag** the background to pan; **scroll** to zoom.
+- The toolbar in the top-right corner has icon buttons (hover for the name): **Fit** to zoom the whole
+  graph into view, **Expand all** / **Collapse all**, **Show thumbnails** to draw each node with its
+  document's preview image, and **Fullscreen** to blow the graph up to the whole screen (**Esc** exits).
+
+MetaReader resolves each reference on disk - first next to the parent file, then by name anywhere in
+the project folder - so a project that's been copied or reorganized still maps correctly. A file that
+can't be found is shown but marked as missing (and can't be revealed in Explorer).
+
+## iParts: factory & members
+
+An iPart is a single part - the **factory** - that generates many configured **members** from a
+table; in an assembly each placed member references its factory. MetaReader recognizes both and
+highlights them in the graph:
+
+- **iPart members** carry a gold **"iPart member"** label.
+- Their shared **iPart factory** is drawn with a gold border and an **"iPart factory"** label,
+  wherever it appears.
+
+This makes it easy to tell table-driven copies of a factory apart from standalone parts - for example
+a set of `Front Compression Fan-01…04` members all pointing at one `Front Compression Fan` factory.
+
+<ThemedImage slug="app__iparts" alt="Reference graph with iPart members and their shared factory highlighted" />
+
+## Version & provenance
+
+Below the graph, the **Version / provenance** panel collects the same version history Windows
+Explorer shows on a file's **Details** tab - **Current**, **Previous** and **Next Version**, who
+**last saved** it and with which Inventor build - followed by where the file came from: the Inventor
+file and software schema, when and from what it was saved, and the originating template. It's a quick
+way to see what produced a file and roughly which Inventor version touched it last.
+
+<Callout type="info">
+  Explorer's **Created with** and **Needs Migrating** fields aren't shown: Inventor computes them on
+  the fly (from an internal build table and the version opening the file) rather than storing them, so
+  there's no value to read back without Inventor running.
+</Callout>
