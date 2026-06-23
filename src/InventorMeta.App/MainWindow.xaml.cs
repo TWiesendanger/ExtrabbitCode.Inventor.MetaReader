@@ -70,7 +70,26 @@ public sealed partial class MainWindow
                     OpenFile(a);
                 }
             });
+
+            // First-run analytics opt-in, then record the app launch. Runs once the root is in the
+            // visual tree (so the dialog has a XamlRoot). MaybeAskAsync is a no-op after the first time.
+            if (Content is FrameworkElement root)
+            {
+                root.Loaded += OnRootLoadedForAnalytics;
+            }
         }
+    }
+
+    private bool _startupTracked;
+
+    private async void OnRootLoadedForAnalytics(object sender, RoutedEventArgs e)
+    {
+        if (_startupTracked) { return; }
+        _startupTracked = true;
+        ((FrameworkElement)sender).Loaded -= OnRootLoadedForAnalytics;
+
+        await AnalyticsConsentDialog.MaybeAskAsync(Content.XamlRoot, _theme);
+        Analytics.Capture("app_opened");
     }
 
     private AppWindow? _appWindow;
@@ -152,7 +171,11 @@ public sealed partial class MainWindow
         await dlg.ShowAsync();
     }
 
-    private async void OnSettingsClick(object sender, RoutedEventArgs e) => await SettingsDialog.ShowAsync(Content.XamlRoot);
+    private async void OnSettingsClick(object sender, RoutedEventArgs e)
+    {
+        Analytics.Capture("settings_opened");
+        await SettingsDialog.ShowAsync(Content.XamlRoot);
+    }
 
     private void OnThemeButtonClick(object sender, RoutedEventArgs e)
     {
@@ -160,6 +183,7 @@ public sealed partial class MainWindow
         ThemeManager.Apply(this, _theme);
         ThemeManager.Save(_theme);
         UpdateThemeIcon();
+        Analytics.Capture("theme_changed", new Dictionary<string, object?> { ["theme"] = _theme == ElementTheme.Light ? "light" : "dark" });
     }
 
     private DispatcherTimer? _toastTimer;

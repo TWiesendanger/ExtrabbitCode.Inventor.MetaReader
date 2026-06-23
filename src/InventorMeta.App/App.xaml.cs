@@ -23,6 +23,7 @@ public partial class App
     {
         UnhandledException += OnUnhandledException;
         AppLog.Init();
+        Analytics.Init();
         Serilog.Log.Information("Inventor MetaReader starting (v{Version})",
             typeof(App).Assembly.GetName().Version?.ToString() ?? "?");
 

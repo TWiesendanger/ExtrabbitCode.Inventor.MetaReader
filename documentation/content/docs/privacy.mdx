@@ -1,0 +1,67 @@
+---
+title: Privacy Policy
+description: What anonymous usage data the Inventor MetaReader desktop app collects, what it never collects, and how to opt out.
+---
+
+_Last updated: 23 June 2026._
+
+Inventor MetaReader is built to read your files **locally**. The desktop app never uploads your
+Inventor files, their contents, or any of their metadata. The only data that ever leaves your
+machine is a small amount of **anonymous product-analytics** — and only if you opt in.
+
+## Opt-in and opt-out
+
+Analytics are **opt-in**. The first time you run the app it asks whether you want to share anonymous
+usage data. You can change your choice at any time in **Settings → Privacy → "Share anonymous usage
+data"**. When the toggle is off, nothing is sent.
+
+## What is collected
+
+When analytics are enabled, the app sends a usage event when you use a feature. Each event includes:
+
+- the **event name** (which feature was used — see the list below),
+- the **app version** and your **operating-system version** string,
+- a **random identifier** generated on your machine to distinguish installs. It is a random value
+  with no connection to your name, account, email, or hardware, and it is created only after you opt
+  in.
+
+The events are:
+
+| Event | Extra data |
+| --- | --- |
+| `app_opened` | — |
+| `document_opened` | document type (part / assembly / drawing / presentation), file **extension**, whether it has model states, whether it is an iPart, and the **number** of references and properties (counts only) |
+| `detail_tab_viewed` | which tab (Properties, Model States, References, File Structure) |
+| `reference_opened` | — |
+| `references_fullscreen` | — |
+| `viewer_3d_opened` | document type |
+| `json_exported` | document type |
+| `settings_opened` | — |
+| `theme_changed` | light or dark |
+
+## What is never collected
+
+- **File names, file paths, or folder names.**
+- **iProperty values** or any other content read from your documents.
+- Thumbnails, geometry, or any part of the file itself.
+- Your name, email, account, IP-derived location, or any other personal identifier.
+
+Only the aggregate, non-identifying signals listed above are sent — enough to know *which features
+are used and how often*, never *what you are working on*.
+
+## Who processes the data
+
+Usage events are processed by **[PostHog](https://posthog.com/)**, a product-analytics service, on
+their **EU** infrastructure. They act as a data processor on our behalf and store the events so we
+can see aggregate feature usage.
+
+## Retention
+
+Events are retained only as long as needed to understand feature usage. Because the identifier is
+random and anonymous, individual installs cannot be tied back to a person. Turning analytics off in
+Settings stops any further data from being sent.
+
+## Contact
+
+Questions about this policy? Reach us via [extrabbitcode.com](https://extrabbitcode.com) or the
+[GitHub repository](https://github.com/TWiesendanger/ExtrabbitCode.Inventor.MetaReader).

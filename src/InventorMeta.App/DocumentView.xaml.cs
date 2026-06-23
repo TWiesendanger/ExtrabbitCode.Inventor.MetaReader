@@ -63,6 +63,13 @@ public sealed partial class DocumentView
         bool hasCards = ReferenceEquals(DetailTabs.SelectedItem, PropsTab)
                      || ReferenceEquals(DetailTabs.SelectedItem, StatesTab);
         TabStripActions.Visibility = hasCards ? Visibility.Visible : Visibility.Collapsed;
+
+        if (Document != null && DetailTabs.SelectedItem is TabViewItem { Header: string hdr })
+        {
+            // Strip any "(N)" count suffix (e.g. "Model States (3)") so the tab name groups cleanly.
+            string tab = hdr.Split('(')[0].Trim();
+            Analytics.Capture("detail_tab_viewed", new Dictionary<string, object?> { ["tab"] = tab });
+        }
     }
 
     private bool _editingSidebar;
@@ -240,6 +247,15 @@ public sealed partial class DocumentView
             Populate(Document);
             StatusSink?.Invoke($"Loaded {Document.FileName} - {Document.Properties.Count} properties, " +
                                   $"{Document.References.Count} reference(s).");
+            Analytics.Capture("document_opened", new Dictionary<string, object?>
+            {
+                ["doc_kind"]         = Document.Kind.ToString(),
+                ["extension"]        = Path.GetExtension(path).ToLowerInvariant(),
+                ["has_model_states"] = Document.HasModelStates,
+                ["is_ipart"]         = Document.IsIPart,
+                ["reference_count"]  = Document.References.Count,
+                ["property_count"]   = Document.Properties.Count,
+            });
             return true;
         }
         catch (Exception ex)
@@ -302,6 +318,7 @@ public sealed partial class DocumentView
         {
             await FileIO.WriteTextAsync(file, Document.ToJson());
             StatusSink?.Invoke("Exported " + file.Name);
+            Analytics.Capture("json_exported", new Dictionary<string, object?> { ["doc_kind"] = Document.Kind.ToString() });
         }
     }
 
@@ -1154,6 +1171,7 @@ public sealed partial class DocumentView
     /// fullscreen, leave fullscreen first so the newly opened (and selected) tab is visible.</summary>
     private void OpenReference(string path)
     {
+        Analytics.Capture("reference_opened");
         if (_graphFs) { _exitGraphFullscreen?.Invoke(); }
         HostWindow?.OpenDocument(path);
     }
@@ -1242,6 +1260,7 @@ public sealed partial class DocumentView
                 win.ShowOverlay(overlay);
                 win.AppWindow.SetPresenter(AppWindowPresenterKind.FullScreen);
                 _graphFs = true;
+                Analytics.Capture("references_fullscreen");
             }
             else
             {

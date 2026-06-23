@@ -53,5 +53,7 @@
 
   <Capabilities>
     <rescap:Capability Name="runFullTrust" />
+    <!-- Outbound HTTPS for opt-in product analytics (PostHog). -->
+    <Capability Name="internetClient" />
   </Capabilities>
 </Package>

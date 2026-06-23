@@ -39,6 +39,10 @@ public sealed partial class DocumentView
         }
 
         _viewerOpen = true;
+        Analytics.Capture("viewer_3d_opened", new System.Collections.Generic.Dictionary<string, object?>
+        {
+            ["doc_kind"] = Document.Kind.ToString()
+        });
         ViewerLog.Clear();   // fresh log per open
 
         // ---- overlay: dim backdrop (click-out closes) + centred panel with the WebView2 + status ----

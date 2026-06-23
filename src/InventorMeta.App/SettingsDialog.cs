@@ -64,6 +64,18 @@ internal static class SettingsDialog
         openLog.Click += (_, _) => AppLog.OpenLatest();
         body.Children.Add(Row("Diagnostics log", "App and 3D-viewer activity (today's log file).", openLog));
 
+        body.Children.Add(SectionHeader("Privacy"));
+        ToggleSwitch analytics = new() { IsOn = AnalyticsConsent.Enabled };
+        body.Children.Add(Row("Share anonymous usage data",
+            "Which features are used and how often. Never includes file names, paths, property values or document content; hosted in the EU.",
+            analytics));
+        HyperlinkButton privacyLink = new()
+        {
+            Content = "Privacy policy", NavigateUri = new System.Uri(AppInfo.PrivacyUrl),
+            Padding = new Thickness(0), Margin = new Thickness(2, -4, 0, 0)
+        };
+        body.Children.Add(privacyLink);
+
         ContentDialog dlg = new()
         {
             Title = "Settings",
@@ -76,6 +88,7 @@ internal static class SettingsDialog
 
         ViewerSettings.NetworkPath = string.IsNullOrWhiteSpace(network.Text) ? null : network.Text.Trim();
         ViewerSettings.InventorYear = version.SelectedIndex <= 0 ? 0 : installs[version.SelectedIndex - 1].Year;
+        AnalyticsConsent.Enabled = analytics.IsOn;
     }
 
     private static TextBlock SectionHeader(string text) =>
