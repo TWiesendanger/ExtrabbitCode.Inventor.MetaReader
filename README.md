@@ -5,6 +5,13 @@
 Reads metadata out of Autodesk Inventor `.ipt` / `.iam` / `.idw` / `.ipn` files
 directly from their bytes - **no Autodesk Inventor installation required**.
 
+The Windows desktop viewer ships on the Microsoft Store - it installs, updates and
+code-signs itself, with nothing else to set up:
+
+[<img src="https://get.microsoft.com/images/en-us%20dark.svg" alt="Get it from Microsoft" height="48" />](https://apps.microsoft.com/detail/9PLN7B8LKGK4)
+
+(The core library and CLI are cross-platform and built from source - see [Build & run](#build--run).)
+
 It exploits the fact that Inventor files are standard **OLE Compound File Binary**
 containers and that all iProperties live in standard **OLE Property Sets**. See
 [`docs/INVENTOR-FILE-FORMAT.md`](docs/INVENTOR-FILE-FORMAT.md) for the full
