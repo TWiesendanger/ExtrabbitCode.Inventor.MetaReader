@@ -22,6 +22,9 @@ public static class InventorProps
         ["3D38DE39-0588-4C14-BB37-18F4D5DD31C7"] = "Inventor Summary Information",
         ["8CF58000-DA66-4AE6-8FF0-7B58406FB049"] = "Inventor Document Summary Information",
         ["9929ADB8-6407-413E-B3DC-CB9AD2F564B7"] = "Inventor User Defined Properties",
+        // Only present on parts placed from the Content Center; its embedded name (PID 255) is
+        // "Content Library Component Properties". Holds the standard, size and family identifiers.
+        ["B9600981-DEE8-4547-8D7C-E525B3A1727A"] = "Content Center Component Properties",
         ["D861FB30-3136-11D1-9E92-0060B03C1CA6"] = "Design Tracking Control (internal)",
         ["BB586990-AF3E-11D3-95A9-00A0C9B6E37A"] = "Private Model Information (internal)",
         ["02657684-6AD0-49EC-BBD2-9CC4E9293E60"] = "_PostAdaInternalDateMigration (internal)",
