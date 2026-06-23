@@ -82,8 +82,13 @@ jobs:
         run: |
           $ref = "${{ github.ref_name }}"
           if ($ref -match '^v?(\d+)\.(\d+)(?:\.(\d+))?(?:\.(\d+))?$') {
-            $v = "{0}.{1}.{2}.{3}" -f $Matches[1], $Matches[2],
-                 ($Matches[3] ? $Matches[3] : '0'), ($Matches[4] ? $Matches[4] : '0')
+            $bld = $Matches[3] ? $Matches[3] : '0'
+            # The 4th component (revision) is reserved by the Microsoft Store and must be 0
+            # in the package manifest, so we always zero it. Tag 3-part versions (vMAJOR.MINOR.PATCH).
+            if ($Matches[4] -and $Matches[4] -ne '0') {
+              Write-Host "::warning::Ignoring revision '$($Matches[4])' from tag '$ref' - the Microsoft Store reserves the 4th version component (must be 0). Tag a 3-part version, e.g. v$($Matches[1]).$($Matches[2]).$([int]$bld + 1)."
+            }
+            $v = "{0}.{1}.{2}.0" -f $Matches[1], $Matches[2], $bld
           } else { $v = "0.0.0.0" }
           "value=$v" | Out-File $env:GITHUB_OUTPUT -Append
           Write-Host "Version: $v"
