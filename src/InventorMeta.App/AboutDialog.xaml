@@ -31,8 +31,10 @@
                 <TextBlock x:Name="DescText" Opacity="0.8" TextWrapping="Wrap"/>
                 <TextBlock x:Name="VersionText" FontWeight="SemiBold" Margin="0,4,0,0"/>
             </StackPanel>
-            <Image Grid.Column="2" Source="ms-appx:///Assets/extrabbit.png"
-                   Height="48" VerticalAlignment="Top" Stretch="Uniform"/>
+            <HyperlinkButton Grid.Column="2" x:Name="ExtrabbitButton" Padding="0"
+                             VerticalAlignment="Top" ToolTipService.ToolTip="extrabbitcode.com">
+                <Image Source="ms-appx:///Assets/extrabbit.png" Height="48" Stretch="Uniform"/>
+            </HyperlinkButton>
         </Grid>
 
         <!-- link buttons -->

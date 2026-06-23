@@ -2,7 +2,7 @@ import type { Route } from './+types/home';
 import { HomeLayout } from 'fumadocs-ui/layouts/home';
 import { Link } from 'react-router';
 import { baseOptions } from '@/lib/layout.shared';
-import { storeUrl } from '@/lib/shared';
+import { storeUrl, extrabbitUrl } from '@/lib/shared';
 
 export function meta({}: Route.MetaArgs) {
   return [
@@ -59,11 +59,18 @@ export default function Home() {
           <span className="text-xs text-fd-muted-foreground uppercase tracking-widest">
             Made by
           </span>
-          <img
-            src={`${import.meta.env.BASE_URL}images/branding/extrabbit.png`}
-            alt="ExtrabbitCode logo"
-            className="h-8 opacity-80"
-          />
+          <a
+            href={extrabbitUrl}
+            target="_blank"
+            rel="noreferrer"
+            className="opacity-80 hover:opacity-100 transition-opacity"
+          >
+            <img
+              src={`${import.meta.env.BASE_URL}images/branding/extrabbit.png`}
+              alt="ExtrabbitCode logo"
+              className="h-8"
+            />
+          </a>
         </div>
       </main>
     </HomeLayout>

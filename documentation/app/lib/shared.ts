@@ -1,4 +1,5 @@
 export const appName = 'ExtrabbitCode Inventor MetaReader';
+export const extrabbitUrl = 'https://extrabbitcode.com';
 export const docsRoute = '/docs';
 export const docsImageRoute = '/og/docs';
 export const docsContentRoute = '/llms.mdx/docs';

@@ -13,6 +13,7 @@ internal static class AppInfo
         "references, thumbnails and per-model-state values - straight from the file, " +
         "without Autodesk Inventor installed.";
 
+    public const string ExtrabbitUrl = "https://extrabbitcode.com";
     public const string GitHubUrl = "https://github.com/TWiesendanger/ExtrabbitCode.Inventor.MetaReader";
     public const string DocsUrl   = "https://github.com/TWiesendanger/ExtrabbitCode.Inventor.MetaReader/blob/master/docs/INVENTOR-FILE-FORMAT.md";
 

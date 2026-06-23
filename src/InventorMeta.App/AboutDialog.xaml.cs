@@ -14,8 +14,9 @@ public sealed partial class AboutDialog
         NameText.Text    = AppInfo.Name;
         DescText.Text    = AppInfo.Description;
         VersionText.Text = "Version " + AppInfo.Version;
-        DocsButton.NavigateUri   = new Uri(AppInfo.DocsUrl);
-        GitHubButton.NavigateUri = new Uri(AppInfo.GitHubUrl);
+        DocsButton.NavigateUri      = new Uri(AppInfo.DocsUrl);
+        GitHubButton.NavigateUri    = new Uri(AppInfo.GitHubUrl);
+        ExtrabbitButton.NavigateUri = new Uri(AppInfo.ExtrabbitUrl);
 
         foreach ((string version, string[] notes) in AppInfo.History)
         {
