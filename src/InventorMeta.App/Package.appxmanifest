@@ -2,10 +2,12 @@
 
 <!--
   MSIX package manifest (built by the Release workflow's Store MSIX step). The Version
-  below is overwritten from the git tag at build time. Identity/Name, Identity/Publisher
-  and Properties/PublisherDisplayName are the Partner Center "Inventor MetaReader"
-  reservation (Store ID 9PLN7B8LKGK4) and must stay in sync with
-  Partner Center -> Product management -> Product identity or uploads fail.
+  below is overwritten from the git tag at build time. Identity/Name, Identity/Publisher,
+  Properties/PublisherDisplayName and Properties/DisplayName come from the Partner Center
+  reservation (Store ID 9PLN7B8LKGK4) and must stay in sync with Partner Center -> Product
+  management -> Product identity or uploads fail. Properties/DisplayName in particular must
+  be one of the app's *reserved* names ("Inventor.MetaReader"); the on-device tile name
+  (VisualElements/DisplayName below) is cosmetic and need not match.
 -->
 <Package
   xmlns="http://schemas.microsoft.com/appx/manifest/foundation/windows10"
@@ -19,7 +21,7 @@
     Version="1.0.0.0" />
 
   <Properties>
-    <DisplayName>Inventor MetaReader</DisplayName>
+    <DisplayName>Inventor.MetaReader</DisplayName>
     <PublisherDisplayName>Extrabbit Code</PublisherDisplayName>
     <Logo>Images\StoreLogo.png</Logo>
   </Properties>
