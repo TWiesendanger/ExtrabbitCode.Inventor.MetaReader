@@ -1,4 +1,4 @@
-namespace InventorMeta.Tests;
+namespace ExtrabbitCode.Inventor.MetaReader.Tests;
 
 /// <summary>
 /// The SampleBg fixture files - the same set the app ships and the docs shooter uses -

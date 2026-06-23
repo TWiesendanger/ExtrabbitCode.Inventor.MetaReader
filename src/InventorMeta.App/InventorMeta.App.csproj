@@ -3,7 +3,10 @@
     <OutputType>WinExe</OutputType>
     <TargetFramework>net10.0-windows10.0.19041.0</TargetFramework>
     <TargetPlatformMinVersion>10.0.17763.0</TargetPlatformMinVersion>
-    <RootNamespace>InventorMeta.App</RootNamespace>
+    <RootNamespace>ExtrabbitCode.Inventor.MetaReader.App</RootNamespace>
+    <!-- Assembly/exe name kept as InventorMeta.App so the .exe, MSIX entry point and
+         release artifacts stay stable; only the namespaces were renamed. -->
+    <AssemblyName>InventorMeta.App</AssemblyName>
     <ApplicationManifest>app.manifest</ApplicationManifest>
     <Platforms>x64;x86;ARM64</Platforms>
     <RuntimeIdentifiers>win-x64;win-x86;win-arm64</RuntimeIdentifiers>

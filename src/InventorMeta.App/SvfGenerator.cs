@@ -6,7 +6,7 @@ using System.Reflection;
 using System.Runtime.InteropServices;
 using System.Threading;
 
-namespace InventorMeta.App;
+namespace ExtrabbitCode.Inventor.MetaReader.App;
 
 /// <summary>
 /// Generates an SVF viewable for a model by driving Inventor's SVF/collaboration translator add-in

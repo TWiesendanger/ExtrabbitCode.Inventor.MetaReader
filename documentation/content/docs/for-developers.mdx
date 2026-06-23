@@ -21,7 +21,7 @@ dotnet build src/InventorMeta.App -c Release -r win-x64
 ```
 
 ```
-InventorReader.slnx
+ExtrabbitCode.Inventor.MetaReader.slnx
 └─ src/
    ├─ InventorMeta/        core library (the parser)        - net10.0
    ├─ InventorMeta.Cli/    command-line tool ("invmeta")    - net10.0
@@ -34,7 +34,7 @@ Everything hangs off one class, `InventorDocument`. Parsing happens in the const
 is a read-only snapshot.
 
 ```csharp
-using InventorMeta;
+using ExtrabbitCode.Inventor.MetaReader;
 
 var doc = new InventorDocument(@"C:\path\SamplePart.ipt");
 

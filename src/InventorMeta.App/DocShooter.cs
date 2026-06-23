@@ -7,7 +7,7 @@ using Microsoft.UI.Xaml.Media.Imaging;
 using Windows.Graphics.Imaging;
 using Windows.Storage.Streams;
 
-namespace InventorMeta.App;
+namespace ExtrabbitCode.Inventor.MetaReader.App;
 
 /// <summary>
 /// Headless documentation snapshotter. Run with

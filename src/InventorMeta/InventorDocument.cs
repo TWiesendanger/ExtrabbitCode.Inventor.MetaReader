@@ -6,7 +6,7 @@ using System.Text;
 using System.Text.Json;
 using System.Text.RegularExpressions;
 
-namespace InventorMeta;
+namespace ExtrabbitCode.Inventor.MetaReader;
 
 /// <summary>
 /// High-level, friendly view of an Inventor document, built from the raw CFB

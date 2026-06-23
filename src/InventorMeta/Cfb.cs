@@ -3,7 +3,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Text;
 
-namespace InventorMeta;
+namespace ExtrabbitCode.Inventor.MetaReader;
 
 /// <summary>
 /// Self-contained reader for the OLE Compound File Binary (CFB / "Structured

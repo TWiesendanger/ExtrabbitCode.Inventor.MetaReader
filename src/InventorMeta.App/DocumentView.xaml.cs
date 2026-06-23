@@ -19,7 +19,7 @@ using Windows.ApplicationModel.DataTransfer;
 using Windows.Storage;
 using Windows.Storage.Pickers;
 
-namespace InventorMeta.App;
+namespace ExtrabbitCode.Inventor.MetaReader.App;
 
 public sealed partial class DocumentView
 {

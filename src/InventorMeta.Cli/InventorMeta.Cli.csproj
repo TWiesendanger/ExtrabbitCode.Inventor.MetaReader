@@ -6,6 +6,7 @@
     <ImplicitUsings>disable</ImplicitUsings>
     <LangVersion>latest</LangVersion>
     <AssemblyName>invmeta</AssemblyName>
+    <RootNamespace>ExtrabbitCode.Inventor.MetaReader.Cli</RootNamespace>
     <InvariantGlobalization>true</InvariantGlobalization>
   </PropertyGroup>
   <ItemGroup>

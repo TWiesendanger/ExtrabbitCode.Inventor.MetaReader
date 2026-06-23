@@ -1,7 +1,7 @@
 using Microsoft.UI.Xaml.Controls;
 using Windows.Graphics;
 
-namespace InventorMeta.App;
+namespace ExtrabbitCode.Inventor.MetaReader.App;
 
 /// <summary>Helpers used only by the documentation snapshotter (<see cref="DocShooter"/>).</summary>
 public sealed partial class MainWindow

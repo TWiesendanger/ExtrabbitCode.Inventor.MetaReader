@@ -2,7 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Text;
 
-namespace InventorMeta;
+namespace ExtrabbitCode.Inventor.MetaReader;
 
 /// <summary>
 /// Minimal reader for OLE Property Sets ([MS-OLEPS]) - the standard Microsoft

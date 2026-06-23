@@ -1,4 +1,4 @@
-namespace InventorMeta.Tests;
+namespace ExtrabbitCode.Inventor.MetaReader.Tests;
 
 /// <summary>The low-level OLE Compound File container reader that everything else sits on.</summary>
 public class CompoundFileTests

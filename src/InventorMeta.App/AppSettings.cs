@@ -3,7 +3,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Text.Json;
 
-namespace InventorMeta.App;
+namespace ExtrabbitCode.Inventor.MetaReader.App;
 
 /// <summary>Tiny key/value settings store persisted as JSON in %LocalAppData% (theme, window
 /// bounds, sidebar layout, 3D-viewer options, …).</summary>

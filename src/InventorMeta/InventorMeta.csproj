@@ -4,6 +4,7 @@
     <Nullable>enable</Nullable>
     <ImplicitUsings>disable</ImplicitUsings>
     <LangVersion>latest</LangVersion>
-    <RootNamespace>InventorMeta</RootNamespace>
+    <RootNamespace>ExtrabbitCode.Inventor.MetaReader</RootNamespace>
+    <AssemblyName>ExtrabbitCode.Inventor.MetaReader</AssemblyName>
   </PropertyGroup>
 </Project>

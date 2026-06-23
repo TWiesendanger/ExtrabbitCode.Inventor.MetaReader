@@ -1,6 +1,6 @@
-# InventorMeta - read Inventor files without Inventor
+# ExtrabbitCode.Inventor.MetaReader - read Inventor files without Inventor
 
-<img src="src/InventorMeta.App/Assets/inventor-meta-1024.png" alt="InventorMeta" width="120" align="right" />
+<img src="src/InventorMeta.App/Assets/inventor-meta-1024.png" alt="ExtrabbitCode.Inventor.MetaReader" width="120" align="right" />
 
 Reads metadata out of Autodesk Inventor `.ipt` / `.iam` / `.idw` / `.ipn` files
 directly from their bytes - **no Autodesk Inventor installation required**.
@@ -30,7 +30,7 @@ reverse-engineering write-up.
 ## Projects
 
 ```
-InventorReader.slnx
+ExtrabbitCode.Inventor.MetaReader.slnx
 ├─ src/
 │  ├─ InventorMeta/        cross-platform core library (the parser)  - net10.0
 │  │  ├─ Cfb.cs              OLE Compound File Binary reader
@@ -47,9 +47,9 @@ InventorReader.slnx
 └─ documentation/         documentation website (Vite / React Router)
 ```
 
-`InventorMeta` has **zero external dependencies** and is the reusable piece - drop it
-into your own apps or Inventor add-ins. The CLI and WinUI app are thin front-ends over
-the same `InventorDocument` class.
+The core library (the `src/InventorMeta` project, namespace `ExtrabbitCode.Inventor.MetaReader`)
+has **zero external dependencies** and is the reusable piece - drop it into your own apps or
+Inventor add-ins. The CLI and WinUI app are thin front-ends over the same `InventorDocument` class.
 
 ## Build & run
 
@@ -93,7 +93,7 @@ pre-installed.
 ## Library usage
 
 ```csharp
-using InventorMeta;
+using ExtrabbitCode.Inventor.MetaReader;
 
 var doc = new InventorDocument(@"C:\path\SamplePart.ipt");
 Console.WriteLine(doc.DocumentType);                 // "Inventor Part (.ipt)"

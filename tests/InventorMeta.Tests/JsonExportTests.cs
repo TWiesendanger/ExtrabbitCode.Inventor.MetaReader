@@ -1,6 +1,6 @@
 using System.Text.Json;
 
-namespace InventorMeta.Tests;
+namespace ExtrabbitCode.Inventor.MetaReader.Tests;
 
 public class JsonExportTests
 {

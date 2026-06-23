@@ -1,4 +1,4 @@
-namespace InventorMeta.Tests;
+namespace ExtrabbitCode.Inventor.MetaReader.Tests;
 
 public class ReferenceGraphTests
 {

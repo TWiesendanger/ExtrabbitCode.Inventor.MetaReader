@@ -2,7 +2,7 @@ using System;
 using System.IO;
 using System.Linq;
 using System.Text;
-using InventorMeta;
+using ExtrabbitCode.Inventor.MetaReader;
 using System.Collections.Generic;
 
 Encoding.RegisterProvider(CodePagesEncodingProvider.Instance);

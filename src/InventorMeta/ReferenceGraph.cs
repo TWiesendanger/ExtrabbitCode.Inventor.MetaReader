@@ -3,7 +3,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 
-namespace InventorMeta;
+namespace ExtrabbitCode.Inventor.MetaReader;
 
 /// <summary>How a node participates in an iPart relationship, once the graph is classified.</summary>
 public enum IPartRole { None, Factory, Member }

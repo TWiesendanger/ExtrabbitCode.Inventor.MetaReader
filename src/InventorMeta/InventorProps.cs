@@ -1,7 +1,7 @@
 using System;
 using System.Collections.Generic;
 
-namespace InventorMeta;
+namespace ExtrabbitCode.Inventor.MetaReader;
 
 /// <summary>
 /// Friendly-name tables for Inventor's OLE property sets.

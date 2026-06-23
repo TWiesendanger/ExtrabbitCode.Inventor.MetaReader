@@ -2,7 +2,7 @@ using System;
 using System.Collections.Generic;
 using CommunityToolkit.Mvvm.Messaging;
 
-namespace InventorMeta.App;
+namespace ExtrabbitCode.Inventor.MetaReader.App;
 
 /// <summary>Broadcast when any hide/show state changes; views rebuild in response.</summary>
 internal sealed record HideChangedMessage(string Key);

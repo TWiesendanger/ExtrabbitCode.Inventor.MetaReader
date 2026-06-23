@@ -1,7 +1,7 @@
 using System;
 using System.Reflection;
 
-namespace InventorMeta.App;
+namespace ExtrabbitCode.Inventor.MetaReader.App;
 
 /// <summary>Central app metadata for the title bar and the About dialog.</summary>
 internal static class AppInfo

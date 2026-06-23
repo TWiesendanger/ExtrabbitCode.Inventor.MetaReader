@@ -4,7 +4,7 @@ using System.IO;
 using System.Linq;
 using Microsoft.UI.Xaml;
 
-namespace InventorMeta.App;
+namespace ExtrabbitCode.Inventor.MetaReader.App;
 
 public partial class App
 {
