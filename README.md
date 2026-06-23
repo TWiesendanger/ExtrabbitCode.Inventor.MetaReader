@@ -31,10 +31,20 @@ reverse-engineering write-up.
 
 ```
 InventorReader.slnx
-└─ src/
-   ├─ InventorMeta/        cross-platform core library (the parser)  - net10.0
-   ├─ InventorMeta.Cli/    command-line tool  ("invmeta")            - net10.0
-   └─ InventorMeta.App/    WinUI 3 desktop viewer                    - net10.0-windows
+├─ src/
+│  ├─ InventorMeta/        cross-platform core library (the parser)  - net10.0
+│  │  ├─ Cfb.cs              OLE Compound File Binary reader
+│  │  ├─ OlePropertySet.cs   OLE property-set decoder
+│  │  ├─ InventorProps.cs    Inventor-specific property/FMT mapping
+│  │  ├─ ReferenceGraph.cs   referenced-file resolution
+│  │  └─ InventorDocument.cs public facade over the above
+│  ├─ InventorMeta.Cli/    command-line tool  ("invmeta")            - net10.0
+│  └─ InventorMeta.App/    WinUI 3 desktop viewer                    - net10.0-windows
+├─ tests/
+│  └─ InventorMeta.Tests/  xUnit test suite for the core library    - net10.0
+├─ docs/
+│  └─ INVENTOR-FILE-FORMAT.md   reverse-engineering write-up
+└─ documentation/         documentation website (Vite / React Router)
 ```
 
 `InventorMeta` has **zero external dependencies** and is the reusable piece - drop it
