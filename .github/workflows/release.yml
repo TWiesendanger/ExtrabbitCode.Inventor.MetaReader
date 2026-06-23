@@ -81,8 +81,9 @@ jobs:
         shell: pwsh
         run: |
           $ref = "${{ github.ref_name }}"
-          if ($ref -match '^v?(\d+)\.(\d+)(?:\.(\d+))?$') {
-            $v = "{0}.{1}.{2}.0" -f $Matches[1], $Matches[2], ($Matches[3] ? $Matches[3] : '0')
+          if ($ref -match '^v?(\d+)\.(\d+)(?:\.(\d+))?(?:\.(\d+))?$') {
+            $v = "{0}.{1}.{2}.{3}" -f $Matches[1], $Matches[2],
+                 ($Matches[3] ? $Matches[3] : '0'), ($Matches[4] ? $Matches[4] : '0')
           } else { $v = "0.0.0.0" }
           "value=$v" | Out-File $env:GITHUB_OUTPUT -Append
           Write-Host "Version: $v"
@@ -112,6 +113,7 @@ jobs:
         run: >
           dotnet build src/InventorMeta.App/InventorMeta.App.csproj
           -c Release
+          -p:Version=${{ steps.ver.outputs.value }}
           -p:Platform=x64
           -p:WindowsPackageType=MSIX
           -p:GenerateAppxPackageOnBuild=true
