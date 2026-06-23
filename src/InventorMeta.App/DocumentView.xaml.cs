@@ -1146,6 +1146,18 @@ public sealed partial class DocumentView
     private bool _graphFs;
     private bool _showThumbs;
 
+    // Set while the reference graph is mounted: exits its fullscreen overlay. Lets the
+    // node "open" actions drop out of fullscreen before switching to the opened tab.
+    private Action? _exitGraphFullscreen;
+
+    /// <summary>Opens a referenced document in a tab. If the reference graph is currently
+    /// fullscreen, leave fullscreen first so the newly opened (and selected) tab is visible.</summary>
+    private void OpenReference(string path)
+    {
+        if (_graphFs) { _exitGraphFullscreen?.Invoke(); }
+        HostWindow?.OpenDocument(path);
+    }
+
     private UIElement RenderRefGraph(RefNode root, Border host)
     {
         // start with only level 1 visible: root expanded, everything deeper collapsed
@@ -1247,6 +1259,7 @@ public sealed partial class DocumentView
             full.Focus(FocusState.Programmatic);
         }
         full.Click += (_, _) => SetFullscreen(!_graphFs);
+        _exitGraphFullscreen = () => SetFullscreen(false);
         KeyboardAccelerator esc = new() { Key = Windows.System.VirtualKey.Escape };
         esc.Invoked += (_, e) => { if (_graphFs) { SetFullscreen(false); e.Handled = true; } };
         full.KeyboardAccelerators.Add(esc);
@@ -1436,7 +1449,7 @@ public sealed partial class DocumentView
         bool canOpen = n.Resolved && n.Depth > 0 && !n.Cyclic && !n.IsLinkedFile;
         if (canOpen)
         {
-            box.Tapped += (_, _) => HostWindow?.OpenDocument(n.Path);
+            box.Tapped += (_, _) => OpenReference(n.Path);
             ToolTipService.SetToolTip(box, n.Path + "\nClick to open · right-click for more");
         }
 
@@ -1448,7 +1461,7 @@ public sealed partial class DocumentView
                 if (canOpen)
                 {
                     MenuFlyoutItem open = new() { Text = "Open in a tab", Icon = new FontIcon { Glyph = G(0xE8E5) } };
-                    open.Click += (_, _) => HostWindow?.OpenDocument(n.Path);
+                    open.Click += (_, _) => OpenReference(n.Path);
                     menu.Items.Add(open);
                 }
                 MenuFlyoutItem reveal = new() { Text = "Show in Explorer", Icon = new FontIcon { Glyph = G(0xEC50) } };
