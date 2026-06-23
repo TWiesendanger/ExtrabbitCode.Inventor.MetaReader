@@ -114,7 +114,7 @@ public static class ReferenceGraph
             return new RefNode
             {
                 Path = resolved ?? refPath,
-                Name = Path.GetFileName(refPath),
+                Name = InventorPath.GetFileName(refPath),
                 Kind = linked ? InventorDocument.DocKind.Unknown : KindFromExt(refPath),
                 Resolved = resolved != null,
                 IsLinkedFile = linked,
@@ -126,7 +126,7 @@ public static class ReferenceGraph
         {
             try
             {
-                string name = Path.GetFileName(refPath);
+                string name = InventorPath.GetFileName(refPath);
                 if (baseDir != null)
                 {
                     string sameFolder = Path.Combine(baseDir, name);   // 1) next to the parent

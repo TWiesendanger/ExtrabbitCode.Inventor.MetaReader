@@ -122,7 +122,7 @@ public class InventorDocumentTests
     {
         InventorDocument doc = Samples.Load(Samples.Assembly);
 
-        List<string?> names = doc.References.Select(Path.GetFileName).ToList();
+        List<string> names = doc.References.Select(InventorPath.GetFileName).ToList();
         Assert.Contains("SamplePart.ipt", names);
         Assert.Contains("SampleComplexPart.ipt", names);
         Assert.Contains("Cylinder.ipt", names);
@@ -133,7 +133,7 @@ public class InventorDocumentTests
     public void ReadsLinkedNonModelFiles()
     {
         InventorDocument doc = Samples.Load(Samples.Cylinder);
-        Assert.Contains(doc.LinkedFiles, f => Path.GetFileName(f) == "extrabbitcodeBadge.png");
+        Assert.Contains(doc.LinkedFiles, f => InventorPath.GetFileName(f) == "extrabbitcodeBadge.png");
     }
 
     [Fact]
@@ -141,7 +141,7 @@ public class InventorDocumentTests
     {
         InventorDocument doc = Samples.Load(Samples.Drawing);
         Assert.Equal(InventorDocument.DocKind.Drawing, doc.Kind);
-        Assert.Contains("SampleBg.iam", doc.References.Select(Path.GetFileName));
+        Assert.Contains("SampleBg.iam", doc.References.Select(InventorPath.GetFileName));
     }
 
     [Fact]

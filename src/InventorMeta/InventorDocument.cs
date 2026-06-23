@@ -357,7 +357,7 @@ public sealed class InventorDocument
             foreach (Match m in Regex.Matches(scan, @"[A-Za-z]:\\[^\x00-\x1F""<>|*?]*?\.(?:ipt|iam|idw|ipn)", RegexOptions.IgnoreCase))
             {
                 string p = m.Value;
-                bool self = string.Equals(Path.GetFileName(p), FileName, StringComparison.OrdinalIgnoreCase);
+                bool self = string.Equals(InventorPath.GetFileName(p), FileName, StringComparison.OrdinalIgnoreCase);
                 bool isTemplate = template != null && string.Equals(p, template, StringComparison.OrdinalIgnoreCase);
                 if (!self && !isTemplate && !References.Contains(p, StringComparer.OrdinalIgnoreCase))
                 {
