@@ -142,6 +142,11 @@
                             <StackPanel Grid.Column="1">
                                 <TextBlock x:Name="FileNameText" FontSize="16" FontWeight="SemiBold" TextWrapping="Wrap"/>
                                 <TextBlock x:Name="DocTypeText" Opacity="0.7" FontSize="13" TextWrapping="Wrap"/>
+                                <!-- colour-coded document category; hover shows the legend (set in code) -->
+                                <Border x:Name="CategoryBadge" Margin="0,7,0,1" CornerRadius="10" Padding="10,2,10,3"
+                                        HorizontalAlignment="Left" Visibility="Collapsed">
+                                    <TextBlock x:Name="CategoryBadgeText" FontSize="11" FontWeight="SemiBold" Foreground="White"/>
+                                </Border>
                             </StackPanel>
                             <ToggleButton x:Name="EditSidebarToggle" Grid.Column="2" VerticalAlignment="Top"
                                           Click="OnToggleSidebarEdit" Padding="7,5" MinWidth="0"
