@@ -25,6 +25,12 @@ public static class InventorProps
         // Only present on parts placed from the Content Center; its embedded name (PID 255) is
         // "Content Library Component Properties". Holds the standard, size and family identifiers.
         ["B9600981-DEE8-4547-8D7C-E525B3A1727A"] = "Content Center Component Properties",
+        // Stamped by Frame Generator on the frame document; embedded name (PID 255) is
+        // "_com.autodesk.FG". Holds the _FrameDoc marker and the Frame Generator version.
+        ["B65DF8EA-BA84-4EB5-868D-466B48DAB15A"] = "Frame Generator",
+        // Stamped by Design Accelerator generators (bolted connections, shafts, gears, …);
+        // embedded name (PID 255) is "FDesign". Generic - it does not record the generator subtype.
+        ["6CD3181A-0C7D-41AA-BDB3-969A9B72E1BB"] = "Design Accelerator",
         ["D861FB30-3136-11D1-9E92-0060B03C1CA6"] = "Design Tracking Control (internal)",
         ["BB586990-AF3E-11D3-95A9-00A0C9B6E37A"] = "Private Model Information (internal)",
         ["02657684-6AD0-49EC-BBD2-9CC4E9293E60"] = "_PostAdaInternalDateMigration (internal)",
