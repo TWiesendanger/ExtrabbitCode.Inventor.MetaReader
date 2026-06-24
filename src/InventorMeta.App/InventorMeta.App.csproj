@@ -38,6 +38,10 @@
     <Content Include="Assets\appicon.ico">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </Content>
+    <!-- Bundled vis-network library + the reference-graph page (offline; also packaged into the MSIX) -->
+    <Content Include="Assets\vis\**\*">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
   </ItemGroup>
 
   <!-- MSIX packaging. Only active when built with -p:WindowsPackageType=MSIX; the default

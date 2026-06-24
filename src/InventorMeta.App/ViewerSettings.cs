@@ -1,4 +1,9 @@
+using System;
+
 namespace ExtrabbitCode.Inventor.MetaReader.App;
+
+/// <summary>How the reference graph arranges its nodes.</summary>
+internal enum GraphLayout { LeftRight, TopDown, Network }
 
 /// <summary>Persisted settings for the 3D viewer: the shared SVF network store and the Inventor
 /// release used to generate viewables.</summary>
@@ -6,6 +11,7 @@ internal static class ViewerSettings
 {
     private const string NetworkKey = "viewer.networkPath";
     private const string YearKey = "viewer.inventorYear";
+    private const string GraphLayoutKey = "viewer.graphLayout";
 
     /// <summary>Optional shared cache path; null/empty means local-only.</summary>
     public static string? NetworkPath
@@ -23,5 +29,12 @@ internal static class ViewerSettings
     {
         get => AppSettings.GetInt(YearKey, 0);
         set => AppSettings.Set(YearKey, value.ToString());
+    }
+
+    /// <summary>Default arrangement for the reference graph when a file opens.</summary>
+    public static GraphLayout GraphLayout
+    {
+        get => Enum.TryParse(AppSettings.Get(GraphLayoutKey), out GraphLayout v) ? v : GraphLayout.LeftRight;
+        set => AppSettings.Set(GraphLayoutKey, value.ToString());
     }
 }

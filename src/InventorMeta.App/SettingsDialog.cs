@@ -64,6 +64,14 @@ internal static class SettingsDialog
         openLog.Click += (_, _) => AppLog.OpenLatest();
         body.Children.Add(Row("Diagnostics log", "App and 3D-viewer activity (today's log file).", openLog));
 
+        body.Children.Add(SectionHeader("Reference graph"));
+        ComboBox graphLayout = new()
+        {
+            HorizontalAlignment = HorizontalAlignment.Stretch,
+            Items = { "Left → Right", "Top → Bottom", "Network" }, SelectedIndex = (int)ViewerSettings.GraphLayout
+        };
+        body.Children.Add(Row("Default layout", "How the reference graph is arranged when a file opens.", graphLayout));
+
         body.Children.Add(SectionHeader("Privacy"));
         ToggleSwitch analytics = new() { IsOn = AnalyticsConsent.Enabled };
         body.Children.Add(Row("Share anonymous usage data",
@@ -88,6 +96,7 @@ internal static class SettingsDialog
 
         ViewerSettings.NetworkPath = string.IsNullOrWhiteSpace(network.Text) ? null : network.Text.Trim();
         ViewerSettings.InventorYear = version.SelectedIndex <= 0 ? 0 : installs[version.SelectedIndex - 1].Year;
+        ViewerSettings.GraphLayout = (GraphLayout)Math.Max(0, graphLayout.SelectedIndex);
         AnalyticsConsent.Enabled = analytics.IsOn;
     }
 
