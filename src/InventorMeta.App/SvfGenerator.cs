@@ -23,8 +23,12 @@ public static class SvfGenerator
     public sealed record Result(bool Ok, string? BubblePath, string? Error);
 
     /// <summary>Translates <paramref name="filePath"/> to SVF in <paramref name="outputBaseDir"/> using
-    /// <paramref name="inventor"/>. Long-running (opens the model in Inventor) - call off the UI thread.</summary>
-    public static Result Generate(InventorInstall inventor, string filePath, string outputBaseDir, Action<string>? log = null)
+    /// <paramref name="inventor"/>. Long-running (opens the model in Inventor) - call off the UI thread.
+    /// When <paramref name="hideWhenStarted"/> is set, an Inventor instance we launch ourselves is kept
+    /// hidden (a session the user already had open is never touched). When <paramref name="silent"/> is
+    /// set, Inventor's dialog prompts are suppressed for the duration.</summary>
+    public static Result Generate(InventorInstall inventor, string filePath, string outputBaseDir,
+        bool hideWhenStarted = true, bool silent = true, Action<string>? log = null)
     {
         void L(string m) => log?.Invoke(m);
         // Fresh entry each run - the translator creates its own output\ subfolder under here.
@@ -33,12 +37,28 @@ public static class SvfGenerator
 
         object? inv = null;
         bool startedByUs = false;
+        bool? prevSilent = null;   // previous SilentOperation, restored on a borrowed session
         try
         {
             L("Connecting to Inventor…");
             (inv, startedByUs) = ConnectOrLaunch(inventor);
             L(startedByUs ? "Launched a new Inventor instance." : "Attached to a running Inventor instance.");
             dynamic app = inv;
+
+            // Suppress Inventor's dialog prompts during the unattended translation; remember the prior
+            // value so a session the user already had open is restored afterward.
+            if (silent)
+            {
+                try { prevSilent = (bool)app.SilentOperation; app.SilentOperation = true; L("SilentOperation = true"); }
+                catch { L("Couldn't set SilentOperation."); }
+            }
+
+            // Only hide an instance we launched ourselves - never change a running session's visibility.
+            if (startedByUs && hideWhenStarted)
+            {
+                try { app.Visible = false; L("Inventor hidden (launched by us)."); }
+                catch { L("Couldn't hide Inventor."); }
+            }
 
             dynamic addin = app.ApplicationAddIns.ItemById(SvfTranslatorAddInId);
             try { L($"Add-in: '{addin.DisplayName}', activated={addin.Activated}"); }
@@ -111,6 +131,12 @@ public static class SvfGenerator
         {
             if (inv != null)
             {
+                // Restore dialog suppression on a borrowed session (an instance we started is about to
+                // quit, so there's nothing to put back).
+                if (!startedByUs && prevSilent.HasValue)
+                {
+                    try { ((dynamic)inv).SilentOperation = prevSilent.Value; } catch { /* ignore */ }
+                }
                 if (startedByUs)
                 {
                     try { ((dynamic)inv).Quit(); } catch { /* leave it running if it refuses */ }
