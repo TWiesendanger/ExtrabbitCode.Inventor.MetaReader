@@ -1088,26 +1088,9 @@ public sealed partial class DocumentView
         {
             if (!detailOrder.Contains(kv.Key)) { provItems.Add((kv.Key, kv.Value)); }
         }
-        StackPanel details = KeyValueSection("Version / provenance", provItems);
+        StackPanel details = KeyValueSection("Version", provItems);
 
-        // No references (e.g. a standalone part): no graph to show, so let the details
-        // panel take the whole tab - it grows naturally and only scrolls if it overflows.
-        if (doc.References.Count == 0)
-        {
-            RefsRoot.RowDefinitions.Add(new RowDefinition { Height = new GridLength(1, GridUnitType.Star) });
-            ScrollViewer full = new()
-            {
-                Padding = new Thickness(16, 14, 16, 16),
-                VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
-                VerticalContentAlignment = VerticalAlignment.Top,
-                Content = details
-            };
-            Grid.SetRow(full, 0);
-            RefsRoot.Children.Add(full);
-            return;
-        }
-
-        // References present: graph fills the space, details sit in a bounded footer.
+        // Graph fills the top (star); the short version panel docks below it (auto), never scrolling.
         RefsRoot.RowDefinitions.Add(new RowDefinition { Height = new GridLength(1, GridUnitType.Star) });
         RefsRoot.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
 
@@ -1119,14 +1102,17 @@ public sealed partial class DocumentView
         {
             BorderThickness = new Thickness(0, 1, 0, 0),
             BorderBrush = new SolidColorBrush(Windows.UI.Color.FromArgb(40, 128, 128, 128)),
-            Child = new ScrollViewer
-            {
-                MaxHeight = 240, Padding = new Thickness(14, 10, 14, 12),
-                Content = details
-            }
+            Padding = new Thickness(14, 10, 14, 12),
+            Child = details
         };
         Grid.SetRow(prov, 1);
         RefsRoot.Children.Add(prov);
+
+        if (doc.References.Count == 0)
+        {
+            graphHost.Child = GraphInfo("No referenced files.");
+            return;
+        }
 
         int gen = ++_refGen;
         _ = BuildAndShowGraphAsync(doc, graphHost, gen);
@@ -1239,7 +1225,13 @@ public sealed partial class DocumentView
             Padding = new Thickness(8, 5, 8, 5), MinWidth = 0, IsChecked = _showThumbs
         };
         ToolTipService.SetToolTip(thumbs, "Show thumbnails");
-        thumbs.Click += (_, _) => { _showThumbs = thumbs.IsChecked == true; LayoutAndDraw(canvas, root); ZoomToFit(viewport, canvas, xf); };
+        thumbs.Click += (_, _) =>
+        {
+            _showThumbs = thumbs.IsChecked == true;
+            LayoutAndDraw(canvas, root);
+            // re-fit after the relayout settles
+            DispatcherQueue.TryEnqueue(() => ZoomToFit(viewport, canvas, xf));
+        };
 
         // Fullscreen: pop the whole viewport (graph + this toolbar) into a window-filling overlay
         // and switch the OS window to true fullscreen; the button toggles back, as does Esc.
