@@ -216,7 +216,28 @@
     return hit;
   }
 
-  // Drive hover + single-click(toggle)/double-click(open) from our hit-test; vis keeps drag/pan/zoom.
+  // Right-click context menu (Open in a tab / Show in Explorer), built from per-node capability flags.
+  let menuEl = null;
+  function hideMenu() { if (menuEl) { menuEl.remove(); menuEl = null; } }
+  function showMenu(px, py, items) {
+    hideMenu();
+    menuEl = document.createElement('div');
+    menuEl.style.cssText = 'position:absolute;z-index:20;left:' + px + 'px;top:' + py + 'px;' +
+      'background:rgba(38,38,38,0.97);color:#e6e6e6;border:1px solid #585858;border-radius:6px;padding:4px;' +
+      'font:13px "Segoe UI",sans-serif;box-shadow:0 6px 18px rgba(0,0,0,0.45);min-width:150px;';
+    items.forEach(it => {
+      const row = document.createElement('div');
+      row.textContent = it.label;
+      row.style.cssText = 'padding:6px 12px;cursor:pointer;border-radius:4px;';
+      row.addEventListener('mouseenter', () => { row.style.background = '#3a3a3a'; });
+      row.addEventListener('mouseleave', () => { row.style.background = 'transparent'; });
+      row.addEventListener('click', () => { hideMenu(); it.act(); });
+      menuEl.appendChild(row);
+    });
+    document.body.appendChild(menuEl);
+  }
+
+  // Drive hover + single-click(toggle)/double-click(open)/right-click(menu) from our hit-test; vis keeps drag/pan/zoom.
   function installInput() {
     const net = document.getElementById('net');
     const rel = e => { const b = net.getBoundingClientRect(); return { x: e.clientX - b.left, y: e.clientY - b.top }; };
@@ -242,6 +263,19 @@
       const id = hitTest(rel(e).x, rel(e).y);
       if (id != null) { post({ type: 'open', id: id }); }
     });
+    net.addEventListener('contextmenu', e => {
+      e.preventDefault();
+      hideMenu();
+      const id = hitTest(rel(e).x, rel(e).y);
+      if (id == null) { return; }
+      const d = nodesDS.get(id), items = [];
+      if (d.canopen) { items.push({ label: 'Open in a tab', act: () => post({ type: 'open', id: id }) }); }
+      if (d.canreveal) { items.push({ label: 'Show in Explorer', act: () => post({ type: 'reveal', id: id }) }); }
+      if (items.length) { showMenu(e.clientX, e.clientY, items); }
+    });
+    document.addEventListener('click', hideMenu);
+    document.addEventListener('wheel', hideMenu, { passive: true });
+    window.addEventListener('blur', hideMenu);
   }
 
   function build(d) {

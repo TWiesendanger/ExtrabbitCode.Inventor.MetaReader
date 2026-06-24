@@ -202,6 +202,10 @@ public sealed partial class DocumentView
             {
                 OpenReference(n.Path);
             }
+            else if (type == "reveal" && n.Resolved)
+            {
+                RevealInExplorer(n.Path);
+            }
         }
         catch { /* ignore malformed messages */ }
     }
@@ -286,7 +290,9 @@ public sealed partial class DocumentView
                 ["bw"] = n.Depth == 0 || isFactory || !n.Resolved ? 2 : 1,
                 ["subcolor"] = !n.Resolved ? red : isFactory || isMember ? gold : null,
                 ["subbold"] = !n.Resolved || isFactory || isMember,
-                ["haschildren"] = n.Children.Count > 0, ["expanded"] = n.Expanded, ["count"] = n.Children.Count
+                ["haschildren"] = n.Children.Count > 0, ["expanded"] = n.Expanded, ["count"] = n.Children.Count,
+                ["canopen"] = n.Resolved && n.Depth > 0 && !n.Cyclic && !n.IsLinkedFile,
+                ["canreveal"] = n.Resolved
             };
             if (_showThumbs && n.Thumbnail is { Length: > 0 })
             {
