@@ -16,7 +16,7 @@ internal static class AppInfo
     public const string ExtrabbitUrl = "https://extrabbitcode.com";
     public const string PrivacyUrl = "https://metareader.extrabbitcode.com/docs/privacy";
     public const string GitHubUrl = "https://github.com/TWiesendanger/ExtrabbitCode.Inventor.MetaReader";
-    public const string DocsUrl   = "https://github.com/TWiesendanger/ExtrabbitCode.Inventor.MetaReader/blob/master/docs/INVENTOR-FILE-FORMAT.md";
+    public const string DocsUrl   = "https://metareader.extrabbitcode.com/";
 
     public static string Version
     {
