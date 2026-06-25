@@ -29,6 +29,13 @@ public sealed partial class MainWindow
         _isPrimary = isPrimary;
         InitializeComponent();
 
+        // Home is the main window's hub only; torn-out windows are document-only.
+        if (!isPrimary)
+        {
+            DocTabs.TabItems.Remove(HomeTab);
+        }
+        DocTabs.TabItemsChanged += OnTabItemsChanged;   // keep Home pinned leftmost
+
         // Torn-out windows are shown by the framework the instant they're created, before
         // their XAML paints. A Mica backdrop fills that gap (DWM-level) so the window never
         // flashes black during a tear-out drag.
@@ -98,7 +105,7 @@ public sealed partial class MainWindow
     /// <summary>On the empty welcome screen, offer to open the bundled sample assembly.</summary>
     private void MaybeShowWelcomeTip()
     {
-        if (!_isPrimary || DocTabs.TabItems.Count > 0) { return; }   // a file was already opened (CLI)
+        if (!_isPrimary || HasDocTabs()) { return; }                 // a document is already open (e.g. CLI)
         if (SampleFiles.EnsureSampleAssembly() is null) { return; }  // nothing bundled
 
         _welcomeTip = TipService.Show((Microsoft.UI.Xaml.Controls.Panel)Content, WelcomeAnchor, new Tip
@@ -287,7 +294,7 @@ public sealed partial class MainWindow
         {
             if (t.Content is DocumentView dv0 &&
                 string.Equals(dv0.FilePath, path, StringComparison.OrdinalIgnoreCase))
-            { DocTabs.SelectedItem = t; return; }
+            { DocTabs.SelectedItem = t; RecentFiles.Add(path); return; }
         }
 
         DocumentView dv = new() { StatusSink = SetStatus };
@@ -309,12 +316,14 @@ public sealed partial class MainWindow
         WireTabContextMenu(tab);
         DocTabs.TabItems.Add(tab);
         DocTabs.SelectedItem = tab;
+        RecentFiles.Add(path);
         UpdateEmptyState();
     }
 
     // ---------- tab lifecycle ----------
     private void OnTabClose(TabView sender, TabViewTabCloseRequestedEventArgs args)
     {
+        if (ReferenceEquals(args.Tab, HomeTab)) { return; }
         DocTabs.TabItems.Remove(args.Tab);
         AfterTabRemoved();
     }
@@ -323,7 +332,7 @@ public sealed partial class MainWindow
     private void OnCloseTabShortcut(Microsoft.UI.Xaml.Input.KeyboardAccelerator sender,
         Microsoft.UI.Xaml.Input.KeyboardAcceleratorInvokedEventArgs args)
     {
-        if (DocTabs.SelectedItem is TabViewItem tab)
+        if (DocTabs.SelectedItem is TabViewItem tab && !ReferenceEquals(tab, HomeTab))
         {
             DocTabs.TabItems.Remove(tab);
             AfterTabRemoved();
@@ -334,9 +343,9 @@ public sealed partial class MainWindow
     /// <summary>Closes every tab in this window.</summary>
     private void CloseAllTabs()
     {
-        if (DocTabs.TabItems.Count == 0) { return; }
         foreach (TabViewItem t in DocTabs.TabItems.OfType<TabViewItem>().ToList())
         {
+            if (ReferenceEquals(t, HomeTab)) { continue; }
             DocTabs.TabItems.Remove(t);
         }
         AfterTabRemoved();
@@ -347,7 +356,7 @@ public sealed partial class MainWindow
     {
         foreach (TabViewItem t in DocTabs.TabItems.OfType<TabViewItem>().ToList())
         {
-            if (!ReferenceEquals(t, keep)) { DocTabs.TabItems.Remove(t); }
+            if (!ReferenceEquals(t, keep) && !ReferenceEquals(t, HomeTab)) { DocTabs.TabItems.Remove(t); }
         }
         DocTabs.SelectedItem = keep;
         AfterTabRemoved();
@@ -355,6 +364,11 @@ public sealed partial class MainWindow
 
     private void OnTabSelectionChanged(object sender, SelectionChangedEventArgs e)
     {
+        if (ReferenceEquals(DocTabs.SelectedItem, HomeTab))
+        {
+            if (_isPrimary) { RenderRecent(); }   // refresh recents whenever Home is shown
+            return;
+        }
         if (DocTabs.SelectedItem is TabViewItem { Content: DocumentView { Document: not null } dv })
         {
             StatusText.Text = $"{dv.Document.FileName} - {dv.Document.DocumentType}";
@@ -363,14 +377,139 @@ public sealed partial class MainWindow
 
     public void SetStatus(string message) => StatusText.Text = message;
 
+    /// <summary>True if any document tab is open (i.e. a tab other than Home).</summary>
+    private bool HasDocTabs() => DocTabs.TabItems.OfType<TabViewItem>().Any(t => !ReferenceEquals(t, HomeTab));
+
+    /// <summary>Keeps the Home tab pinned at the far left after any reorder or drop.</summary>
+    private void OnTabItemsChanged(TabView sender, Windows.Foundation.Collections.IVectorChangedEventArgs e)
+    {
+        if (!_isPrimary || _pinningHome) { return; }
+        if (DocTabs.TabItems.Contains(HomeTab) && !ReferenceEquals(DocTabs.TabItems[0], HomeTab))
+        {
+            _pinningHome = true;
+            // Defer: don't mutate the collection from inside its own change notification.
+            DispatcherQueue.TryEnqueue(() =>
+            {
+                object? selected = DocTabs.SelectedItem;
+                DocTabs.TabItems.Remove(HomeTab);
+                DocTabs.TabItems.Insert(0, HomeTab);
+                DocTabs.SelectedItem = selected;
+                _pinningHome = false;
+            });
+        }
+    }
+    private bool _pinningHome;
+
+    /// <summary>Home can't be dragged out of its leftmost slot.</summary>
+    private void OnTabDragStarting(TabView sender, TabViewTabDragStartingEventArgs args)
+    {
+        if (ReferenceEquals(args.Tab, HomeTab)) { args.Cancel = true; }
+    }
+
     private void UpdateEmptyState()
     {
-        // Only the primary window shows the empty drop-zone; a torn-out window keeps its
-        // TabView visible and closes itself once its last tab leaves.
-        bool showEmpty = _isPrimary && DocTabs.TabItems.Count == 0;
-        EmptyState.Visibility = showEmpty ? Visibility.Visible : Visibility.Collapsed;
-        DocTabs.Visibility    = showEmpty ? Visibility.Collapsed : Visibility.Visible;
+        // The Home tab replaces the old empty-state panel; just keep its recent list fresh.
+        if (_isPrimary) { RenderRecent(); }
     }
+
+    /// <summary>Builds the recent-files rows on the empty state: each opens its file, with a per-row
+    /// remove button; the whole section hides when there is nothing to show.</summary>
+    private void RenderRecent()
+    {
+        if (!_isPrimary) { return; }
+        RecentList.Children.Clear();
+        List<string> recent = RecentFiles.Get();
+        RecentCard.Visibility = recent.Count > 0 ? Visibility.Visible : Visibility.Collapsed;
+        if (recent.Count == 0) { return; }
+        ApplyRecentCollapsed();
+
+        foreach (string path in recent)
+        {
+            bool missing = !File.Exists(path);
+
+            Grid row = new();
+            row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+            row.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+
+            StackPanel content = new() { Orientation = Orientation.Horizontal, Spacing = 10, Opacity = missing ? 0.45 : 1.0 };
+            content.Children.Add(new Image
+            {
+                Source = AppIcons.Bitmap(RecentKind(path)),
+                Width = 20, Height = 20, VerticalAlignment = VerticalAlignment.Center
+            });
+            StackPanel text = new() { VerticalAlignment = VerticalAlignment.Center };
+            text.Children.Add(new TextBlock { Text = Path.GetFileName(path), FontSize = 13, TextTrimming = TextTrimming.CharacterEllipsis });
+            text.Children.Add(new TextBlock
+            {
+                Text = Path.GetDirectoryName(path) ?? path,
+                FontSize = 11, Opacity = 0.6, TextTrimming = TextTrimming.CharacterEllipsis
+            });
+            content.Children.Add(text);
+
+            Button open = new()
+            {
+                Content = content,
+                HorizontalAlignment = HorizontalAlignment.Stretch,
+                HorizontalContentAlignment = HorizontalAlignment.Left,
+                Background = new SolidColorBrush(Microsoft.UI.Colors.Transparent),
+                BorderThickness = new Thickness(0),
+                Padding = new Thickness(8, 6, 8, 6)
+            };
+            ToolTipService.SetToolTip(open, missing ? $"{path}\n(file not found)" : path);
+            open.Click += (_, _) => OpenFile(path);
+            Grid.SetColumn(open, 0);
+            row.Children.Add(open);
+
+            Button remove = new()
+            {
+                Content = new FontIcon { Glyph = "", FontSize = 12 },   // "Cancel" / cross
+                Background = new SolidColorBrush(Microsoft.UI.Colors.Transparent),
+                BorderThickness = new Thickness(0),
+                Padding = new Thickness(8),
+                VerticalAlignment = VerticalAlignment.Center
+            };
+            ToolTipService.SetToolTip(remove, "Remove from list");
+            remove.Click += (_, _) => { RecentFiles.Remove(path); RenderRecent(); };
+            Grid.SetColumn(remove, 1);
+            row.Children.Add(remove);
+
+            RecentList.Children.Add(row);
+        }
+    }
+
+    private void OnClearAllRecent(object sender, RoutedEventArgs e)
+    {
+        RecentFiles.Clear();
+        RenderRecent();
+    }
+
+    private void ApplyRecentCollapsed()
+    {
+        bool c = RecentFiles.Collapsed;
+        RecentExpanded.Visibility = c ? Visibility.Collapsed : Visibility.Visible;
+        RecentCollapsed.Visibility = c ? Visibility.Visible : Visibility.Collapsed;
+    }
+
+    private void OnCollapseRecent(object sender, RoutedEventArgs e)
+    {
+        RecentFiles.Collapsed = true;
+        ApplyRecentCollapsed();
+    }
+
+    private void OnExpandRecent(object sender, RoutedEventArgs e)
+    {
+        RecentFiles.Collapsed = false;
+        ApplyRecentCollapsed();
+    }
+
+    private static InventorDocument.DocKind RecentKind(string path) => Path.GetExtension(path).ToLowerInvariant() switch
+    {
+        ".iam" => InventorDocument.DocKind.Assembly,
+        ".idw" => InventorDocument.DocKind.Drawing,
+        ".ipn" => InventorDocument.DocKind.Presentation,
+        ".ipt" => InventorDocument.DocKind.Part,
+        _ => InventorDocument.DocKind.Unknown,
+    };
 
     /// <summary>After a tab leaves this window: refresh the empty state, and close the
     /// window if it's a torn-out (non-primary) window that now has no tabs.</summary>
@@ -425,7 +564,8 @@ public sealed partial class MainWindow
             MenuFlyoutItem closeOthers = new()
             {
                 Text = "Close other tabs",
-                IsEnabled = host.DocTabs.TabItems.Count > 1
+                IsEnabled = host.DocTabs.TabItems.OfType<TabViewItem>()
+                    .Any(t => !ReferenceEquals(t, tab) && !ReferenceEquals(t, host.HomeTab))
             };
             closeOthers.Click += (_, _) => host.CloseOtherTabs(tab);
             menu.Items.Add(closeOthers);
