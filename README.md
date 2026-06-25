@@ -1,5 +1,10 @@
 # ExtrabbitCode.Inventor.MetaReader - read Inventor files without Inventor
 
+[![CI](https://github.com/TWiesendanger/ExtrabbitCode.Inventor.MetaReader/actions/workflows/ci.yml/badge.svg)](https://github.com/TWiesendanger/ExtrabbitCode.Inventor.MetaReader/actions/workflows/ci.yml)
+[![.NET 10](https://img.shields.io/badge/.NET-10-512BD4?logo=dotnet&logoColor=white)](https://dotnet.microsoft.com)
+[![Microsoft Store](https://img.shields.io/badge/Microsoft%20Store-Download-0078D4?logo=microsoft&logoColor=white)](https://apps.microsoft.com/detail/9PLN7B8LKGK4)
+[![License](https://img.shields.io/github/license/TWiesendanger/ExtrabbitCode.Inventor.MetaReader)](LICENSE)
+
 <img src="src/InventorMeta.App/Assets/inventor-meta-1024.png" alt="ExtrabbitCode.Inventor.MetaReader" width="120" align="right" />
 
 Reads metadata out of Autodesk Inventor `.ipt` / `.iam` / `.idw` / `.ipn` files
@@ -11,6 +16,15 @@ code-signs itself, with nothing else to set up:
 [<img src="https://get.microsoft.com/images/en-us%20dark.svg" alt="Get it from Microsoft" height="48" />](https://apps.microsoft.com/detail/9PLN7B8LKGK4)
 
 (The core library and CLI are cross-platform and built from source - see [Build & run](#build--run).)
+
+## Screenshots
+
+The Windows viewer - the Home screen (drop a file, or reopen a recent one), and a document open
+with its thumbnail, key iProperties and every property grouped by set:
+
+![The MetaReader Home screen in dark theme](documentation/public/images/app/app__welcome-dark.png)
+
+![A document open in MetaReader, showing its thumbnail and iProperties](documentation/public/images/app/app__overview-dark.png)
 
 It exploits the fact that Inventor files are standard **OLE Compound File Binary**
 containers and that all iProperties live in standard **OLE Property Sets**. See
