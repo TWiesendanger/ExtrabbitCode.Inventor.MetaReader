@@ -98,6 +98,8 @@ public sealed class InventorDocument
     private static readonly Guid DesignAcceleratorSet = new("6cd3181a-0c7d-41aa-bdb3-969a9b72e1bb");
     // A weldment assembly is identified by its document subtype CLSID (Document SubType, PID 31).
     private static readonly Guid WeldmentSubType = new("28ec8354-9024-440f-a8a2-0e0e55d635b0");
+    // A sheet metal part is identified the same way, by its own document subtype CLSID.
+    private static readonly Guid SheetMetalSubType = new("9c464203-9bae-11d3-8bad-0060b0ce6bb4");
 
     /// <summary>True if the document's subtype (the "Document SubType" iProperty) is the given id.</summary>
     private bool HasSubType(Guid id) => Properties.Any(p => p.Name == "Document SubType" &&
@@ -105,6 +107,9 @@ public sealed class InventorDocument
 
     /// <summary>True for a weldment assembly (identified by its document subtype, not a localized name).</summary>
     public bool IsWeldment => HasSubType(WeldmentSubType);
+
+    /// <summary>True for a sheet metal part (identified by its document subtype, not a localized name).</summary>
+    public bool IsSheetMetal => HasSubType(SheetMetalSubType);
 
     private List<DocumentSubsystem>? _subsystems;
 
@@ -124,7 +129,7 @@ public sealed class InventorDocument
     /// More specific roles win over the generic Content Center membership.</summary>
     public enum DocCategory
     {
-        General, ContentCenter, FrameGenerator, DesignAccelerator, Weldment, Piping,
+        General, ContentCenter, FrameGenerator, DesignAccelerator, Weldment, SheetMetal, Piping,
         iPartFactory, iPartMember, iAssemblyFactory, iAssemblyMember
     }
 
@@ -146,6 +151,7 @@ public sealed class InventorDocument
       : HasSubsystem("FrameGenerator")            ? DocCategory.FrameGenerator
       : HasSubsystem("DesignAccelerator")         ? DocCategory.DesignAccelerator
       : IsWeldment                                ? DocCategory.Weldment
+      : IsSheetMetal                              ? DocCategory.SheetMetal
       : Kind == DocKind.Assembly && IsFactory     ? DocCategory.iAssemblyFactory
       : Kind == DocKind.Assembly && IsMember      ? DocCategory.iAssemblyMember
       : Kind == DocKind.Part     && IsFactory     ? DocCategory.iPartFactory

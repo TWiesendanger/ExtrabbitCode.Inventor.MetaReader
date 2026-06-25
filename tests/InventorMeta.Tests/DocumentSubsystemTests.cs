@@ -51,6 +51,22 @@ public class DocumentSubsystemTests
     }
 
     [Fact]
+    public void SheetMetalPartIsRecognizedByItsDocumentSubtype()
+    {
+        // Identified by the Document SubType CLSID, not the localized "Sheet Metal" name.
+        InventorDocument doc = Samples.Load(Samples.SheetSample);
+
+        Assert.True(doc.IsSheetMetal);
+        Assert.Equal(InventorDocument.DocCategory.SheetMetal, doc.PrimaryCategory);
+    }
+
+    [Fact]
+    public void PlainPartIsNotSheetMetal()
+    {
+        Assert.False(Samples.Load(Samples.Part).IsSheetMetal);   // SamplePart.ipt
+    }
+
+    [Fact]
     public void TubeAndPipePartIsDetectedAsTubeAndPipeSubsystem()
     {
         InventorDocument doc = Samples.Load(Samples.TubeAndPipe);
@@ -76,6 +92,8 @@ public class DocumentSubsystemTests
     [InlineData(Samples.IPartMember,      InventorDocument.DocCategory.iPartMember)]
     [InlineData(Samples.IAssemblyFactory, InventorDocument.DocCategory.iAssemblyFactory)]
     [InlineData(Samples.IAssemblyMember,  InventorDocument.DocCategory.iAssemblyMember)]
+    [InlineData(Samples.WeldingAssembly,  InventorDocument.DocCategory.Weldment)]
+    [InlineData(Samples.SheetSample,      InventorDocument.DocCategory.SheetMetal)]
     [InlineData(Samples.Part,             InventorDocument.DocCategory.General)]        // SamplePart: model states, not an iPart
     [InlineData(Samples.Cylinder,         InventorDocument.DocCategory.General)]
     public void PrimaryCategoryClassifiesTheDocument(string sample, InventorDocument.DocCategory expected) =>

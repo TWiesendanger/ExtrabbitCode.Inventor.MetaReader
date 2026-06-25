@@ -26,6 +26,7 @@ that applies, so a Tube & Pipe pipe shows as **Piping** rather than the broader 
 | <Swatch color="#B45309" /> | **Frame Generator** | the `_com.autodesk.FG` property set |
 | <Swatch color="#15803D" /> | **Design Accelerator** | the `FDesign` property set (generic - it does not record which generator) |
 | <Swatch color="#B91C1C" /> | **Weldment** | the assembly **document subtype** |
+| <Swatch color="#0891B2" /> | **Sheet Metal** | the part **document subtype** |
 | <Swatch color="#6D28D9" /> | **iPart Factory** | the member table plus the *Parameterized Template* flag |
 | <Swatch color="#8B5CF6" /> | **iPart Member** | the member table **without** that flag (and not a model-state part) |
 | <Swatch color="#BE185D" /> | **iAssembly Factory** | the same, for an assembly |
@@ -35,8 +36,8 @@ that applies, so a Tube & Pipe pipe shows as **Piping** rather than the broader 
 This is the file-readable counterpart to Inventor's `DocumentInterests` / `HasInterest`. Inventor's
 own add-in "interest" list lives in the proprietary `RSeStorage` database, which MetaReader does not
 decode - but the same information surfaces in the readable iProperties and property sets above. The
-category is also available from the [command line](/docs/command-line) - the `json` output includes a
-`primaryCategory` field.
+category is also available from the [command line](/docs/command-line) - the `info` report prints a
+`Category:` line and the `json` output includes a `primaryCategory` field.
 
 ## What it can't tell apart
 

@@ -22,6 +22,7 @@ internal static class Samples
     public const string ContentCenterPart = "ContentCenterScrew.ipt"; // a plain Content Center fastener (DIN 927)
     public const string BoltedConnection = "BoltedConnection.iam"; // a Design Accelerator bolted connection
     public const string WeldingAssembly = "WeldingAssembly.iam"; // a weldment (assembly document subtype)
+    public const string SheetSample = "SheetSample.ipt";  // a sheet metal part (part document subtype)
     public const string IAssemblyFactory = "iAssemblyFactory.iam";              // an iAssembly factory
     public const string IAssemblyMember = "iAssemblyFactory/Assembly8-01.iam";  // a generated member of it
 

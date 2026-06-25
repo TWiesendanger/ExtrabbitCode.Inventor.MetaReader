@@ -18,6 +18,7 @@ internal static class DocCategoryUi
         (InventorDocument.DocCategory.FrameGenerator,   "Frame Generator",   Color.FromArgb(255, 0xB4, 0x53, 0x09)), // amber
         (InventorDocument.DocCategory.DesignAccelerator,"Design Accelerator",Color.FromArgb(255, 0x15, 0x80, 0x3D)), // green
         (InventorDocument.DocCategory.Weldment,         "Weldment",          Color.FromArgb(255, 0xB9, 0x1C, 0x1C)), // red
+        (InventorDocument.DocCategory.SheetMetal,       "Sheet Metal",       Color.FromArgb(255, 0x08, 0x91, 0xB2)), // cyan
         (InventorDocument.DocCategory.Piping,           "Piping",            Color.FromArgb(255, 0x0F, 0x76, 0x6E)), // teal
         (InventorDocument.DocCategory.iPartFactory,     "iPart Factory",     Color.FromArgb(255, 0x6D, 0x28, 0xD9)), // violet
         (InventorDocument.DocCategory.iPartMember,      "iPart Member",      Color.FromArgb(255, 0x8B, 0x5C, 0xF6)), // light violet
