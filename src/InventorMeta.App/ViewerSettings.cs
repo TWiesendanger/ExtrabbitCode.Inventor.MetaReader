@@ -38,6 +38,8 @@ internal static class ViewerSettings
     {
         get => Enum.TryParse(AppSettings.Get(GraphLayoutKey), out GraphLayout v) ? v : GraphLayout.LeftRight;
         set => AppSettings.Set(GraphLayoutKey, value.ToString());
+    }
+
     /// <summary>Keep Inventor hidden when MetaReader launches it to generate a viewable. A session the
     /// user already had open is never touched. Default on.</summary>
     public static bool HideInventor
