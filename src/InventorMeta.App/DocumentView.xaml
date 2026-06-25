@@ -6,8 +6,17 @@
 
     <UserControl.Resources>
         <!-- theme-reactive styles for the code-built cards & tables -->
-        <!-- active-tab background: a theme-reactive card colour so the selected tab stands out -->
-        <SolidColorBrush x:Key="TabViewItemHeaderBackgroundSelected" Color="{ThemeResource SolidBackgroundFillColorTertiary}"/>
+
+        <!-- Detail tabs: the strip sits on the Tertiary surface, so the active tab must differ from it.
+             Active = card colour + accent text; inactive = transparent + muted text. -->
+        <SolidColorBrush x:Key="TabViewItemHeaderBackground" Color="Transparent"/>
+        <SolidColorBrush x:Key="TabViewItemHeaderBackgroundSelected" Color="{ThemeResource CardBackgroundFillColorDefault}"/>
+        <SolidColorBrush x:Key="TabViewItemHeaderBackgroundSelectedPointerOver" Color="{ThemeResource CardBackgroundFillColorSecondary}"/>
+        <SolidColorBrush x:Key="TabViewItemHeaderBackgroundSelectedPressed" Color="{ThemeResource CardBackgroundFillColorDefault}"/>
+        <SolidColorBrush x:Key="TabViewItemHeaderForeground" Color="{ThemeResource TextFillColorSecondary}"/>
+        <SolidColorBrush x:Key="TabViewItemHeaderForegroundSelected" Color="{ThemeResource TextFillColorPrimary}"/>
+        <SolidColorBrush x:Key="TabViewItemHeaderForegroundSelectedPointerOver" Color="{ThemeResource TextFillColorPrimary}"/>
+        <SolidColorBrush x:Key="TabViewItemHeaderForegroundSelectedPressed" Color="{ThemeResource TextFillColorPrimary}"/>
 
         <Style x:Key="DataCard" TargetType="Border">
             <Setter Property="Background" Value="{ThemeResource CardBackgroundFillColorDefaultBrush}"/>

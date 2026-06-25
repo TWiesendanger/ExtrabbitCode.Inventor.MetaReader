@@ -60,21 +60,14 @@ public sealed partial class DocumentView
         byte g = (byte)(ActualTheme != ElementTheme.Light ? 0x1f : 0xf6);
         WebView2 web = new() { DefaultBackgroundColor = Windows.UI.Color.FromArgb(255, g, g, g) };
         Grid viewport = new() { Background = new SolidColorBrush(Colors.Transparent) };
-        // toolbar gets its own row above the WebView2 - overlapping XAML onto the web view makes its
-        // pointer focus fight the page (clicks need a second try), so we keep them side by side.
-        viewport.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
-        viewport.RowDefinitions.Add(new RowDefinition { Height = new GridLength(1, GridUnitType.Star) });
-        Grid.SetRow(web, 1);
-        viewport.Children.Add(web);
+        viewport.Children.Add(web);   // the WebView2 fills the cell; the toolbar floats over its top-right corner
 
-        // --- toolbar row (right-aligned): layout, thumbnails, fit, fullscreen ---
+        // --- toolbar (floats over the graph's top-right corner, so it costs no extra row) ---
         StackPanel toolbar = new()
         {
             Orientation = Orientation.Horizontal, Spacing = 4,
-            HorizontalAlignment = HorizontalAlignment.Right, VerticalAlignment = VerticalAlignment.Center,
-            Margin = new Thickness(0, 6, 12, 6)
+            HorizontalAlignment = HorizontalAlignment.Right, VerticalAlignment = VerticalAlignment.Center
         };
-        Grid.SetRow(toolbar, 0);
         static Button IconBtn(int glyph, string tip)
         {
             Button b = new() { Content = new FontIcon { Glyph = G(glyph), FontSize = 14 }, Padding = new Thickness(8, 5, 8, 5), MinWidth = 0 };
@@ -158,7 +151,18 @@ public sealed partial class DocumentView
         toolbar.Children.Add(fit);
         toolbar.Children.Add(cog);
         toolbar.Children.Add(full);
-        viewport.Children.Add(toolbar);
+
+        // Floating chrome so the controls stay legible over whatever the graph draws beneath them.
+        Border toolbarChrome = new()
+        {
+            Child = toolbar,
+            HorizontalAlignment = HorizontalAlignment.Right, VerticalAlignment = VerticalAlignment.Top,
+            Margin = new Thickness(0, 8, 12, 0), Padding = new Thickness(4), CornerRadius = new CornerRadius(8),
+            Background = new SolidColorBrush(Windows.UI.Color.FromArgb(0xE6, g, g, g)),
+            BorderThickness = new Thickness(1),
+            BorderBrush = new SolidColorBrush(Windows.UI.Color.FromArgb(0x28, 0x80, 0x80, 0x80))
+        };
+        viewport.Children.Add(toolbarChrome);
 
         _ = InitGraphAsync(web, root);
         return viewport;
