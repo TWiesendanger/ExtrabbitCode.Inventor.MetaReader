@@ -26,6 +26,29 @@ public sealed partial class DocumentView
     private int _nextStableId;
     private readonly Dictionary<int, RefNode> _nodeById = new();   // current visible id -> node, for clicks
 
+    // The live graph, kept so we can re-theme it when the app switches light/dark.
+    private WebView2? _graphWeb;
+    private RefNode? _graphRoot;
+    private Border? _graphChrome;
+
+    /// <summary>Re-themes the reference graph - page palette, WebView2 background and the toolbar
+    /// chrome - when the app toggles light/dark. The WebView2 doesn't follow the XAML theme itself.</summary>
+    private void OnActualThemeChanged(FrameworkElement sender, object args)
+    {
+        if (_graphWeb is null || _graphRoot is null) { return; }
+        try
+        {
+            byte g = (byte)(ActualTheme != ElementTheme.Light ? 0x1f : 0xf6);
+            _graphWeb.DefaultBackgroundColor = Windows.UI.Color.FromArgb(255, g, g, g);
+            if (_graphChrome != null)
+            {
+                _graphChrome.Background = new SolidColorBrush(Windows.UI.Color.FromArgb(0xE6, g, g, g));
+            }
+            SendGraph(_graphWeb, _graphRoot);   // pushes the new palette (incl. canvas background)
+        }
+        catch (Exception ex) { Serilog.Log.Debug(ex, "Re-theming the reference graph failed"); }
+    }
+
     private const string GraphSettingsKey = "graph.physics";
     // Tunable graph options exposed in the in-graph cogwheel panel; persisted as a JSON blob.
     private static readonly Dictionary<string, double> GraphDefaults = new()
@@ -163,6 +186,10 @@ public sealed partial class DocumentView
             BorderBrush = new SolidColorBrush(Windows.UI.Color.FromArgb(0x28, 0x80, 0x80, 0x80))
         };
         viewport.Children.Add(toolbarChrome);
+
+        _graphWeb = web;
+        _graphRoot = root;
+        _graphChrome = toolbarChrome;
 
         _ = InitGraphAsync(web, root);
         return viewport;

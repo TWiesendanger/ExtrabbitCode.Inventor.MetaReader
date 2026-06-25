@@ -44,6 +44,9 @@ public sealed partial class DocumentView
         WireTabHide(RefsTab, "References");
         WireTabHide(StructureTab, "File Structure");
 
+        // The WebView2 reference graph doesn't follow the XAML theme on its own; re-theme it on toggle.
+        ActualThemeChanged += OnActualThemeChanged;
+
         // Hide/show state is global; rebuild this view whenever it changes (any tab).
         // Static handler => no capture of 'this', so the messenger's weak reference
         // lets a closed tab be collected without manual unregistration.
