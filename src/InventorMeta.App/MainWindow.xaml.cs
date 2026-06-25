@@ -281,7 +281,7 @@ public sealed partial class MainWindow
             Content = dv,
             IconSource = AppIcons.IconSource(dv.Document?.Kind ?? InventorDocument.DocKind.Unknown)
         };
-        ToolTipService.SetToolTip(tab, path);
+        ToolTipService.SetToolTip(tab, $"{path}\nCtrl+W to close");
         WireTabContextMenu(tab);
         DocTabs.TabItems.Add(tab);
         DocTabs.SelectedItem = tab;
