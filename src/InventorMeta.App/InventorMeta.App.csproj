@@ -38,6 +38,8 @@
     <Content Include="Assets\appicon.ico">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </Content>
+    <!-- Bundled vis-network library + the reference-graph page (offline; also packaged into the MSIX) -->
+    <Content Include="Assets\vis\**\*">
     <!-- Bundled sample assembly (+ all its parts) so the welcome tip can open a model to try out;
          skips Inventor's OldVersions backups and any stray STEP exports. -->
     <Content Include="Assets\SampleFiles\SampleBg\**\*.*"

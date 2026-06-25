@@ -1,0 +1,377 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<link rel="stylesheet" href="./vis-network.min.css" />
+<script src="./vis-network.min.js"></script>
+<style>
+  html, body { margin: 0; height: 100%; width: 100%; overflow: hidden; background: transparent; }
+  #net { width: 100%; height: 100%; }
+</style>
+</head>
+<body>
+<div id="net"></div>
+<div id="settings" style="position:absolute;top:10px;right:12px;z-index:10;display:none;width:228px;
+     background:rgba(32,32,32,0.95);color:#e6e6e6;font:12px 'Segoe UI',sans-serif;border:1px solid #4a4a4a;
+     border-radius:8px;padding:10px 12px;user-select:none;box-shadow:0 6px 18px rgba(0,0,0,0.45);">
+  <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px;">
+    <b style="font-size:13px;">Graph options</b>
+    <span id="settingsClose" style="cursor:pointer;opacity:0.7;padding:0 4px;">✕</span>
+  </div>
+  <div id="settingsBody"></div>
+  <button id="settingsReset" style="margin-top:9px;width:100%;background:#3a3a3a;color:#e6e6e6;
+     border:1px solid #585858;border-radius:5px;padding:5px;cursor:pointer;font:12px 'Segoe UI',sans-serif;">
+     Reset to defaults</button>
+</div>
+<script>
+  let network = null, nodesDS = null, pal = {};
+  let myHover = null;          // node id under the pointer, by our own rectangular hit-test
+  const rects = {};           // id -> { x, y, w, h } in canvas space, recorded as nodes draw
+  let netMode = false, freezeTimer = null, lastLayout = null;
+  let known = new Set();      // node ids already on screen (so we only fade in genuinely new ones)
+  const appear = {};          // id -> fade start time
+  let fadeMs = 420;           // fade-in duration (overridden by saved settings)
+  let settings = {}, defaults = {}, panelBuilt = false, saveTimer = null;
+
+  // Tunable options shown in the cogwheel panel (keys must match the C# GraphDefaults).
+  const SPEC = [
+    { key: 'fadeMs', label: 'Fade-in (ms)', min: 0, max: 1500, step: 20, dp: 0 },
+    { key: 'gravitationalConstant', label: 'Repulsion', min: -30000, max: -1000, step: 500, dp: 0 },
+    { key: 'centralGravity', label: 'Central gravity', min: 0, max: 1, step: 0.01, dp: 2 },
+    { key: 'springLength', label: 'Link length', min: 50, max: 400, step: 10, dp: 0 },
+    { key: 'springConstant', label: 'Link stiffness', min: 0.01, max: 0.2, step: 0.005, dp: 3 },
+    { key: 'damping', label: 'Damping', min: 0.1, max: 1, step: 0.05, dp: 2 },
+    { key: 'avoidOverlap', label: 'Avoid overlap', min: 0, max: 1, step: 0.05, dp: 2 }
+  ];
+  const fmt = (sp, v) => sp.dp ? v.toFixed(sp.dp) : String(Math.round(v));
+
+  function saveSettings() {
+    clearTimeout(saveTimer);
+    saveTimer = setTimeout(() => post({ type: 'settings', values: settings }), 300);
+  }
+
+  function applyPhysics() {
+    if (!network) { return; }
+    network.setOptions({ physics: { barnesHut: {
+      gravitationalConstant: settings.gravitationalConstant, centralGravity: settings.centralGravity,
+      springLength: settings.springLength, springConstant: settings.springConstant,
+      damping: settings.damping, avoidOverlap: settings.avoidOverlap } } });
+    if (netMode) { clearTimeout(freezeTimer); network.startSimulation(); scheduleFreeze(); }
+  }
+
+  function syncPanel() {
+    SPEC.forEach(sp => {
+      const inp = document.getElementById('s_' + sp.key);
+      if (inp) { inp.value = settings[sp.key]; document.getElementById('v_' + sp.key).textContent = fmt(sp, settings[sp.key]); }
+    });
+  }
+
+  function buildPanel() {
+    if (panelBuilt) { return; }
+    const body = document.getElementById('settingsBody');
+    SPEC.forEach(sp => {
+      const row = document.createElement('div');
+      row.style.margin = '7px 0';
+      row.innerHTML = '<div style="display:flex;justify-content:space-between;"><span>' + sp.label +
+        '</span><span id="v_' + sp.key + '" style="opacity:0.8;"></span></div>';
+      const inp = document.createElement('input');
+      inp.type = 'range'; inp.min = sp.min; inp.max = sp.max; inp.step = sp.step; inp.id = 's_' + sp.key;
+      inp.style.width = '100%';
+      inp.addEventListener('input', () => {
+        settings[sp.key] = Number(inp.value);
+        document.getElementById('v_' + sp.key).textContent = fmt(sp, settings[sp.key]);
+        if (sp.key === 'fadeMs') { fadeMs = settings.fadeMs; } else { applyPhysics(); }
+        saveSettings();
+      });
+      row.appendChild(inp);
+      body.appendChild(row);
+    });
+    document.getElementById('settingsClose').addEventListener('click', () => { document.getElementById('settings').style.display = 'none'; });
+    document.getElementById('settingsReset').addEventListener('click', () => {
+      SPEC.forEach(sp => { settings[sp.key] = defaults[sp.key]; });
+      fadeMs = settings.fadeMs; syncPanel(); applyPhysics(); saveSettings();
+    });
+    panelBuilt = true;
+  }
+
+  function toggleSettings() {
+    buildPanel(); syncPanel();
+    const el = document.getElementById('settings');
+    el.style.display = (el.style.display === 'block') ? 'none' : 'block';
+  }
+
+  // Keep repainting while any node is fading in (static layouts don't redraw on their own).
+  function animateAppear() {
+    if (!network || Object.keys(appear).length === 0) { return; }
+    network.redraw();
+    requestAnimationFrame(animateAppear);
+  }
+
+  // Hard stop so the physics graph can't drift forever: freeze a while after the last disturbance.
+  function scheduleFreeze() {
+    clearTimeout(freezeTimer);
+    freezeTimer = setTimeout(() => { try { if (network) network.stopSimulation(); } catch (e) {} }, 3500);
+  }
+  const icons = {};
+  ['part', 'assembly', 'drawing', 'presentation', 'other'].forEach(k => {
+    const im = new Image(); im.src = '/' + k + '.png'; icons[k] = im;
+    im.onload = () => { if (network) network.redraw(); };
+  });
+  const thumbCache = {};
+
+  function post(o) { try { window.chrome.webview.postMessage(JSON.stringify(o)); } catch (e) {} }
+
+  function iconFor(d) {
+    if (d.image) {
+      let im = thumbCache[d.id];
+      if (!im || im._src !== d.image) { im = new Image(); im._src = d.image; im.src = d.image; im.onload = () => network && network.redraw(); thumbCache[d.id] = im; }
+      return im;
+    }
+    return icons[d.kind] || icons.other;
+  }
+
+  function roundRect(ctx, x, y, w, h, r) {
+    ctx.beginPath();
+    ctx.moveTo(x + r, y);
+    ctx.arcTo(x + w, y, x + w, y + h, r);
+    ctx.arcTo(x + w, y + h, x, y + h, r);
+    ctx.arcTo(x, y + h, x, y, r);
+    ctx.arcTo(x, y, x + w, y, r);
+    ctx.closePath();
+  }
+
+  function clip(ctx, text, maxW) {
+    if (ctx.measureText(text).width <= maxW) { return text; }
+    let t = text;
+    while (t.length > 1 && ctx.measureText(t + '…').width > maxW) { t = t.slice(0, -1); }
+    return t + '…';
+  }
+
+  // Custom node card: type icon (or thumbnail) on the left, bold name + coloured subtitle on the
+  // right, and a bordered [+N]/[-] toggle badge for collapsible nodes.
+  function renderNode(args) {
+    const ctx = args.ctx, x = args.x, y = args.y;
+    const d = nodesDS && nodesDS.get(args.id);
+    if (!d) { return { drawNode() {}, nodeDimensions: { width: 1, height: 1 } }; }
+    const sel = (myHover === args.id) || args.state.selected;   // our own hover, not vis's ellipse
+    const pad = 11, gap = 9;
+    const iconSize = d.image ? 56 : 30;
+    const H = d.image ? 80 : 52;
+
+    ctx.font = '700 13px "Segoe UI", sans-serif';
+    const nameW = ctx.measureText(d.name).width;
+    ctx.font = '400 11px "Segoe UI", sans-serif';
+    const subW = ctx.measureText(d.sub).width;
+    const textW = Math.min(Math.max(nameW, subW, 70), 210);
+    const badgeW = d.haschildren ? 24 : 0;
+    const W = pad + iconSize + gap + textW + (badgeW ? gap + badgeW : 0) + pad;
+    rects[args.id] = { x: x, y: y, w: W, h: H };   // record exact rect for our hit-testing
+    const ap = appear[args.id];                    // fade newly revealed nodes in
+    const alpha = ap === undefined ? 1 : Math.min(1, (performance.now() - ap) / Math.max(1, fadeMs));
+    if (ap !== undefined && alpha >= 1) { delete appear[args.id]; }
+
+    return {
+      drawNode() {
+        ctx.save(); ctx.globalAlpha = alpha;
+        const L = x - W / 2, T = y - H / 2;
+        roundRect(ctx, L, T, W, H, 8);
+        ctx.fillStyle = sel ? pal.hiBg : pal.nodeBg; ctx.fill();
+        ctx.lineWidth = d.bw || 1; ctx.strokeStyle = d.border; ctx.stroke();
+
+        const im = iconFor(d);
+        if (im && im.complete && im.naturalWidth) { ctx.drawImage(im, L + pad, y - iconSize / 2, iconSize, iconSize); }
+
+        const tx = L + pad + iconSize + gap;
+        ctx.textAlign = 'left'; ctx.textBaseline = 'alphabetic';
+        ctx.fillStyle = pal.font; ctx.font = '700 13px "Segoe UI", sans-serif';
+        ctx.fillText(clip(ctx, d.name, textW), tx, y - 2);
+        ctx.fillStyle = d.subcolor || pal.sub; ctx.font = (d.subbold ? '600 ' : '400 ') + '11px "Segoe UI", sans-serif';
+        ctx.fillText(clip(ctx, d.sub, textW), tx, y + 13);
+
+        if (d.haschildren) {
+          const bh = 20, bx = L + W - pad - badgeW, by = y - bh / 2;
+          roundRect(ctx, bx, by, badgeW, bh, 5);
+          ctx.fillStyle = sel ? pal.badgeHi : pal.badgeBg; ctx.fill();
+          ctx.lineWidth = sel ? 1.5 : 1; ctx.strokeStyle = sel ? pal.badgeHiBorder : pal.badgeBorder; ctx.stroke();
+          ctx.fillStyle = pal.font; ctx.font = '700 14px "Segoe UI", sans-serif';
+          ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+          ctx.fillText(d.expanded ? '−' : '+', bx + badgeW / 2, by + bh / 2 + 0.5);
+        }
+        ctx.restore();
+      },
+      nodeDimensions: { width: W, height: H }   // exact, for edge clipping / drag
+    };
+  }
+
+  // Our own rectangular hit-test (vis hit-tests custom nodes as an inscribed ellipse, which drops the
+  // right-edge toggle). Returns the node id whose drawn rect contains the canvas point, else null.
+  function hitTest(domX, domY) {
+    if (!network) { return null; }
+    const cp = network.DOMtoCanvas({ x: domX, y: domY });
+    let hit = null;
+    for (const id in rects) {
+      const r = rects[id];
+      if (cp.x >= r.x - r.w / 2 && cp.x <= r.x + r.w / 2 && cp.y >= r.y - r.h / 2 && cp.y <= r.y + r.h / 2) { hit = Number(id); }
+    }
+    return hit;
+  }
+
+  // Right-click context menu (Open in a tab / Show in Explorer), built from per-node capability flags.
+  let menuEl = null;
+  function hideMenu() { if (menuEl) { menuEl.remove(); menuEl = null; } }
+  function showMenu(px, py, items) {
+    hideMenu();
+    menuEl = document.createElement('div');
+    menuEl.style.cssText = 'position:absolute;z-index:20;left:' + px + 'px;top:' + py + 'px;' +
+      'background:rgba(38,38,38,0.97);color:#e6e6e6;border:1px solid #585858;border-radius:6px;padding:4px;' +
+      'font:13px "Segoe UI",sans-serif;box-shadow:0 6px 18px rgba(0,0,0,0.45);min-width:150px;';
+    items.forEach(it => {
+      const row = document.createElement('div');
+      row.textContent = it.label;
+      row.style.cssText = 'padding:6px 12px;cursor:pointer;border-radius:4px;';
+      row.addEventListener('mouseenter', () => { row.style.background = '#3a3a3a'; });
+      row.addEventListener('mouseleave', () => { row.style.background = 'transparent'; });
+      row.addEventListener('click', () => { hideMenu(); it.act(); });
+      menuEl.appendChild(row);
+    });
+    document.body.appendChild(menuEl);
+  }
+
+  // Drive hover + single-click(toggle)/double-click(open)/right-click(menu) from our hit-test; vis keeps drag/pan/zoom.
+  function installInput() {
+    const net = document.getElementById('net');
+    const rel = e => { const b = net.getBoundingClientRect(); return { x: e.clientX - b.left, y: e.clientY - b.top }; };
+    let clickTimer = null, downPos = null, moved = false;
+    net.addEventListener('pointerdown', e => { downPos = rel(e); moved = false; });
+    net.addEventListener('pointerup', () => { downPos = null; });
+    net.addEventListener('pointermove', e => {
+      const p = rel(e);
+      if (downPos && (Math.abs(p.x - downPos.x) > 4 || Math.abs(p.y - downPos.y) > 4)) { moved = true; }
+      const id = hitTest(p.x, p.y);
+      if (id !== myHover) { myHover = id; net.style.cursor = id != null ? 'pointer' : 'default'; network.redraw(); }
+    });
+    net.addEventListener('pointerleave', () => { if (myHover !== null) { myHover = null; network.redraw(); } });
+    net.addEventListener('click', e => {
+      if (moved) { return; }                       // ignore the click that ends a drag
+      const id = hitTest(rel(e).x, rel(e).y);
+      if (id == null) { return; }
+      clearTimeout(clickTimer);
+      clickTimer = setTimeout(() => post({ type: 'toggle', id: id }), 230);
+    });
+    net.addEventListener('dblclick', e => {
+      clearTimeout(clickTimer);
+      const id = hitTest(rel(e).x, rel(e).y);
+      if (id != null) { post({ type: 'open', id: id }); }
+    });
+    net.addEventListener('contextmenu', e => {
+      e.preventDefault();
+      hideMenu();
+      const id = hitTest(rel(e).x, rel(e).y);
+      if (id == null) { return; }
+      const d = nodesDS.get(id), items = [];
+      if (d.canopen) { items.push({ label: 'Open in a tab', act: () => post({ type: 'open', id: id }) }); }
+      if (d.canreveal) { items.push({ label: 'Show in Explorer', act: () => post({ type: 'reveal', id: id }) }); }
+      if (items.length) { showMenu(e.clientX, e.clientY, items); }
+    });
+    document.addEventListener('click', hideMenu);
+    document.addEventListener('wheel', hideMenu, { passive: true });
+    window.addEventListener('blur', hideMenu);
+  }
+
+  function build(d) {
+    pal = d.palette;
+    document.body.style.background = pal.bg;   // opaque, theme-matched (transparent breaks input)
+    const isNet = d.layout === 'network';   // network = vis physics; LR/UD use positions from C#
+    netMode = isNet;
+
+    settings = Object.assign({}, d.settingsDefaults || {}, d.settings || {});
+    defaults = d.settingsDefaults || defaults;
+    if (settings.fadeMs != null) { fadeMs = settings.fadeMs; }
+    if (panelBuilt) { syncPanel(); }
+
+    if (isNet) {
+      // keep existing nodes put and seed new ones next to their parent (not dumped at the centre),
+      // so expanding doesn't reshuffle the graph or pile nodes on the root
+      const pos = (network && network.getPositions) ? network.getPositions() : {};
+      const parentOf = {};
+      d.edges.forEach(e => { parentOf[e.to] = e.from; });
+      d.nodes.forEach(n => {
+        if (n.fixed) { return; }                       // pinned root keeps 0,0 from C#
+        if (pos[n.id]) { n.x = pos[n.id].x; n.y = pos[n.id].y; }
+        else {
+          const pp = (parentOf[n.id] != null) ? pos[parentOf[n.id]] : null;
+          if (pp) { n.x = pp.x + (Math.random() * 90 - 45); n.y = pp.y + (Math.random() * 90 - 45); }
+        }
+      });
+    }
+
+    d.nodes.forEach(n => { n.shape = 'custom'; n.ctxRenderer = renderNode; if (isNet) { n.mass = 2.5; } });
+    nodesDS = new vis.DataSet(d.nodes);
+    const edges = new vis.DataSet(d.edges);
+
+    const options = {
+      autoResize: true,
+      physics: {
+        enabled: isNet, solver: 'barnesHut',
+        barnesHut: { theta: 0.5, gravitationalConstant: settings.gravitationalConstant,
+                     centralGravity: settings.centralGravity, springLength: settings.springLength,
+                     springConstant: settings.springConstant, damping: settings.damping,
+                     avoidOverlap: settings.avoidOverlap },
+        maxVelocity: 45, minVelocity: 2, timestep: 0.5, adaptiveTimestep: true,
+        stabilization: { enabled: true, iterations: 300, updateInterval: 25, fit: false }
+      },
+      layout: { hierarchical: false, improvedLayout: false, randomSeed: 7 },
+      interaction: { hover: true, dragNodes: true, dragView: true, zoomView: true,
+                     navigationButtons: false, multiselect: false, tooltipDelay: 250,
+                     hoverConnectedEdges: false, selectConnectedEdges: false },
+      nodes: { shape: 'custom', chosen: false },   // chosen:false: don't let vis mutate our custom nodes
+      edges: { width: 1.3, color: { color: pal.edge, highlight: pal.edgeHi, hover: pal.edgeHi },
+               arrows: { to: { enabled: false } },
+               smooth: isNet
+                 ? { enabled: true, type: 'dynamic' }
+                 : { enabled: true, type: 'cubicBezier',
+                     forceDirection: d.layout === 'LR' ? 'horizontal' : 'vertical', roundness: 0.5 } }
+    };
+
+    const firstBuild = !network;
+    const layoutChanged = lastLayout !== d.layout;
+    lastLayout = d.layout;
+
+    // mark newly revealed nodes for fade-in (skip first load - everything appears together there)
+    const nowT = performance.now();
+    const nextKnown = new Set();
+    d.nodes.forEach(n => { nextKnown.add(n.id); if (!firstBuild && !known.has(n.id)) { appear[n.id] = nowT; } });
+    Object.keys(appear).forEach(id => { if (!nextKnown.has(Number(id))) { delete appear[id]; } });
+    known = nextKnown;
+
+    if (network) { network.setOptions(options); network.setData({ nodes: nodesDS, edges }); }
+    else {
+      network = new vis.Network(document.getElementById('net'), { nodes: nodesDS, edges }, options);
+      network.on('oncontext', p => p.event.preventDefault());
+      network.on('dragStart', () => { if (netMode) { clearTimeout(freezeTimer); network.startSimulation(); } });
+      network.on('dragEnd', () => { if (netMode) { scheduleFreeze(); } });
+      installInput();
+    }
+    if (isNet) { scheduleFreeze(); } else { clearTimeout(freezeTimer); }
+    network.redraw();
+
+    // Fit only on first load or a layout switch - expanding/collapsing keeps the current view.
+    if (firstBuild || layoutChanged) {
+      if (isNet) { network.once('stabilizationIterationsDone', () => network.fit({ animation: false })); }
+      requestAnimationFrame(() => { try { network.fit({ animation: false }); } catch (e) {} });
+      setTimeout(() => { try { network.fit({ animation: false }); } catch (e) {} }, 160);
+    }
+    if (Object.keys(appear).length) { animateAppear(); }
+  }
+
+  window.chrome.webview.addEventListener('message', e => {
+    const m = e.data;
+    if (m.cmd === 'build') { build(m); }
+    else if (m.cmd === 'fit' && network) { network.fit({ animation: true }); }
+    else if (m.cmd === 'toggleSettings') { toggleSettings(); }
+  });
+
+  post({ type: 'ready' });
+</script>
+</body>
+</html>

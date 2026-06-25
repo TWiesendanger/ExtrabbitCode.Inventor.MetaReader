@@ -1170,7 +1170,7 @@ public sealed partial class DocumentView
             return; // a newer load superseded this build
         }
 
-        host.Child = root != null ? RenderRefGraph(root, host) : GraphInfo("Couldn't build the reference graph.");
+        host.Child = root != null ? RenderRefGraphWeb(root, host) : GraphInfo("Couldn't build the reference graph.");
     }
 
     private static TextBlock GraphInfo(string text) => new()
@@ -1181,6 +1181,7 @@ public sealed partial class DocumentView
 
     private bool _graphFs;
     private bool _showThumbs;
+    private GraphLayout _graphLayout;
 
     // Set while the reference graph is mounted: exits its fullscreen overlay. Lets the
     // node "open" actions drop out of fullscreen before switching to the opened tab.

@@ -13,21 +13,51 @@ graph you can explore.
 
 ## Exploring the graph
 
-- The document you opened is the highlighted node on the left; the files it references branch off to
-  the right.
-- Click the **+ / −** on any node to expand or collapse its children.
-- **Click a referenced document** to open it in its own tab and keep drilling down.
-- **Right-click a node** for more: **Open in a tab**, or **Show in Explorer** to reveal that file on
-  disk. Show in Explorer works for any found file - including linked images and imported CAD that
-  can't be opened as a document.
-- **Drag** the background to pan; **scroll** to zoom.
-- The toolbar in the top-right corner has icon buttons (hover for the name): **Fit** to zoom the whole
-  graph into view, **Expand all** / **Collapse all**, **Show thumbnails** to draw each node with its
-  document's preview image, and **Fullscreen** to blow the graph up to the whole screen (**Esc** exits).
+Each node is a referenced file, drawn as a card with its type icon, name and a short label.
+
+- **Click a node** to expand or collapse its children - the **+ / −** badge shows when there's more
+  to reveal. Newly revealed nodes fade in.
+- **Double-click a node** to open that document in its own tab and keep drilling down.
+- **Drag a node** to reposition it, **drag the background** to pan, and **scroll** to zoom.
+- The toolbar above the graph has (hover for names): the **layout** picker (see below), **Expand all**
+  / **Collapse all**, **Show thumbnails** to draw each node with its preview image, **Fit** to frame
+  the whole graph, a **cogwheel** for graph options, and **Fullscreen** (**Esc** exits).
 
 MetaReader resolves each reference on disk - first next to the parent file, then by name anywhere in
 the project folder - so a project that's been copied or reorganized still maps correctly. A file that
-can't be found is shown but marked as missing (and can't be revealed in Explorer).
+can't be found is still shown, marked as not found.
+
+## Layouts
+
+Choose how the graph is arranged from the **layout dropdown** in the toolbar. The choice is
+remembered, and you can set what new graphs open with under **Settings → Reference graph → Default
+layout**:
+
+- **Left → Right** - a tidy tree growing rightward: the opened document on the left, each level of
+  references in the next column. Best for following the hierarchy.
+- **Top → Bottom** - the same tidy tree, growing downward instead.
+- **Network** - an organic, force-directed layout where nodes push each other apart and references
+  pull them together. Drag a node and the rest settle around it - good for getting a feel of a busy
+  assembly at a glance.
+
+In Network mode the graph keeps your current view as you expand and collapse (it only re-frames on the
+first open and when you switch layout) - press **Fit** any time to re-center everything.
+
+## Fine-tuning the network layout
+
+The **cogwheel** in the toolbar opens **Graph options**, for tuning the force-directed Network layout
+(and the node fade-in). Sliders apply live and are saved between sessions:
+
+- **Fade-in** - how long newly revealed nodes take to fade in.
+- **Repulsion** - how strongly nodes push each other apart.
+- **Central gravity** - how strongly the whole graph is pulled toward the centre (keeps it compact).
+- **Link length** - the resting distance along a reference.
+- **Link stiffness** - how rigidly references hold that distance.
+- **Damping** - how quickly motion settles.
+- **Avoid overlap** - extra spacing so cards don't sit on top of one another.
+
+**Reset to defaults** restores the original values. The physics sliders only affect the **Network**
+layout; **Fade-in** applies to every layout.
 
 ## iParts: factory & members
 
