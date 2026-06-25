@@ -38,6 +38,12 @@
     <Content Include="Assets\appicon.ico">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </Content>
+    <!-- Bundled sample assembly (+ all its parts) so the welcome tip can open a model to try out;
+         skips Inventor's OldVersions backups and any stray STEP exports. -->
+    <Content Include="Assets\SampleFiles\SampleBg\**\*.*"
+             Exclude="Assets\SampleFiles\SampleBg\**\OldVersions\**;Assets\SampleFiles\SampleBg\**\*.stp">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
   </ItemGroup>
 
   <!-- MSIX packaging. Only active when built with -p:WindowsPackageType=MSIX; the default

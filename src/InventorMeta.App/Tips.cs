@@ -15,23 +15,26 @@ internal sealed class Tip
     public Action? Action;
     public int Glyph = 0xEA80;                             // Segoe Fluent "Lightbulb"
     public TimeSpan Delay = TimeSpan.FromSeconds(2.5);     // wait before showing, so it isn't jarring
-    public TimeSpan AutoDismiss = TimeSpan.FromSeconds(12); // hide on its own if left untouched
+    public TimeSpan AutoDismiss = TimeSpan.FromSeconds(12); // hide on its own if left untouched (Zero = never)
+    public TeachingTipPlacementMode Placement = TeachingTipPlacementMode.Auto;
 }
 
 /// <summary>Shows <see cref="Tip"/>s as a WinUI TeachingTip callout pointed at a target control:
 /// honours the global on/off and per-tip "Don't show again", appears after a delay, and auto-hides.</summary>
 internal static class TipService
 {
-    public static void Show(Panel host, FrameworkElement target, Tip tip)
+    /// <summary>Shows the tip; returns the TeachingTip so the caller can close it early (e.g. when the
+    /// target's screen goes away), or null if tips are off / this one was dismissed.</summary>
+    public static TeachingTip? Show(Panel host, FrameworkElement target, Tip tip)
     {
-        if (!TipSettings.Enabled || TipSettings.IsDismissed(tip.Id)) { return; }
+        if (!TipSettings.Enabled || TipSettings.IsDismissed(tip.Id)) { return null; }
 
         TeachingTip teaching = new()
         {
             Target = target,
             Title = tip.Title,
             Subtitle = tip.Message,
-            PreferredPlacement = TeachingTipPlacementMode.Auto,
+            PreferredPlacement = tip.Placement,
             IsLightDismissEnabled = true,
             IconSource = new FontIconSource { Glyph = ((char)tip.Glyph).ToString() }
         };
@@ -50,14 +53,22 @@ internal static class TipService
         delay.Tick += (_, _) =>
         {
             delay.Stop();
-            // only show if the target is still in the tree (tab not torn down / doc not reloaded)
-            if (target.XamlRoot == null || !host.Children.Contains(teaching)) { host.Children.Remove(teaching); return; }
+            // only show if the target is still in the tree and visible (tab torn down / screen hidden)
+            if (target.XamlRoot == null || target.ActualWidth <= 0 || !host.Children.Contains(teaching))
+            {
+                host.Children.Remove(teaching);
+                return;
+            }
             teaching.IsOpen = true;
-            auto = new DispatcherTimer { Interval = tip.AutoDismiss };   // auto-hide if left untouched
-            auto.Tick += (_, _) => { auto.Stop(); teaching.IsOpen = false; };
-            auto.Start();
+            if (tip.AutoDismiss > TimeSpan.Zero)   // Zero => stay until the user acts
+            {
+                auto = new DispatcherTimer { Interval = tip.AutoDismiss };
+                auto.Tick += (_, _) => { auto.Stop(); teaching.IsOpen = false; };
+                auto.Start();
+            }
         };
         teaching.Closed += (_, _) => { auto?.Stop(); host.Children.Remove(teaching); };
         delay.Start();
+        return teaching;
     }
 }
