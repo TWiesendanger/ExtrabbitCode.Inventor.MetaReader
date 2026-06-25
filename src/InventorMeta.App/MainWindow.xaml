@@ -64,6 +64,53 @@
 
             <!-- shown when no documents are open -->
             <Grid x:Name="EmptyState" Padding="48" AllowDrop="True" DragOver="OnDragOver" Drop="OnDrop">
+              <StackPanel Orientation="Horizontal" Spacing="16"
+                          HorizontalAlignment="Center" VerticalAlignment="Center">
+
+                <!-- Recent files card (#19): left of the welcome card; hidden when no recents;
+                     collapsible to a thin vertical bar. Rows built in RenderRecent(). -->
+                <Border x:Name="RecentCard" CornerRadius="16" Translation="0,0,32" VerticalAlignment="Stretch"
+                        BorderThickness="1" BorderBrush="{ThemeResource CardStrokeColorDefaultSolidBrush}"
+                        Background="{ThemeResource CardBackgroundFillColorDefaultBrush}" Visibility="Collapsed">
+                    <Border.Shadow><ThemeShadow/></Border.Shadow>
+                    <Grid>
+                        <Grid x:Name="RecentExpanded" Width="300" Padding="16,14">
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="*"/>
+                            </Grid.RowDefinitions>
+                            <Grid Margin="0,0,0,8">
+                                <StackPanel Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+                                    <FontIcon Glyph="&#xE81C;" FontSize="15"/>
+                                    <TextBlock Text="Recent" FontSize="14" FontWeight="SemiBold" VerticalAlignment="Center"/>
+                                </StackPanel>
+                                <StackPanel Orientation="Horizontal" Spacing="2" HorizontalAlignment="Right">
+                                    <Button x:Name="ClearAllRecent" Click="OnClearAllRecent"
+                                            Background="Transparent" BorderThickness="0" Padding="6"
+                                            ToolTipService.ToolTip="Clear list">
+                                        <FontIcon Glyph="&#xE74D;" FontSize="14"/>
+                                    </Button>
+                                    <Button x:Name="CollapseRecent" Click="OnCollapseRecent"
+                                            Background="Transparent" BorderThickness="0" Padding="6"
+                                            ToolTipService.ToolTip="Collapse">
+                                        <FontIcon Glyph="&#xE89F;" FontSize="14"/>
+                                    </Button>
+                                </StackPanel>
+                            </Grid>
+                            <ScrollViewer Grid.Row="1" MaxHeight="320" VerticalScrollBarVisibility="Auto"
+                                          HorizontalScrollMode="Disabled" HorizontalScrollBarVisibility="Disabled">
+                                <StackPanel x:Name="RecentList" Spacing="2"/>
+                            </ScrollViewer>
+                        </Grid>
+                        <Button x:Name="RecentCollapsed" Click="OnExpandRecent" Visibility="Collapsed"
+                                Width="44" VerticalAlignment="Stretch" Background="Transparent" BorderThickness="0"
+                                ToolTipService.ToolTip="Show recent files">
+                            <FontIcon Glyph="&#xEA49;" FontSize="16"/>
+                        </Button>
+                    </Grid>
+                </Border>
+
+                <!-- Welcome card -->
                 <Border MaxWidth="640" MaxHeight="460" CornerRadius="16" Translation="0,0,32"
                         BorderThickness="1" BorderBrush="{ThemeResource CardStrokeColorDefaultSolidBrush}">
                     <Border.Shadow><ThemeShadow/></Border.Shadow>
@@ -128,6 +175,8 @@
                         </Button>
                     </StackPanel>
                 </Border>
+
+              </StackPanel>
             </Grid>
 
             <!-- top-right anchor so the welcome tip sits in the corner, not over the centred card -->

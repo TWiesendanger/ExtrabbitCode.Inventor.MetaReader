@@ -287,7 +287,7 @@ public sealed partial class MainWindow
         {
             if (t.Content is DocumentView dv0 &&
                 string.Equals(dv0.FilePath, path, StringComparison.OrdinalIgnoreCase))
-            { DocTabs.SelectedItem = t; return; }
+            { DocTabs.SelectedItem = t; RecentFiles.Add(path); return; }
         }
 
         DocumentView dv = new() { StatusSink = SetStatus };
@@ -309,6 +309,7 @@ public sealed partial class MainWindow
         WireTabContextMenu(tab);
         DocTabs.TabItems.Add(tab);
         DocTabs.SelectedItem = tab;
+        RecentFiles.Add(path);
         UpdateEmptyState();
     }
 
@@ -370,7 +371,106 @@ public sealed partial class MainWindow
         bool showEmpty = _isPrimary && DocTabs.TabItems.Count == 0;
         EmptyState.Visibility = showEmpty ? Visibility.Visible : Visibility.Collapsed;
         DocTabs.Visibility    = showEmpty ? Visibility.Collapsed : Visibility.Visible;
+        if (showEmpty) { RenderRecent(); }
     }
+
+    /// <summary>Builds the recent-files rows on the empty state: each opens its file, with a per-row
+    /// remove button; the whole section hides when there is nothing to show.</summary>
+    private void RenderRecent()
+    {
+        RecentList.Children.Clear();
+        List<string> recent = RecentFiles.Get();
+        RecentCard.Visibility = recent.Count > 0 ? Visibility.Visible : Visibility.Collapsed;
+        if (recent.Count == 0) { return; }
+        ApplyRecentCollapsed();
+
+        foreach (string path in recent)
+        {
+            bool missing = !File.Exists(path);
+
+            Grid row = new();
+            row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+            row.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+
+            StackPanel content = new() { Orientation = Orientation.Horizontal, Spacing = 10, Opacity = missing ? 0.45 : 1.0 };
+            content.Children.Add(new Image
+            {
+                Source = AppIcons.Bitmap(RecentKind(path)),
+                Width = 20, Height = 20, VerticalAlignment = VerticalAlignment.Center
+            });
+            StackPanel text = new() { VerticalAlignment = VerticalAlignment.Center };
+            text.Children.Add(new TextBlock { Text = Path.GetFileName(path), FontSize = 13, TextTrimming = TextTrimming.CharacterEllipsis });
+            text.Children.Add(new TextBlock
+            {
+                Text = Path.GetDirectoryName(path) ?? path,
+                FontSize = 11, Opacity = 0.6, TextTrimming = TextTrimming.CharacterEllipsis
+            });
+            content.Children.Add(text);
+
+            Button open = new()
+            {
+                Content = content,
+                HorizontalAlignment = HorizontalAlignment.Stretch,
+                HorizontalContentAlignment = HorizontalAlignment.Left,
+                Background = new SolidColorBrush(Microsoft.UI.Colors.Transparent),
+                BorderThickness = new Thickness(0),
+                Padding = new Thickness(8, 6, 8, 6)
+            };
+            ToolTipService.SetToolTip(open, missing ? $"{path}\n(file not found)" : path);
+            open.Click += (_, _) => OpenFile(path);
+            Grid.SetColumn(open, 0);
+            row.Children.Add(open);
+
+            Button remove = new()
+            {
+                Content = new FontIcon { Glyph = "", FontSize = 12 },   // "Cancel" / cross
+                Background = new SolidColorBrush(Microsoft.UI.Colors.Transparent),
+                BorderThickness = new Thickness(0),
+                Padding = new Thickness(8),
+                VerticalAlignment = VerticalAlignment.Center
+            };
+            ToolTipService.SetToolTip(remove, "Remove from list");
+            remove.Click += (_, _) => { RecentFiles.Remove(path); RenderRecent(); };
+            Grid.SetColumn(remove, 1);
+            row.Children.Add(remove);
+
+            RecentList.Children.Add(row);
+        }
+    }
+
+    private void OnClearAllRecent(object sender, RoutedEventArgs e)
+    {
+        RecentFiles.Clear();
+        RenderRecent();
+    }
+
+    private void ApplyRecentCollapsed()
+    {
+        bool c = RecentFiles.Collapsed;
+        RecentExpanded.Visibility = c ? Visibility.Collapsed : Visibility.Visible;
+        RecentCollapsed.Visibility = c ? Visibility.Visible : Visibility.Collapsed;
+    }
+
+    private void OnCollapseRecent(object sender, RoutedEventArgs e)
+    {
+        RecentFiles.Collapsed = true;
+        ApplyRecentCollapsed();
+    }
+
+    private void OnExpandRecent(object sender, RoutedEventArgs e)
+    {
+        RecentFiles.Collapsed = false;
+        ApplyRecentCollapsed();
+    }
+
+    private static InventorDocument.DocKind RecentKind(string path) => Path.GetExtension(path).ToLowerInvariant() switch
+    {
+        ".iam" => InventorDocument.DocKind.Assembly,
+        ".idw" => InventorDocument.DocKind.Drawing,
+        ".ipn" => InventorDocument.DocKind.Presentation,
+        ".ipt" => InventorDocument.DocKind.Part,
+        _ => InventorDocument.DocKind.Unknown,
+    };
 
     /// <summary>After a tab leaves this window: refresh the empty state, and close the
     /// window if it's a torn-out (non-primary) window that now has no tabs.</summary>
