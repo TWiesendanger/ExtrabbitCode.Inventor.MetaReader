@@ -120,10 +120,18 @@ internal static class DocShooter
         }
     }
 
-    private static async Task Capture(Window w, string slug, ElementTheme theme, string outDir)
+    /// <summary>Captures the whole window.</summary>
+    private static Task Capture(Window w, string slug, ElementTheme theme, string outDir) =>
+        CaptureElement(w.Content, slug, theme, outDir);
+
+    /// <summary>Captures a single element (a region of the window) rather than the whole window -
+    /// RenderTargetBitmap can render any element in the visual tree at its own size.</summary>
+    private static async Task CaptureElement(UIElement element, string slug, ElementTheme theme, string outDir)
     {
+        if (element == null) { return; }
+
         RenderTargetBitmap rtb = new();
-        await rtb.RenderAsync(w.Content);
+        await rtb.RenderAsync(element);
         IBuffer pixels = await rtb.GetPixelsAsync();
 
         string suffix = theme == ElementTheme.Light ? "light" : "dark";

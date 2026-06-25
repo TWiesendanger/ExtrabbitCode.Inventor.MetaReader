@@ -21,4 +21,8 @@ public sealed partial class DocumentView
             DetailTabs.SelectedItem = tab;
         }
     }
+
+    /// <summary>Resolves a named element inside this view's XAML namescope, for capturing just that
+    /// region (e.g. the sidebar card or a single detail panel).</summary>
+    public FrameworkElement? ShootElement(string name) => FindName(name) as FrameworkElement;
 }

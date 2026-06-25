@@ -81,7 +81,7 @@ public class InventorDocumentTests
 
         Assert.True(doc.HasModelStates);
         Assert.Equal(4, doc.ModelStateDetails.Count);
-        var names = doc.ModelStateDetails.Select(s => s.Name).ToList();
+        List<string> names = [.. doc.ModelStateDetails.Select(s => s.Name)];
         Assert.Equal("[Primary]", names[0]);
         Assert.Contains("Body(Body)2", names);
         Assert.Contains("Model State1", names);
@@ -122,7 +122,7 @@ public class InventorDocumentTests
     {
         InventorDocument doc = Samples.Load(Samples.Assembly);
 
-        List<string> names = doc.References.Select(InventorPath.GetFileName).ToList();
+        List<string> names = [.. doc.References.Select(InventorPath.GetFileName)];
         Assert.Contains("SamplePart.ipt", names);
         Assert.Contains("SampleComplexPart.ipt", names);
         Assert.Contains("Cylinder.ipt", names);

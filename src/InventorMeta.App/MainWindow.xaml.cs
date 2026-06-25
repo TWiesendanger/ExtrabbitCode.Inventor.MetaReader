@@ -80,7 +80,8 @@ public sealed partial class MainWindow
 
             // First-run analytics opt-in, then record the app launch. Runs once the root is in the
             // visual tree (so the dialog has a XamlRoot). MaybeAskAsync is a no-op after the first time.
-            if (Content is FrameworkElement root)
+            // Skipped during a docs shoot - the consent prompt / welcome tip would cover the window.
+            if (Content is FrameworkElement root && !App.ShootMode)
             {
                 root.Loaded += OnRootLoadedForAnalytics;
             }

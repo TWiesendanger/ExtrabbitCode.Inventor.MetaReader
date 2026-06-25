@@ -17,7 +17,7 @@ public class ReferenceGraphTests
     [Fact]
     public void ResolvesEveryDirectComponentOnDisk()
     {
-        List<RefNode> components = AssemblyGraph().Children.Where(c => !c.IsLinkedFile).ToList();
+        List<RefNode> components = [.. AssemblyGraph().Children.Where(c => !c.IsLinkedFile)];
 
         foreach (string expected in new[] { "Cylinder.ipt", "SampleComplexPart.ipt", "SamplePart.ipt", "Subassembly.iam" })
         {
@@ -47,7 +47,7 @@ public class ReferenceGraphTests
     {
         // The assembly places several members generated from iPartSample; each must classify as a
         // member and reference the shared iPartSample factory.
-        List<RefNode> members = AssemblyGraph().Children.Where(c => c.IPart == IPartRole.Member).ToList();
+        List<RefNode> members = [.. AssemblyGraph().Children.Where(c => c.IPart == IPartRole.Member)];
 
         Assert.NotEmpty(members);
         Assert.All(members, m =>

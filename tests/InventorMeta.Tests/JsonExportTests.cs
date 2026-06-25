@@ -25,9 +25,7 @@ public class JsonExportTests
         InventorDocument doc = Samples.Load(Samples.Assembly);
 
         using JsonDocument json = JsonDocument.Parse(doc.ToJson());
-        List<string> refs = json.RootElement.GetProperty("references").EnumerateArray()
-            .Select(e => InventorPath.GetFileName(e.GetString()))
-            .ToList();
+        List<string> refs = [.. json.RootElement.GetProperty("references").EnumerateArray().Select(e => InventorPath.GetFileName(e.GetString()))];
 
         Assert.Contains("Subassembly.iam", refs);
     }

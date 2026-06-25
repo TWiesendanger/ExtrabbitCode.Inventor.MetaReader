@@ -23,8 +23,8 @@ internal static class RecentFiles
     {
         string? v = AppSettings.Get(Key);
         return string.IsNullOrEmpty(v)
-            ? new List<string>()
-            : v.Split('|', StringSplitOptions.RemoveEmptyEntries).ToList();
+            ? []
+            : [.. v.Split('|', StringSplitOptions.RemoveEmptyEntries)];
     }
 
     /// <summary>Records a freshly opened file, moving it to the top and trimming the tail.</summary>
@@ -33,7 +33,7 @@ internal static class RecentFiles
         List<string> list = Get();
         list.RemoveAll(p => string.Equals(p, path, StringComparison.OrdinalIgnoreCase));
         list.Insert(0, path);
-        if (list.Count > Max) { list = list.Take(Max).ToList(); }
+        if (list.Count > Max) { list = [.. list.Take(Max)]; }
         Save(list);
     }
 

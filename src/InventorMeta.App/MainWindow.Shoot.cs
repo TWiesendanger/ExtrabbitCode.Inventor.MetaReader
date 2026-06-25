@@ -1,3 +1,4 @@
+using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Windows.Graphics;
 
@@ -9,6 +10,10 @@ public sealed partial class MainWindow
     /// <summary>The document view in the currently selected tab, if any.</summary>
     public DocumentView? CurrentView =>
         (DocTabs.SelectedItem as TabViewItem)?.Content as DocumentView;
+
+    /// <summary>Resolves a window-level named element, for capturing just that region.</summary>
+    public FrameworkElement? ShootElement(string name) =>
+        (Content as FrameworkElement)?.FindName(name) as FrameworkElement;
 
     /// <summary>Opens a file in a new tab (snapshotter entry point).</summary>
     public void ShootOpen(string path) => OpenFile(path);
