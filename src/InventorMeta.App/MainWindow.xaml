@@ -59,12 +59,16 @@
                           AddTabButtonClick="OnAddTab"
                           TabCloseRequested="OnTabClose"
                           SelectionChanged="OnTabSelectionChanged"
+                          TabDragStarting="OnTabDragStarting"
                           CanReorderTabs="True" TabWidthMode="SizeToContent"
-                          VerticalAlignment="Stretch"/>
+                          VerticalAlignment="Stretch">
+              <muxc:TabView.TabItems>
 
-            <!-- shown when no documents are open -->
-            <Grid x:Name="EmptyState" Padding="48" AllowDrop="True" DragOver="OnDragOver" Drop="OnDrop">
-              <StackPanel Orientation="Horizontal" Spacing="16"
+                <!-- Home: a permanent, non-closable, leftmost tab carrying the start view -->
+                <muxc:TabViewItem x:Name="HomeTab" Header="Home" IsClosable="False">
+                    <muxc:TabViewItem.IconSource><muxc:FontIconSource Glyph="&#xE80F;"/></muxc:TabViewItem.IconSource>
+                    <Grid Padding="48">
+                      <StackPanel Orientation="Horizontal" Spacing="16"
                           HorizontalAlignment="Center" VerticalAlignment="Center">
 
                 <!-- Recent files card (#19): left of the welcome card; hidden when no recents;
@@ -177,7 +181,10 @@
                 </Border>
 
               </StackPanel>
-            </Grid>
+                    </Grid>
+                </muxc:TabViewItem>
+              </muxc:TabView.TabItems>
+            </muxc:TabView>
 
             <!-- top-right anchor so the welcome tip sits in the corner, not over the centred card -->
             <Border x:Name="WelcomeAnchor" Width="1" Height="1" IsHitTestVisible="False"

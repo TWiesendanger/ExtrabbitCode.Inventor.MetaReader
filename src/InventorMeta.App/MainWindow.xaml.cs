@@ -29,6 +29,13 @@ public sealed partial class MainWindow
         _isPrimary = isPrimary;
         InitializeComponent();
 
+        // Home is the main window's hub only; torn-out windows are document-only.
+        if (!isPrimary)
+        {
+            DocTabs.TabItems.Remove(HomeTab);
+        }
+        DocTabs.TabItemsChanged += OnTabItemsChanged;   // keep Home pinned leftmost
+
         // Torn-out windows are shown by the framework the instant they're created, before
         // their XAML paints. A Mica backdrop fills that gap (DWM-level) so the window never
         // flashes black during a tear-out drag.
@@ -98,7 +105,7 @@ public sealed partial class MainWindow
     /// <summary>On the empty welcome screen, offer to open the bundled sample assembly.</summary>
     private void MaybeShowWelcomeTip()
     {
-        if (!_isPrimary || DocTabs.TabItems.Count > 0) { return; }   // a file was already opened (CLI)
+        if (!_isPrimary || HasDocTabs()) { return; }                 // a document is already open (e.g. CLI)
         if (SampleFiles.EnsureSampleAssembly() is null) { return; }  // nothing bundled
 
         _welcomeTip = TipService.Show((Microsoft.UI.Xaml.Controls.Panel)Content, WelcomeAnchor, new Tip
@@ -316,6 +323,7 @@ public sealed partial class MainWindow
     // ---------- tab lifecycle ----------
     private void OnTabClose(TabView sender, TabViewTabCloseRequestedEventArgs args)
     {
+        if (ReferenceEquals(args.Tab, HomeTab)) { return; }
         DocTabs.TabItems.Remove(args.Tab);
         AfterTabRemoved();
     }
@@ -324,7 +332,7 @@ public sealed partial class MainWindow
     private void OnCloseTabShortcut(Microsoft.UI.Xaml.Input.KeyboardAccelerator sender,
         Microsoft.UI.Xaml.Input.KeyboardAcceleratorInvokedEventArgs args)
     {
-        if (DocTabs.SelectedItem is TabViewItem tab)
+        if (DocTabs.SelectedItem is TabViewItem tab && !ReferenceEquals(tab, HomeTab))
         {
             DocTabs.TabItems.Remove(tab);
             AfterTabRemoved();
@@ -335,9 +343,9 @@ public sealed partial class MainWindow
     /// <summary>Closes every tab in this window.</summary>
     private void CloseAllTabs()
     {
-        if (DocTabs.TabItems.Count == 0) { return; }
         foreach (TabViewItem t in DocTabs.TabItems.OfType<TabViewItem>().ToList())
         {
+            if (ReferenceEquals(t, HomeTab)) { continue; }
             DocTabs.TabItems.Remove(t);
         }
         AfterTabRemoved();
@@ -348,7 +356,7 @@ public sealed partial class MainWindow
     {
         foreach (TabViewItem t in DocTabs.TabItems.OfType<TabViewItem>().ToList())
         {
-            if (!ReferenceEquals(t, keep)) { DocTabs.TabItems.Remove(t); }
+            if (!ReferenceEquals(t, keep) && !ReferenceEquals(t, HomeTab)) { DocTabs.TabItems.Remove(t); }
         }
         DocTabs.SelectedItem = keep;
         AfterTabRemoved();
@@ -356,6 +364,11 @@ public sealed partial class MainWindow
 
     private void OnTabSelectionChanged(object sender, SelectionChangedEventArgs e)
     {
+        if (ReferenceEquals(DocTabs.SelectedItem, HomeTab))
+        {
+            if (_isPrimary) { RenderRecent(); }   // refresh recents whenever Home is shown
+            return;
+        }
         if (DocTabs.SelectedItem is TabViewItem { Content: DocumentView { Document: not null } dv })
         {
             StatusText.Text = $"{dv.Document.FileName} - {dv.Document.DocumentType}";
@@ -364,20 +377,46 @@ public sealed partial class MainWindow
 
     public void SetStatus(string message) => StatusText.Text = message;
 
+    /// <summary>True if any document tab is open (i.e. a tab other than Home).</summary>
+    private bool HasDocTabs() => DocTabs.TabItems.OfType<TabViewItem>().Any(t => !ReferenceEquals(t, HomeTab));
+
+    /// <summary>Keeps the Home tab pinned at the far left after any reorder or drop.</summary>
+    private void OnTabItemsChanged(TabView sender, Windows.Foundation.Collections.IVectorChangedEventArgs e)
+    {
+        if (!_isPrimary || _pinningHome) { return; }
+        if (DocTabs.TabItems.Contains(HomeTab) && !ReferenceEquals(DocTabs.TabItems[0], HomeTab))
+        {
+            _pinningHome = true;
+            // Defer: don't mutate the collection from inside its own change notification.
+            DispatcherQueue.TryEnqueue(() =>
+            {
+                object? selected = DocTabs.SelectedItem;
+                DocTabs.TabItems.Remove(HomeTab);
+                DocTabs.TabItems.Insert(0, HomeTab);
+                DocTabs.SelectedItem = selected;
+                _pinningHome = false;
+            });
+        }
+    }
+    private bool _pinningHome;
+
+    /// <summary>Home can't be dragged out of its leftmost slot.</summary>
+    private void OnTabDragStarting(TabView sender, TabViewTabDragStartingEventArgs args)
+    {
+        if (ReferenceEquals(args.Tab, HomeTab)) { args.Cancel = true; }
+    }
+
     private void UpdateEmptyState()
     {
-        // Only the primary window shows the empty drop-zone; a torn-out window keeps its
-        // TabView visible and closes itself once its last tab leaves.
-        bool showEmpty = _isPrimary && DocTabs.TabItems.Count == 0;
-        EmptyState.Visibility = showEmpty ? Visibility.Visible : Visibility.Collapsed;
-        DocTabs.Visibility    = showEmpty ? Visibility.Collapsed : Visibility.Visible;
-        if (showEmpty) { RenderRecent(); }
+        // The Home tab replaces the old empty-state panel; just keep its recent list fresh.
+        if (_isPrimary) { RenderRecent(); }
     }
 
     /// <summary>Builds the recent-files rows on the empty state: each opens its file, with a per-row
     /// remove button; the whole section hides when there is nothing to show.</summary>
     private void RenderRecent()
     {
+        if (!_isPrimary) { return; }
         RecentList.Children.Clear();
         List<string> recent = RecentFiles.Get();
         RecentCard.Visibility = recent.Count > 0 ? Visibility.Visible : Visibility.Collapsed;
@@ -525,7 +564,8 @@ public sealed partial class MainWindow
             MenuFlyoutItem closeOthers = new()
             {
                 Text = "Close other tabs",
-                IsEnabled = host.DocTabs.TabItems.Count > 1
+                IsEnabled = host.DocTabs.TabItems.OfType<TabViewItem>()
+                    .Any(t => !ReferenceEquals(t, tab) && !ReferenceEquals(t, host.HomeTab))
             };
             closeOthers.Click += (_, _) => host.CloseOtherTabs(tab);
             menu.Items.Add(closeOthers);
