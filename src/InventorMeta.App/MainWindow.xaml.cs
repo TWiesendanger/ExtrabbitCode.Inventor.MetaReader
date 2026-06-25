@@ -281,7 +281,7 @@ public sealed partial class MainWindow
             Content = dv,
             IconSource = AppIcons.IconSource(dv.Document?.Kind ?? InventorDocument.DocKind.Unknown)
         };
-        ToolTipService.SetToolTip(tab, path);
+        ToolTipService.SetToolTip(tab, $"{path}\nCtrl+W to close");
         WireTabContextMenu(tab);
         DocTabs.TabItems.Add(tab);
         DocTabs.SelectedItem = tab;
@@ -305,6 +305,28 @@ public sealed partial class MainWindow
             AfterTabRemoved();
             args.Handled = true;
         }
+    }
+
+    /// <summary>Closes every tab in this window.</summary>
+    private void CloseAllTabs()
+    {
+        if (DocTabs.TabItems.Count == 0) { return; }
+        foreach (TabViewItem t in DocTabs.TabItems.OfType<TabViewItem>().ToList())
+        {
+            DocTabs.TabItems.Remove(t);
+        }
+        AfterTabRemoved();
+    }
+
+    /// <summary>Closes every tab in this window except <paramref name="keep"/>, which is left selected.</summary>
+    private void CloseOtherTabs(TabViewItem keep)
+    {
+        foreach (TabViewItem t in DocTabs.TabItems.OfType<TabViewItem>().ToList())
+        {
+            if (!ReferenceEquals(t, keep)) { DocTabs.TabItems.Remove(t); }
+        }
+        DocTabs.SelectedItem = keep;
+        AfterTabRemoved();
     }
 
     private void OnTabSelectionChanged(object sender, SelectionChangedEventArgs e)
@@ -373,6 +395,24 @@ public sealed partial class MainWindow
                 toMain.Click += (_, _) => host.MoveToMain(tab);
                 menu.Items.Add(toMain);
             }
+
+            menu.Items.Add(new MenuFlyoutSeparator());
+
+            MenuFlyoutItem closeOthers = new()
+            {
+                Text = "Close other tabs",
+                IsEnabled = host.DocTabs.TabItems.Count > 1
+            };
+            closeOthers.Click += (_, _) => host.CloseOtherTabs(tab);
+            menu.Items.Add(closeOthers);
+
+            MenuFlyoutItem closeAll = new()
+            {
+                Text = "Close all tabs",
+                Icon = new FontIcon { Glyph = ((char)0xE711).ToString() }
+            };
+            closeAll.Click += (_, _) => host.CloseAllTabs();
+            menu.Items.Add(closeAll);
 
             if (e.TryGetPosition(tab, out Windows.Foundation.Point p))
             {

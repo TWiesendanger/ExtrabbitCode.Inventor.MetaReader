@@ -9,7 +9,8 @@ using Microsoft.UI.Xaml.Media;
 namespace ExtrabbitCode.Inventor.MetaReader.App;
 
 /// <summary>The app settings dialog. Currently the 3D viewer: which Inventor generates viewables,
-/// an optional shared (network) cache, edge display, and clearing the local cache.</summary>
+/// how that Inventor is launched (hidden / silent), an optional shared (network) cache, and clearing
+/// the local cache.</summary>
 internal static class SettingsDialog
 {
     public static async Task ShowAsync(XamlRoot xamlRoot)
@@ -54,15 +55,31 @@ internal static class SettingsDialog
             Children = { cacheInfo, open, clear }
         };
 
+        ToggleSwitch hideInventor = new() { IsOn = ViewerSettings.HideInventor };
+        ToggleSwitch silentInventor = new() { IsOn = ViewerSettings.SilentInventor };
+
         StackPanel body = new() { Spacing = 10, Width = 460 };
         body.Children.Add(SectionHeader("3D Viewer"));
         body.Children.Add(Row("Inventor version", "Which installed Inventor generates the 3D viewable.", version));
+        body.Children.Add(Row("Hide Inventor",
+            "When MetaReader starts Inventor to generate a 3D view, keep its window hidden. An Inventor you already have open is never touched.",
+            hideInventor));
+        body.Children.Add(Row("Run Inventor silently",
+            "Suppress Inventor's dialog prompts while generating. Turn off only to debug a failed generation.",
+            silentInventor));
         body.Children.Add(Row("Shared cache folder", "A network path so viewables are reused across users. Leave empty for local only.", network));
         body.Children.Add(Row("Cached viewables", "SVF files generated on this PC.", cacheCtl));
 
         Button openLog = new() { Content = "Open log" };
         openLog.Click += (_, _) => AppLog.OpenLatest();
         body.Children.Add(Row("Diagnostics log", "App and 3D-viewer activity (today's log file).", openLog));
+
+        body.Children.Add(SectionHeader("Tips"));
+        ToggleSwitch tips = new() { IsOn = TipSettings.Enabled };
+        body.Children.Add(Row("Show tips", "Occasional hints that point out features you might have missed.", tips));
+        Button resetTips = new() { Content = "Reset" };
+        resetTips.Click += (_, _) => TipSettings.Reset();
+        body.Children.Add(Row("Dismissed tips", "Bring back tips you turned off with “Don't show again”.", resetTips));
 
         body.Children.Add(SectionHeader("Privacy"));
         ToggleSwitch analytics = new() { IsOn = AnalyticsConsent.Enabled };
@@ -88,6 +105,9 @@ internal static class SettingsDialog
 
         ViewerSettings.NetworkPath = string.IsNullOrWhiteSpace(network.Text) ? null : network.Text.Trim();
         ViewerSettings.InventorYear = version.SelectedIndex <= 0 ? 0 : installs[version.SelectedIndex - 1].Year;
+        TipSettings.Enabled = tips.IsOn;
+        ViewerSettings.HideInventor = hideInventor.IsOn;
+        ViewerSettings.SilentInventor = silentInventor.IsOn;
         AnalyticsConsent.Enabled = analytics.IsOn;
     }
 

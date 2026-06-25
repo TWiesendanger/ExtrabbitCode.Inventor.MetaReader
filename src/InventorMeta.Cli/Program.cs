@@ -81,6 +81,7 @@ static void Info(InventorDocument doc)
     Line('=');
     Console.WriteLine($"  {doc.FileName}");
     Console.WriteLine($"  {doc.DocumentType}   [{doc.CfbVersionInfo}]");
+    Console.WriteLine($"  Category: {CategoryName(doc.PrimaryCategory)}");
     Line('=');
 
     if (doc.Summary.Count > 0)
@@ -321,5 +322,21 @@ static void Cat(string file, string streamPath)
         Console.WriteLine($"{i:X8}  {hex} {asc}");
     }
 }
+
+// Friendly label for the document's headline category - kept in step with the viewer's badge.
+static string CategoryName(InventorDocument.DocCategory cat) => cat switch
+{
+    InventorDocument.DocCategory.ContentCenter     => "Content Center",
+    InventorDocument.DocCategory.FrameGenerator    => "Frame Generator",
+    InventorDocument.DocCategory.DesignAccelerator => "Design Accelerator",
+    InventorDocument.DocCategory.Weldment          => "Weldment",
+    InventorDocument.DocCategory.SheetMetal        => "Sheet Metal",
+    InventorDocument.DocCategory.Piping            => "Piping",
+    InventorDocument.DocCategory.iPartFactory      => "iPart Factory",
+    InventorDocument.DocCategory.iPartMember       => "iPart Member",
+    InventorDocument.DocCategory.iAssemblyFactory  => "iAssembly Factory",
+    InventorDocument.DocCategory.iAssemblyMember   => "iAssembly Member",
+    _                                              => "General",
+};
 
 static void Line(char c) => Console.WriteLine(new string(c, 64));

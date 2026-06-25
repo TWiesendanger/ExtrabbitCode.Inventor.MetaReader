@@ -4,7 +4,11 @@
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
     xmlns:muxc="using:Microsoft.UI.Xaml.Controls">
 
-    <Grid Background="{ThemeResource SolidBackgroundFillColorBaseBrush}">
+    <!-- KeyboardAcceleratorPlacementMode=Hidden: the Ctrl+W accelerator is window-wide (owned by the
+         root grid), but its automatic tooltip would otherwise pop over every area without its own
+         tooltip - the empty Reference-graph canvas in particular. We surface the hint only on the tab. -->
+    <Grid Background="{ThemeResource SolidBackgroundFillColorBaseBrush}"
+          KeyboardAcceleratorPlacementMode="Hidden">
         <Grid.KeyboardAccelerators>
             <KeyboardAccelerator Modifiers="Control" Key="W" Invoked="OnCloseTabShortcut"/>
         </Grid.KeyboardAccelerators>

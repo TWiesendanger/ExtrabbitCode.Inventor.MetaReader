@@ -236,6 +236,7 @@ public sealed partial class DocumentView
     {
         FilePath = path;
         PathText.Text = path;
+        _shown3DTip = false;
         try
         {
             if (!CompoundFile.LooksLikeCompoundFile(path))
@@ -342,6 +343,8 @@ public sealed partial class DocumentView
             NoThumb.Visibility = Visibility.Visible;
         }
 
+        SetCategoryBadge(doc);
+
         RenderSidebar();   // also sets the 3D triggers (button visible only when the thumbnail is off)
 
         _collapsibles.Clear();
@@ -376,6 +379,17 @@ public sealed partial class DocumentView
 
         ApplyTabVisibility();
         RefreshHiddenUi();
+    }
+
+    /// <summary>Colours the category badge for the document's <see cref="InventorDocument.PrimaryCategory"/>
+    /// and attaches the legend as its hover tooltip.</summary>
+    private void SetCategoryBadge(InventorDocument doc)
+    {
+        (string name, Windows.UI.Color color) = DocCategoryUi.Of(doc.PrimaryCategory);
+        CategoryBadgeText.Text = name;
+        CategoryBadge.Background = new Microsoft.UI.Xaml.Media.SolidColorBrush(color);
+        CategoryBadge.Visibility = Visibility.Visible;
+        ToolTipService.SetToolTip(CategoryBadge, new ToolTip { Content = DocCategoryUi.Legend(doc.PrimaryCategory) });
     }
 
     private void PopulateStates(InventorDocument doc)
@@ -781,6 +795,8 @@ public sealed partial class DocumentView
     }
 
     /// <summary>Renders the sidebar (thumbnail + chosen properties) per the current SidebarConfig.</summary>
+    private bool _shown3DTip;
+
     private void RenderSidebar()
     {
         if (Document == null)
@@ -797,6 +813,23 @@ public sealed partial class DocumentView
         bool is3D = Document.Kind is InventorDocument.DocKind.Part or InventorDocument.DocKind.Assembly;
         View3DButton.Visibility = is3D && !showThumb ? Visibility.Visible : Visibility.Collapsed;
         ThreeDHint.Visibility = is3D && showThumb ? Visibility.Visible : Visibility.Collapsed;
+
+        // Discoverability tip (once per loaded doc): point at the 3D trigger when Inventor is installed.
+        if (is3D && !_shown3DTip && InventorInstalls.Detect().Count > 0)
+        {
+            _shown3DTip = true;
+            TipService.Show((Panel)Content, showThumb ? ThumbHost : View3DButton, new Tip
+            {
+                Id = "view.3d",
+                Title = "See it in 3D",
+                Message = showThumb
+                    ? "Click the preview to open this model in the interactive 3D viewer."
+                    : "Open this model in the interactive 3D viewer.",
+                Glyph = 0xF158,                       // 3D cube glyph
+                ActionText = "Open 3D view",
+                Action = () => _ = OpenViewer3DAsync()
+            });
+        }
 
         // every property present in the file, keyed for lookup (value may be empty)
         Dictionary<string, InventorDocument.PropEntry> byKey = new(StringComparer.Ordinal);
@@ -1088,26 +1121,9 @@ public sealed partial class DocumentView
         {
             if (!detailOrder.Contains(kv.Key)) { provItems.Add((kv.Key, kv.Value)); }
         }
-        StackPanel details = KeyValueSection("Version / provenance", provItems);
+        StackPanel details = KeyValueSection("Version", provItems);
 
-        // No references (e.g. a standalone part): no graph to show, so let the details
-        // panel take the whole tab - it grows naturally and only scrolls if it overflows.
-        if (doc.References.Count == 0)
-        {
-            RefsRoot.RowDefinitions.Add(new RowDefinition { Height = new GridLength(1, GridUnitType.Star) });
-            ScrollViewer full = new()
-            {
-                Padding = new Thickness(16, 14, 16, 16),
-                VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
-                VerticalContentAlignment = VerticalAlignment.Top,
-                Content = details
-            };
-            Grid.SetRow(full, 0);
-            RefsRoot.Children.Add(full);
-            return;
-        }
-
-        // References present: graph fills the space, details sit in a bounded footer.
+        // Graph fills the top (star); the short version panel docks below it (auto), never scrolling.
         RefsRoot.RowDefinitions.Add(new RowDefinition { Height = new GridLength(1, GridUnitType.Star) });
         RefsRoot.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
 
@@ -1119,14 +1135,17 @@ public sealed partial class DocumentView
         {
             BorderThickness = new Thickness(0, 1, 0, 0),
             BorderBrush = new SolidColorBrush(Windows.UI.Color.FromArgb(40, 128, 128, 128)),
-            Child = new ScrollViewer
-            {
-                MaxHeight = 240, Padding = new Thickness(14, 10, 14, 12),
-                Content = details
-            }
+            Padding = new Thickness(14, 10, 14, 12),
+            Child = details
         };
         Grid.SetRow(prov, 1);
         RefsRoot.Children.Add(prov);
+
+        if (doc.References.Count == 0)
+        {
+            graphHost.Child = GraphInfo("No referenced files.");
+            return;
+        }
 
         int gen = ++_refGen;
         _ = BuildAndShowGraphAsync(doc, graphHost, gen);
@@ -1239,7 +1258,13 @@ public sealed partial class DocumentView
             Padding = new Thickness(8, 5, 8, 5), MinWidth = 0, IsChecked = _showThumbs
         };
         ToolTipService.SetToolTip(thumbs, "Show thumbnails");
-        thumbs.Click += (_, _) => { _showThumbs = thumbs.IsChecked == true; LayoutAndDraw(canvas, root); ZoomToFit(viewport, canvas, xf); };
+        thumbs.Click += (_, _) =>
+        {
+            _showThumbs = thumbs.IsChecked == true;
+            LayoutAndDraw(canvas, root);
+            // re-fit after the relayout settles
+            DispatcherQueue.TryEnqueue(() => ZoomToFit(viewport, canvas, xf));
+        };
 
         // Fullscreen: pop the whole viewport (graph + this toolbar) into a window-filling overlay
         // and switch the OS window to true fullscreen; the button toggles back, as does Esc.
@@ -1289,6 +1314,25 @@ public sealed partial class DocumentView
         toolbar.Children.Add(thumbs);
         toolbar.Children.Add(full);
         viewport.Children.Add(toolbar);
+
+        // Discoverability tip: point at the thumbnails toggle (unless already on).
+        if (!_showThumbs)
+        {
+            TipService.Show(viewport, thumbs, new Tip
+            {
+                Id = "refs.thumbnails",
+                Title = "Did you know?",
+                Message = "You can show each referenced file's preview thumbnail right in the graph.",
+                ActionText = "Show thumbnails",
+                Action = () =>
+                {
+                    thumbs.IsChecked = true;
+                    _showThumbs = true;
+                    LayoutAndDraw(canvas, root);
+                    ZoomToFit(viewport, canvas, xf);
+                }
+            });
+        }
 
         return viewport;
     }

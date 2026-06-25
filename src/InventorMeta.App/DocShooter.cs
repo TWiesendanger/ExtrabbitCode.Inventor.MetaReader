@@ -30,6 +30,7 @@ internal static class DocShooter
 
             string? part = Sample(samplesDir, "SampleBg", "SamplePart.ipt"); // thumbnail + 3 model states
             string? asm = Sample(samplesDir, "SampleBg", "SampleBg.iam");    // resolvable reference graph
+            string? tnp = Sample(samplesDir, "SampleBg", "TubeAndPipe.ipt"); // Content Center pipe -> "Piping" badge
 
             // An assembly that uses iParts (factory + members), for the iPart-marking shot. Lives in
             // the (git-ignored) jet-engine sample; the shot is skipped if it isn't extracted locally.
@@ -70,6 +71,15 @@ internal static class DocShooter
                     dv?.ShootSelectTab("File Structure");
                     await Task.Delay(600);
                     await Capture(w, "app__file-structure", theme, outDir);
+                }
+
+                // 4b. The colour-coded document-category badge (here a Content Center pipe -> "Piping").
+                if (tnp != null)
+                {
+                    w.ShootCloseAllTabs();
+                    w.ShootOpen(tnp);
+                    await Task.Delay(800);
+                    await Capture(w, "app__category", theme, outDir);
                 }
 
                 // 5. An assembly: the interactive reference graph (builds asynchronously).
