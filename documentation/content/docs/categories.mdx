@@ -1,0 +1,45 @@
+---
+title: Document Categories
+description: MetaReader recognizes what kind of Inventor document you opened - Content Center, Frame Generator, Weldment, iPart/iAssembly and more - straight from the file, shown as a colour-coded badge.
+---
+
+import { ThemedImage } from '@/components/themed-image';
+
+export const Swatch = ({ color }) => (
+  <span style={{ display: 'inline-block', width: '2.4em', height: '1.1em', borderRadius: 4, background: color, verticalAlign: 'middle' }} />
+);
+
+Every Inventor document carries readable markers about the **subsystem that produced it** - whether
+it came from the Content Center, was built by Frame Generator or Design Accelerator, is a weldment,
+or is an iPart/iAssembly factory or member. MetaReader reads those markers straight from the bytes
+(no Inventor needed) and shows the result as a **colour-coded badge** under the document name.
+
+<ThemedImage slug="app__category" alt="The viewer showing a Tube & Pipe part with a teal 'Piping' category badge" />
+
+Hover the badge in the app to see the full legend. A document is given the **most specific** category
+that applies, so a Tube & Pipe pipe shows as **Piping** rather than the broader **Content Center**.
+
+| Colour | Category | Recognized by |
+| --- | --- | --- |
+| <Swatch color="#2563EB" /> | **Content Center** | the **Categories** iProperty (the part's library categories) |
+| <Swatch color="#0F766E" /> | **Piping** | a Content Center category with the `TUBEANDPIPE` mnemonic |
+| <Swatch color="#B45309" /> | **Frame Generator** | the `_com.autodesk.FG` property set |
+| <Swatch color="#15803D" /> | **Design Accelerator** | the `FDesign` property set (generic - it does not record which generator) |
+| <Swatch color="#B91C1C" /> | **Weldment** | the assembly **document subtype** |
+| <Swatch color="#0891B2" /> | **Sheet Metal** | the part **document subtype** |
+| <Swatch color="#6D28D9" /> | **iPart Factory** | the member table plus the *Parameterized Template* flag |
+| <Swatch color="#8B5CF6" /> | **iPart Member** | the member table **without** that flag (and not a model-state part) |
+| <Swatch color="#BE185D" /> | **iAssembly Factory** | the same, for an assembly |
+| <Swatch color="#DB2777" /> | **iAssembly Member** | the same, for an assembly |
+| <Swatch color="#4B5563" /> | **General** | anything without a more specific marker |
+
+This is the file-readable counterpart to Inventor's `DocumentInterests` / `HasInterest`. Inventor's
+own add-in "interest" list lives in the proprietary `RSeStorage` database, which MetaReader does not
+decode - but the same information surfaces in the readable iProperties and property sets above. The
+category is also available from the [command line](/docs/command-line) - the `info` report prints a
+`Category:` line and the `json` output includes a `primaryCategory` field.
+
+## What it can't tell apart
+
+The `FDesign` marker is shared by every Design Accelerator generator, so a bolted connection can't be
+distinguished from a shaft or a gear by the bytes alone - all of them read as **Design Accelerator**.

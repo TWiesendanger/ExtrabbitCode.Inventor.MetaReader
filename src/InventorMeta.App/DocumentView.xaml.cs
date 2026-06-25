@@ -342,6 +342,8 @@ public sealed partial class DocumentView
             NoThumb.Visibility = Visibility.Visible;
         }
 
+        SetCategoryBadge(doc);
+
         RenderSidebar();   // also sets the 3D triggers (button visible only when the thumbnail is off)
 
         _collapsibles.Clear();
@@ -376,6 +378,17 @@ public sealed partial class DocumentView
 
         ApplyTabVisibility();
         RefreshHiddenUi();
+    }
+
+    /// <summary>Colours the category badge for the document's <see cref="InventorDocument.PrimaryCategory"/>
+    /// and attaches the legend as its hover tooltip.</summary>
+    private void SetCategoryBadge(InventorDocument doc)
+    {
+        (string name, Windows.UI.Color color) = DocCategoryUi.Of(doc.PrimaryCategory);
+        CategoryBadgeText.Text = name;
+        CategoryBadge.Background = new Microsoft.UI.Xaml.Media.SolidColorBrush(color);
+        CategoryBadge.Visibility = Visibility.Visible;
+        ToolTipService.SetToolTip(CategoryBadge, new ToolTip { Content = DocCategoryUi.Legend(doc.PrimaryCategory) });
     }
 
     private void PopulateStates(InventorDocument doc)
