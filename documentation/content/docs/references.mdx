@@ -9,7 +9,7 @@ Inventor documents point at other files: an assembly references its parts and su
 drawing references the model it documents. The **References** tab draws those relationships as a
 graph you can explore.
 
-<ThemedImage slug="app__references" alt="The References tab showing an assembly's reference graph" />
+<ThemedImage slug="app__references-leftright" alt="The References tab showing an assembly's reference graph in the Left to Right layout" />
 
 ## Exploring the graph
 
@@ -19,9 +19,10 @@ Each node is a referenced file, drawn as a card with its type icon, name and a s
   to reveal. Newly revealed nodes fade in.
 - **Double-click a node** to open that document in its own tab and keep drilling down.
 - **Drag a node** to reposition it, **drag the background** to pan, and **scroll** to zoom.
-- The toolbar above the graph has (hover for names): the **layout** picker (see below), **Expand all**
-  / **Collapse all**, **Show thumbnails** to draw each node with its preview image, **Fit** to frame
-  the whole graph, a **cogwheel** for graph options, and **Fullscreen** (**Esc** exits).
+- The toolbar floating in the graph's **top-right corner** has (hover for names): the **layout** picker
+  (see below), **Expand all** / **Collapse all**, **Show thumbnails** to draw each node with its preview
+  image, **Fit** to frame the whole graph, a **cogwheel** for graph options, and **Fullscreen**
+  (**Esc** exits).
 
 MetaReader resolves each reference on disk - first next to the parent file, then by name anywhere in
 the project folder - so a project that's been copied or reorganized still maps correctly. A file that
@@ -42,6 +43,12 @@ layout**:
 
 In Network mode the graph keeps your current view as you expand and collapse (it only re-frames on the
 first open and when you switch layout) - press **Fit** any time to re-center everything.
+
+The same assembly in **Top → Bottom** and **Network**:
+
+<ThemedImage slug="app__references-topdown" alt="The reference graph in the Top to Bottom layout" />
+
+<ThemedImage slug="app__references-network" alt="The reference graph in the organic Network layout" />
 
 ## Fine-tuning the network layout
 

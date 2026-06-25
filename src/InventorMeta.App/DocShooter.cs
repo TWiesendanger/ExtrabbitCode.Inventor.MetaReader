@@ -3,7 +3,9 @@ using System.IO;
 using System.Runtime.InteropServices.WindowsRuntime;
 using System.Threading.Tasks;
 using Microsoft.UI.Xaml;
+using Microsoft.UI.Xaml.Media;
 using Microsoft.UI.Xaml.Media.Imaging;
+using Windows.Foundation;
 using Windows.Graphics.Imaging;
 using Windows.Storage.Streams;
 
@@ -65,37 +67,56 @@ internal static class DocShooter
                 await Task.Delay(400);
                 await Capture(w, "app__welcome", theme, outDir);
 
-                // 2-4. A part: the overview (key iProperties + thumbnail), model states, raw structure.
+                // 2. The reference model (the bundled assembly, or whatever --model gives): the overview
+                // and a close-up of just the sidebar card.
+                if (asm != null)
+                {
+                    w.ShootCloseAllTabs();
+                    w.ShootOpen(asm);
+                    await Task.Delay(1000);
+                    DocumentView? adv = w.CurrentView;
+                    await Capture(w, "app__overview", theme, outDir);
+                    if (adv?.ShootElement("SidebarCard") is { } sidebar)
+                    {
+                        await CaptureRegion(w, sidebar, "app__sidebar", theme, outDir);
+                    }
+                }
+
+                // 3-4. A part with model states: the model-states diff and the raw file structure,
+                // each as just the detail-tabs panel (right side).
                 if (part != null)
                 {
                     w.ShootCloseAllTabs();
                     w.ShootOpen(part);
                     await Task.Delay(800);
                     DocumentView? dv = w.CurrentView;
-                    await Capture(w, "app__overview", theme, outDir);
-
-                    // Just the left sidebar card, on its own (a region capture).
-                    if (dv?.ShootElement("SidebarCard") is { } sidebar)
-                    {
-                        await CaptureElement(sidebar, "app__sidebar", theme, outDir);
-                    }
 
                     dv?.ShootSelectTab("Model States");
                     await Task.Delay(600);
-                    await Capture(w, "app__model-states", theme, outDir);
+                    if (dv?.ShootElement("DetailTabs") is { } statesPanel)
+                    {
+                        await CaptureRegion(w, statesPanel, "app__model-states-panel", theme, outDir);
+                    }
 
                     dv?.ShootSelectTab("File Structure");
                     await Task.Delay(600);
-                    await Capture(w, "app__file-structure", theme, outDir);
+                    if (dv?.ShootElement("DetailTabs") is { } structurePanel)
+                    {
+                        await CaptureRegion(w, structurePanel, "app__file-structure-panel", theme, outDir);
+                    }
                 }
 
-                // 4b. The colour-coded document-category badge (here a Content Center pipe -> "Piping").
+                // 4b. The colour-coded document-category badge (a Content Center pipe -> "Piping"),
+                // shown as a close-up of just the sidebar card where the badge sits.
                 if (tnp != null)
                 {
                     w.ShootCloseAllTabs();
                     w.ShootOpen(tnp);
                     await Task.Delay(800);
-                    await Capture(w, "app__category", theme, outDir);
+                    if (w.CurrentView?.ShootElement("SidebarCard") is { } catSidebar)
+                    {
+                        await CaptureRegion(w, catSidebar, "app__category-sidebar", theme, outDir);
+                    }
                 }
 
                 // 5. The reference graph, expanded and fitted, in each of the three layouts.
@@ -214,6 +235,34 @@ internal static class DocShooter
         }
 
         await WritePng(pixels, W, H, slug, theme, outDir);
+    }
+
+    /// <summary>Captures a region of the window by cropping a full-window render. RenderTargetBitmap on
+    /// an isolated sub-element mis-resolves theme brushes (card backgrounds come out light in dark mode);
+    /// the whole window themes correctly, so we render it and crop to the element's bounds.</summary>
+    private static async Task CaptureRegion(MainWindow w, FrameworkElement element, string slug, ElementTheme theme, string outDir)
+    {
+        FrameworkElement content = (FrameworkElement)w.Content;
+        RenderTargetBitmap rtb = new();
+        await rtb.RenderAsync(content);
+        int W = rtb.PixelWidth, H = rtb.PixelHeight;
+        byte[] pixels = (await rtb.GetPixelsAsync()).ToArray();
+        if (content.ActualWidth <= 0 || element.ActualWidth <= 0) { return; }
+
+        double sx = W / content.ActualWidth, sy = H / content.ActualHeight;
+        Rect b = element.TransformToVisual(content).TransformBounds(new Rect(0, 0, element.ActualWidth, element.ActualHeight));
+        int rx = Math.Clamp((int)Math.Round(b.X * sx), 0, W);
+        int ry = Math.Clamp((int)Math.Round(b.Y * sy), 0, H);
+        int rw = Math.Clamp((int)Math.Round(b.Width * sx), 0, W - rx);
+        int rh = Math.Clamp((int)Math.Round(b.Height * sy), 0, H - ry);
+        if (rw <= 0 || rh <= 0) { return; }
+
+        byte[] crop = new byte[rw * rh * 4];
+        for (int y = 0; y < rh; y++)
+        {
+            Array.Copy(pixels, ((ry + y) * W + rx) * 4, crop, y * rw * 4, rw * 4);
+        }
+        await WritePng(crop, rw, rh, slug, theme, outDir);
     }
 
     private static async Task WritePng(byte[] bgra, int width, int height, string slug, ElementTheme theme, string outDir)

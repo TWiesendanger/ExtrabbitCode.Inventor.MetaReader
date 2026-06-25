@@ -5,10 +5,14 @@ description: A tour of the MetaReader window - the preview, the key-property sid
 
 import { ThemedImage } from '@/components/themed-image';
 
-Once a file is open, the window has two halves: a **summary card** on the left and a set of **detail
-tabs** on the right.
+The app opens on a pinned **Home** tab: the drop zone for opening files and a **Recent files** list of
+what you opened before. Home stays at the far left, so the welcome screen and your recents are always
+one click away while you work.
 
-<ThemedImage slug="app__overview" alt="The MetaReader viewer with a part open" />
+Once a file is open, it gets its own tab, with two halves: a **summary card** on the left and a set of
+**detail tabs** on the right.
+
+<ThemedImage slug="app__overview" alt="The MetaReader viewer with an assembly open" />
 
 ## The summary card (left)
 
@@ -17,6 +21,8 @@ tabs** on the right.
   button when the thumbnail is hidden).
 - A **key iProperties** list - the values you most often want: Part Number, Description, Designer,
   Material, Project, Status, and so on.
+
+<ThemedImage slug="app__sidebar" alt="The summary card: thumbnail, document type and key iProperties" className="max-w-sm mx-auto" />
 
 ### Customize the sidebar
 
@@ -52,6 +58,9 @@ Your layout is remembered and applied to every file you open, so the sidebar alw
   [References](/docs/references).
 - **Refresh** re-reads the file from disk - handy after you re-save it in Inventor.
 - **Export JSON** writes all the metadata to a file. See [File structure](/docs/file-structure#export-json).
-- **Tabs.** Each file opens in its own tab; **Ctrl+W** closes the current one.
+- **Tabs.** Each file opens in its own tab to the right of the pinned **Home** tab; **Ctrl+W** closes
+  the current one, and right-clicking a tab offers **Close other tabs** / **Close all tabs** (Home is
+  never closed).
 - **Settings.** The **Settings** button in the bottom bar holds the [3D viewer](/docs/3d-view) options -
-  Inventor version, a shared cache folder, and clearing the local cache.
+  Inventor version, a shared cache folder, and clearing the local cache - plus a **Diagnostics log**
+  (open today's log or its folder) and the in-app **tips** toggle.
