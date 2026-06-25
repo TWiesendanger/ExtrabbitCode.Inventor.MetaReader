@@ -220,10 +220,12 @@ public sealed partial class DocumentView
     /// <summary>Runs the (blocking, COM) generation on a dedicated STA thread, off the UI thread.</summary>
     private static Task<SvfGenerator.Result> GenerateOnStaThread(InventorInstall inv, string file, string baseDir)
     {
+        bool hide = ViewerSettings.HideInventor;
+        bool silent = ViewerSettings.SilentInventor;
         TaskCompletionSource<SvfGenerator.Result> tcs = new();
         Thread t = new(() =>
         {
-            try { tcs.SetResult(SvfGenerator.Generate(inv, file, baseDir)); }
+            try { tcs.SetResult(SvfGenerator.Generate(inv, file, baseDir, hide, silent)); }
             catch (Exception ex) { tcs.SetResult(new SvfGenerator.Result(false, null, ex.Message)); }
         }) { IsBackground = true };
         t.SetApartmentState(ApartmentState.STA);

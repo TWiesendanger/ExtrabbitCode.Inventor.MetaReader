@@ -73,7 +73,8 @@ internal static class SvfTestRunner
 
         Log("Generating - this opens the model in Inventor and can take a while…");
         var sw = Stopwatch.StartNew();
-        SvfGenerator.Result res = SvfGenerator.Generate(inv, file, baseDir, Log);
+        SvfGenerator.Result res = SvfGenerator.Generate(inv, file, baseDir,
+            ViewerSettings.HideInventor, ViewerSettings.SilentInventor, Log);
         sw.Stop();
         Log(res.Ok
             ? $"OK in {sw.Elapsed.TotalSeconds:0}s -> {res.BubblePath}"

@@ -90,6 +90,28 @@ public sealed partial class MainWindow
 
         await AnalyticsConsentDialog.MaybeAskAsync(Content.XamlRoot, _theme);
         Analytics.Capture("app_opened");
+        MaybeShowWelcomeTip();
+    }
+
+    private Microsoft.UI.Xaml.Controls.TeachingTip? _welcomeTip;
+
+    /// <summary>On the empty welcome screen, offer to open the bundled sample assembly.</summary>
+    private void MaybeShowWelcomeTip()
+    {
+        if (!_isPrimary || DocTabs.TabItems.Count > 0) { return; }   // a file was already opened (CLI)
+        if (SampleFiles.EnsureSampleAssembly() is null) { return; }  // nothing bundled
+
+        _welcomeTip = TipService.Show((Microsoft.UI.Xaml.Controls.Panel)Content, WelcomeAnchor, new Tip
+        {
+            Id = "welcome.sample",
+            Title = "Want to try it out?",
+            Message = "Open a bundled sample assembly to explore its parts, references and 3D view right away.",
+            ActionText = "Open sample",
+            Delay = TimeSpan.FromSeconds(1.0),
+            AutoDismiss = TimeSpan.Zero,                            // stays until the user acts
+            Placement = Microsoft.UI.Xaml.Controls.TeachingTipPlacementMode.Bottom,   // hang from the top-right corner
+            Action = () => { if (SampleFiles.EnsureSampleAssembly() is string p) { OpenFile(p); } }
+        });
     }
 
     private AppWindow? _appWindow;
@@ -258,6 +280,8 @@ public sealed partial class MainWindow
 
     private void OpenFile(string path)
     {
+        if (_welcomeTip != null) { _welcomeTip.IsOpen = false; _welcomeTip = null; }   // leaving the welcome screen
+
         // if already open, just select that tab
         foreach (TabViewItem t in DocTabs.TabItems.OfType<TabViewItem>())
         {
@@ -281,7 +305,7 @@ public sealed partial class MainWindow
             Content = dv,
             IconSource = AppIcons.IconSource(dv.Document?.Kind ?? InventorDocument.DocKind.Unknown)
         };
-        ToolTipService.SetToolTip(tab, path);
+        ToolTipService.SetToolTip(tab, $"{path}\nCtrl+W to close");
         WireTabContextMenu(tab);
         DocTabs.TabItems.Add(tab);
         DocTabs.SelectedItem = tab;
@@ -305,6 +329,28 @@ public sealed partial class MainWindow
             AfterTabRemoved();
             args.Handled = true;
         }
+    }
+
+    /// <summary>Closes every tab in this window.</summary>
+    private void CloseAllTabs()
+    {
+        if (DocTabs.TabItems.Count == 0) { return; }
+        foreach (TabViewItem t in DocTabs.TabItems.OfType<TabViewItem>().ToList())
+        {
+            DocTabs.TabItems.Remove(t);
+        }
+        AfterTabRemoved();
+    }
+
+    /// <summary>Closes every tab in this window except <paramref name="keep"/>, which is left selected.</summary>
+    private void CloseOtherTabs(TabViewItem keep)
+    {
+        foreach (TabViewItem t in DocTabs.TabItems.OfType<TabViewItem>().ToList())
+        {
+            if (!ReferenceEquals(t, keep)) { DocTabs.TabItems.Remove(t); }
+        }
+        DocTabs.SelectedItem = keep;
+        AfterTabRemoved();
     }
 
     private void OnTabSelectionChanged(object sender, SelectionChangedEventArgs e)
@@ -373,6 +419,24 @@ public sealed partial class MainWindow
                 toMain.Click += (_, _) => host.MoveToMain(tab);
                 menu.Items.Add(toMain);
             }
+
+            menu.Items.Add(new MenuFlyoutSeparator());
+
+            MenuFlyoutItem closeOthers = new()
+            {
+                Text = "Close other tabs",
+                IsEnabled = host.DocTabs.TabItems.Count > 1
+            };
+            closeOthers.Click += (_, _) => host.CloseOtherTabs(tab);
+            menu.Items.Add(closeOthers);
+
+            MenuFlyoutItem closeAll = new()
+            {
+                Text = "Close all tabs",
+                Icon = new FontIcon { Glyph = ((char)0xE711).ToString() }
+            };
+            closeAll.Click += (_, _) => host.CloseAllTabs();
+            menu.Items.Add(closeAll);
 
             if (e.TryGetPosition(tab, out Windows.Foundation.Point p))
             {

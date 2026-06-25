@@ -12,6 +12,8 @@ internal static class ViewerSettings
     private const string NetworkKey = "viewer.networkPath";
     private const string YearKey = "viewer.inventorYear";
     private const string GraphLayoutKey = "viewer.graphLayout";
+    private const string HideKey = "viewer.hideInventor";
+    private const string SilentKey = "viewer.silentInventor";
 
     /// <summary>Optional shared cache path; null/empty means local-only.</summary>
     public static string? NetworkPath
@@ -36,5 +38,18 @@ internal static class ViewerSettings
     {
         get => Enum.TryParse(AppSettings.Get(GraphLayoutKey), out GraphLayout v) ? v : GraphLayout.LeftRight;
         set => AppSettings.Set(GraphLayoutKey, value.ToString());
+    /// <summary>Keep Inventor hidden when MetaReader launches it to generate a viewable. A session the
+    /// user already had open is never touched. Default on.</summary>
+    public static bool HideInventor
+    {
+        get => AppSettings.GetBool(HideKey, true);
+        set => AppSettings.Set(HideKey, value.ToString());
+    }
+
+    /// <summary>Run Inventor silently (suppress its dialog prompts) while generating. Default on.</summary>
+    public static bool SilentInventor
+    {
+        get => AppSettings.GetBool(SilentKey, true);
+        set => AppSettings.Set(SilentKey, value.ToString());
     }
 }
