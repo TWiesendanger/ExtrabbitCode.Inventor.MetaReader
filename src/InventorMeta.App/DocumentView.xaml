@@ -163,8 +163,9 @@
 
             <Border Grid.Column="1" Style="{StaticResource Surface}" Translation="0,0,16">
                 <Border.Shadow><ThemeShadow/></Border.Shadow>
+                <!-- Stretch to fill the card; the TabView defaults to Top / content-sized. -->
                 <muxc:TabView x:Name="DetailTabs" Background="Transparent" IsAddTabButtonVisible="False"
-                              CanReorderTabs="False" CanDragTabs="False"
+                              CanReorderTabs="False" CanDragTabs="False" VerticalAlignment="Stretch"
                               SelectionChanged="OnDetailTabChanged">
                     <muxc:TabView.TabStripFooter>
                         <StackPanel x:Name="TabStripActions" Orientation="Horizontal"
