@@ -1,7 +1,7 @@
 using System;
 using System.Collections.Generic;
-using System.IO;
 using System.Linq;
+using System.Threading.Tasks;
 using Microsoft.UI.Xaml;
 
 namespace ExtrabbitCode.Inventor.MetaReader.App;
@@ -21,7 +21,20 @@ public partial class App
 
     protected override void OnLaunched(LaunchActivatedEventArgs args)
     {
-        UnhandledException += OnUnhandledException;
+        // Catch crashes from every source, not just the UI thread: a background-thread throw or a
+        // faulted fire-and-forget Task would otherwise terminate the app without being logged.
+        UnhandledException += (_, e) => LogCrash("UI thread", e.Exception, e.Message);
+        AppDomain.CurrentDomain.UnhandledException += (_, e) =>
+        {
+            Exception? ex = e.ExceptionObject as Exception;
+            LogCrash("background thread", ex, ex?.Message ?? "non-CLR error");
+            if (e.IsTerminating) { try { Serilog.Log.CloseAndFlush(); } catch { /* dying anyway */ } }
+        };
+        TaskScheduler.UnobservedTaskException += (_, e) =>
+        {
+            LogCrash("unobserved Task", e.Exception, e.Exception?.Message ?? "");
+            e.SetObserved();   // we've logged it; don't let it escalate
+        };
         AppLog.Init();
         Analytics.Init();
         Serilog.Log.Information("Inventor MetaReader starting (v{Version})",
@@ -54,17 +67,21 @@ public partial class App
         MainWindowInstance.Activate();
     }
 
-    /// <summary>Log any unhandled UI-thread exception (also to a crash.log for the launcher to check).</summary>
-    private static void OnUnhandledException(object sender, Microsoft.UI.Xaml.UnhandledExceptionEventArgs e)
+    /// <summary>Logs an unhandled exception from any source (UI thread, background thread, or an
+    /// unobserved Task) to the app log, and reports an anonymous crash event.</summary>
+    private static void LogCrash(string source, Exception? ex, string message)
     {
-        Serilog.Log.Error(e.Exception, "Unhandled UI-thread exception: {Message}", e.Message);
+        Serilog.Log.Error(ex, "Unhandled exception ({Source}): {Message}", source, message);
+
+        // Anonymous crash signal (opt-in only): just where it happened and the exception type -
+        // never the message, stack or any path, per the analytics privacy contract.
         try
         {
-            string path = Path.Combine(
-                Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
-                "ExtrabbitCode.Inventor.MetaReader", "crash.log");
-            Directory.CreateDirectory(Path.GetDirectoryName(path)!);
-            File.AppendAllText(path, $"=== {DateTime.Now:O} ===\n{e.Message}\n{e.Exception}\n\n");
+            Analytics.CaptureBlocking("app_crashed", new Dictionary<string, object?>
+            {
+                ["source"] = source,
+                ["exception_type"] = ex?.GetType().FullName ?? "unknown",
+            });
         }
         catch { /* best-effort */ }
     }

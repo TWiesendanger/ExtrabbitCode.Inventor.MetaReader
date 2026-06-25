@@ -46,6 +46,16 @@ internal static class Analytics
         _ = SendAsync(eventName, AnalyticsConsent.DistinctId, properties);
     }
 
+    /// <summary>Like <see cref="Capture"/> but blocks (up to <paramref name="timeoutMs"/>) for the send
+    /// to finish. For the crash path only: the process is about to terminate, so a fire-and-forget POST
+    /// would never leave the machine. Send runs off the UI thread, so the wait can't deadlock.</summary>
+    public static void CaptureBlocking(string eventName, IReadOnlyDictionary<string, object?>? properties = null, int timeoutMs = 3000)
+    {
+        if (!Enabled) { return; }
+        try { SendAsync(eventName, AnalyticsConsent.DistinctId, properties).Wait(timeoutMs); }
+        catch { /* best-effort; never throw from the crash path */ }
+    }
+
     private static async Task SendAsync(string eventName, string distinctId, IReadOnlyDictionary<string, object?>? properties)
     {
         try

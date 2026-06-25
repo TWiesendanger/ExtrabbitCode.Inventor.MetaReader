@@ -72,7 +72,12 @@ internal static class SettingsDialog
 
         Button openLog = new() { Content = "Open log" };
         openLog.Click += (_, _) => AppLog.OpenLatest();
-        body.Children.Add(Row("Diagnostics log", "App and 3D-viewer activity (today's log file).", openLog));
+        Button openLogFolder = new() { Content = "Open folder" };
+        openLogFolder.Click += (_, _) => AppLog.OpenFolder();
+        StackPanel logButtons = new() { Orientation = Orientation.Horizontal, Spacing = 8 };
+        logButtons.Children.Add(openLog);
+        logButtons.Children.Add(openLogFolder);
+        body.Children.Add(Row("Diagnostics log", "App and 3D-viewer activity (today's log file).", logButtons));
 
         body.Children.Add(SectionHeader("Reference graph"));
         ComboBox graphLayout = new()

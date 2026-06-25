@@ -42,4 +42,15 @@ internal static class AppLog
         }
         catch { /* best effort */ }
     }
+
+    /// <summary>Opens the logs folder itself in the file explorer.</summary>
+    public static void OpenFolder()
+    {
+        try
+        {
+            System.IO.Directory.CreateDirectory(Directory);
+            Process.Start(new ProcessStartInfo { FileName = Directory, UseShellExecute = true });
+        }
+        catch { /* best effort */ }
+    }
 }
