@@ -30,6 +30,14 @@ internal static class AppInfo
     /// <summary>Newest first.</summary>
     public static readonly (string Version, string[] Notes)[] History =
     [
+        ("1.1.0.0", [
+            "Interactive reference graph with three layouts (Left-Right, Top-Bottom and an organic Network), node thumbnails, expand/collapse, fit and fullscreen.",
+            "Home tab with a recent-files list, always one click away.",
+            "Colour-coded document categories - Content Center, Piping, Frame Generator, Weldment, Sheet Metal, iPart/iAssembly and more.",
+            "A bundled sample assembly to open straight from the welcome screen.",
+            "3D generation now runs Inventor hidden and silent by default.",
+            "In-app tips, close-other / close-all tabs, and a diagnostics log in Settings."
+        ]),
         ("1.0.0.0", [
             "First release.",
             "Reads document type, all iProperties, custom properties, thumbnail, referenced files and version info from .ipt / .iam / .idw / .ipn.",
