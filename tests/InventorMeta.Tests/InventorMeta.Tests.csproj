@@ -2,6 +2,8 @@
 
   <PropertyGroup>
     <TargetFramework>net10.0</TargetFramework>
+    <!-- xunit.v3 test projects run as a console executable -->
+    <OutputType>Exe</OutputType>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
     <IsPackable>false</IsPackable>
@@ -11,8 +13,8 @@
   <ItemGroup>
     <PackageReference Include="coverlet.collector" Version="6.0.4" />
     <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.14.1" />
-    <PackageReference Include="xunit" Version="2.9.3" />
     <PackageReference Include="xunit.runner.visualstudio" Version="3.1.4" />
+    <PackageReference Include="xunit.v3" Version="3.2.2" />
   </ItemGroup>
 
   <ItemGroup>
@@ -27,10 +29,7 @@
        are copied next to the test assembly so tests can read them at runtime. Recurses so the
        iPartSample/ generated members come along, but skips Inventor's OldVersions/ backups. -->
   <ItemGroup>
-    <None Include="..\..\src\InventorMeta.App\Assets\SampleFiles\SampleBg\**\*.*"
-          Exclude="..\..\src\InventorMeta.App\Assets\SampleFiles\SampleBg\**\OldVersions\**"
-          Link="SampleBg\%(RecursiveDir)%(Filename)%(Extension)"
-          CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\..\src\InventorMeta.App\Assets\SampleFiles\SampleBg\**\*.*" Exclude="..\..\src\InventorMeta.App\Assets\SampleFiles\SampleBg\**\OldVersions\**" Link="SampleBg\%(RecursiveDir)%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
 </Project>
