@@ -39,6 +39,17 @@ public sealed class InventorDocument
         };
     }
 
+    /// <summary>A Content Center category a part belongs to (Tube &amp; Pipe, Frame Generator, …),
+    /// parsed from the "Categories" iProperty. <see cref="Mnemonic"/> is the stable internal tag
+    /// (e.g. <c>TUBEANDPIPE</c>); <see cref="DisplayName"/> is localized.</summary>
+    public sealed class ContentCategory
+    {
+        public string DisplayName = "";    // e.g. "Tube & Pipe"
+        public string InternalName = "";   // category id (GUID), e.g. 4347fa0f-2144-441d-94cd-e3e15c92b736
+        public string Mnemonic = "";       // stable, language-independent tag, e.g. "TUBEANDPIPE"
+        public override string ToString() => DisplayName.Length > 0 ? DisplayName : Mnemonic;
+    }
+
     /// <summary>A single model state (a.k.a. iPart/iAssembly member) with its own properties.</summary>
     public sealed class ModelState
     {
@@ -58,6 +69,115 @@ public sealed class InventorDocument
     private readonly Dictionary<string, string> _storageToState = new(StringComparer.OrdinalIgnoreCase);
     private string _primaryName = "[Primary]";
     public List<string> References { get; } = [];
+
+    private List<ContentCategory>? _categories;
+
+    /// <summary>Content Center categories this part belongs to (Tube &amp; Pipe, Frame Generator, …),
+    /// parsed from the readable "Categories" iProperty. Empty for an ordinary part. This is the
+    /// file-readable counterpart to Inventor's <c>DocumentInterests.HasInterest</c>, whose client-id
+    /// registry lives in the proprietary RSeStorage database and is not decoded here.</summary>
+    public IReadOnlyList<ContentCategory> Categories => _categories ??= ParseCategories();
+
+    /// <summary>True if the part carries a Content Center category with the given mnemonic
+    /// (case-insensitive), e.g. <c>HasCategory("TUBEANDPIPE")</c> for a Tube &amp; Pipe component.</summary>
+    public bool HasCategory(string mnemonic) =>
+        Categories.Any(c => string.Equals(c.Mnemonic, mnemonic, StringComparison.OrdinalIgnoreCase));
+
+    /// <summary>An Inventor design subsystem detected as participating in this document
+    /// (Frame Generator, Tube &amp; Pipe, …). <see cref="Key"/> is a stable, language-independent id.</summary>
+    public sealed class DocumentSubsystem
+    {
+        public string Key = "";          // stable id, e.g. "FrameGenerator", "TubeAndPipe"
+        public string DisplayName = "";  // "Frame Generator", "Tube & Pipe"
+        public override string ToString() => DisplayName.Length > 0 ? DisplayName : Key;
+    }
+
+    // Frame Generator stamps its frame document with this dedicated property set ("_com.autodesk.FG").
+    private static readonly Guid FrameGeneratorSet = new("b65df8ea-ba84-4eb5-868d-466b48dab15a");
+    // Design Accelerator stamps its generated documents with the "FDesign" property set.
+    private static readonly Guid DesignAcceleratorSet = new("6cd3181a-0c7d-41aa-bdb3-969a9b72e1bb");
+    // A weldment assembly is identified by its document subtype CLSID (Document SubType, PID 31).
+    private static readonly Guid WeldmentSubType = new("28ec8354-9024-440f-a8a2-0e0e55d635b0");
+    // A sheet metal part is identified the same way, by its own document subtype CLSID.
+    private static readonly Guid SheetMetalSubType = new("9c464203-9bae-11d3-8bad-0060b0ce6bb4");
+
+    /// <summary>True if the document's subtype (the "Document SubType" iProperty) is the given id.</summary>
+    private bool HasSubType(Guid id) => Properties.Any(p => p.Name == "Document SubType" &&
+        ((p.Value is Guid g && g == id) || (Guid.TryParse(p.Display, out Guid d) && d == id)));
+
+    /// <summary>True for a weldment assembly (identified by its document subtype, not a localized name).</summary>
+    public bool IsWeldment => HasSubType(WeldmentSubType);
+
+    /// <summary>True for a sheet metal part (identified by its document subtype, not a localized name).</summary>
+    public bool IsSheetMetal => HasSubType(SheetMetalSubType);
+
+    private List<DocumentSubsystem>? _subsystems;
+
+    /// <summary>Inventor design subsystems this document participates in, detected from readable
+    /// markers in the file - Frame Generator (its property set), Tube &amp; Pipe (a Content Center
+    /// category), etc. This is the file-readable analogue to Inventor's DocumentInterests /
+    /// HasInterest, whose add-in client ids live in the proprietary RSeStorage database we do not
+    /// decode. Empty for an ordinary document.</summary>
+    public IReadOnlyList<DocumentSubsystem> Subsystems => _subsystems ??= DetectSubsystems();
+
+    /// <summary>True if the document participates in the subsystem with the given key
+    /// (case-insensitive), e.g. <c>HasSubsystem("FrameGenerator")</c>.</summary>
+    public bool HasSubsystem(string key) =>
+        Subsystems.Any(s => string.Equals(s.Key, key, StringComparison.OrdinalIgnoreCase));
+
+    /// <summary>A single, headline classification of the document for at-a-glance display.
+    /// More specific roles win over the generic Content Center membership.</summary>
+    public enum DocCategory
+    {
+        General, ContentCenter, FrameGenerator, DesignAccelerator, Weldment, SheetMetal, Piping,
+        iPartFactory, iPartMember, iAssemblyFactory, iAssemblyMember
+    }
+
+    /// <summary>True for an iPart/iAssembly <em>factory</em> (the authoring document): it carries the
+    /// member table and the "Parameterized Template" flag. Model-state parts also carry the member
+    /// marker, so they are excluded via <see cref="HasModelStates"/>.</summary>
+    public bool IsFactory => IsIPart && !HasModelStates && PropTrue("Parameterized Template");
+
+    /// <summary>True for a generated iPart/iAssembly <em>member</em>: it carries the member table but
+    /// is not the factory (no "Parameterized Template") and is not a model-state part. iPart members
+    /// also carry a "Template Row" but iAssembly members do not, so we key off "marker, not factory".</summary>
+    public bool IsMember => IsIPart && !HasModelStates && !IsFactory;
+
+    /// <summary>The document's headline category. Tube &amp; Pipe and Frame Generator win first, then
+    /// the iPart/iAssembly factory/member role, then plain Content Center membership; everything else
+    /// is <see cref="DocCategory.General"/>.</summary>
+    public DocCategory PrimaryCategory =>
+        HasSubsystem("TubeAndPipe")               ? DocCategory.Piping
+      : HasSubsystem("FrameGenerator")            ? DocCategory.FrameGenerator
+      : HasSubsystem("DesignAccelerator")         ? DocCategory.DesignAccelerator
+      : IsWeldment                                ? DocCategory.Weldment
+      : IsSheetMetal                              ? DocCategory.SheetMetal
+      : Kind == DocKind.Assembly && IsFactory     ? DocCategory.iAssemblyFactory
+      : Kind == DocKind.Assembly && IsMember      ? DocCategory.iAssemblyMember
+      : Kind == DocKind.Part     && IsFactory     ? DocCategory.iPartFactory
+      : Kind == DocKind.Part     && IsMember      ? DocCategory.iPartMember
+      : Categories.Count > 0                      ? DocCategory.ContentCenter
+      :                                             DocCategory.General;
+
+    private bool PropTrue(string name) => Properties.Any(p => p.Name == name && p.Value is bool b && b);
+
+    private List<DocumentSubsystem> DetectSubsystems()
+    {
+        List<DocumentSubsystem> found = [];
+        if (Properties.Any(p => p.SetId == FrameGeneratorSet))
+        {
+            found.Add(new DocumentSubsystem { Key = "FrameGenerator", DisplayName = "Frame Generator" });
+        }
+        if (Properties.Any(p => p.SetId == DesignAcceleratorSet))
+        {
+            found.Add(new DocumentSubsystem { Key = "DesignAccelerator", DisplayName = "Design Accelerator" });
+        }
+        if (HasCategory("TUBEANDPIPE"))
+        {
+            found.Add(new DocumentSubsystem { Key = "TubeAndPipe", DisplayName = "Tube & Pipe" });
+        }
+        return found;
+    }
 
     /// <summary>Linked non-model files (images, imported CAD, …) referenced by the document.</summary>
     public List<string> LinkedFiles { get; } = [];
@@ -439,6 +559,9 @@ public sealed class InventorDocument
             }).ToArray(),
             references = References,
             linkedFiles = LinkedFiles,
+            categories = Categories.Select(c => new { displayName = c.DisplayName, internalName = c.InternalName, mnemonic = c.Mnemonic }).ToArray(),
+            subsystems = Subsystems.Select(s => new { key = s.Key, displayName = s.DisplayName }).ToArray(),
+            primaryCategory = PrimaryCategory.ToString(),
             isIPart = IsIPart,
             hasThumbnail = Thumbnail != null,
             properties = Properties
@@ -449,6 +572,44 @@ public sealed class InventorDocument
         };
         return JsonSerializer.Serialize(o, new JsonSerializerOptions { WriteIndented = true });
     }
+
+    // ---- content-center categories ----
+    /// <summary>Parses the "Categories" iProperty, whose value is a small XML fragment like
+    /// <c>&lt;MemberInstance&gt;&lt;Categories&gt;&lt;Category DisplayName="Tube &amp;amp; Pipe"
+    /// InternalName="…" Mnemonic="TUBEANDPIPE"&gt;…&lt;/Category&gt;…</c>. Robust to attribute order
+    /// and to a malformed value (returns what it can, else empty).</summary>
+    private List<ContentCategory> ParseCategories()
+    {
+        List<ContentCategory> list = [];
+        if (Properties.FirstOrDefault(p => p.Name == "Categories")?.Value is not string xml || xml.Length == 0)
+        {
+            return list;
+        }
+
+        foreach (Match tag in Regex.Matches(xml, @"<Category\b[^>]*>", RegexOptions.IgnoreCase))
+        {
+            ContentCategory c = new()
+            {
+                DisplayName  = Attr(tag.Value, "DisplayName"),
+                InternalName = Attr(tag.Value, "InternalName"),
+                Mnemonic     = Attr(tag.Value, "Mnemonic"),
+            };
+            if (c.DisplayName.Length + c.InternalName.Length + c.Mnemonic.Length > 0) { list.Add(c); }
+        }
+        return list;
+    }
+
+    private static string Attr(string tag, string name)
+    {
+        Match m = Regex.Match(tag, name + "\\s*=\\s*\"([^\"]*)\"", RegexOptions.IgnoreCase);
+        return m.Success ? DecodeXml(m.Groups[1].Value) : "";
+    }
+
+    /// <summary>Decodes the five predefined XML entities. <c>&amp;amp;</c> is undone last so an
+    /// already-decoded ampersand is never re-interpreted.</summary>
+    private static string DecodeXml(string s) => s
+        .Replace("&lt;", "<").Replace("&gt;", ">").Replace("&quot;", "\"").Replace("&apos;", "'")
+        .Replace("&amp;", "&");
 
     // ---- helpers ----
     private static bool Eq(byte[] b, int o, params int[] sig)
