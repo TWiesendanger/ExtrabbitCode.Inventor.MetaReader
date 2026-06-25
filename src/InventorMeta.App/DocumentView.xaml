@@ -114,7 +114,7 @@
                 <ColumnDefinition Width="*"/>
             </Grid.ColumnDefinitions>
 
-            <Border Grid.Column="0" CornerRadius="8" Translation="0,0,12"
+            <Border x:Name="SidebarCard" Grid.Column="0" CornerRadius="8" Translation="0,0,12"
                     Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
                     BorderBrush="{ThemeResource CardStrokeColorDefaultSolidBrush}" BorderThickness="1">
                 <Border.Shadow><ThemeShadow/></Border.Shadow>

@@ -40,8 +40,8 @@ public partial class App
         Serilog.Log.Information("Inventor MetaReader starting (v{Version})",
             typeof(App).Assembly.GetName().Version?.ToString() ?? "?");
 
-        // Headless docs mode: "--shoot-docs <outDir> [--samples <dir>]" renders one PNG per view
-        // (light + dark) and exits, without ever showing the normal app.
+        // Headless docs mode: "--shoot-docs <outDir> [--samples <dir>] [--model <assembly.iam>]"
+        // renders one PNG per view (light + dark) and exits, without ever showing the normal app.
         string[] cli = Environment.GetCommandLineArgs();
         int shootIndex = Array.IndexOf(cli, "--shoot-docs");
         if (shootIndex >= 0 && shootIndex + 1 < cli.Length)
@@ -51,7 +51,10 @@ public partial class App
             int samplesIndex = Array.IndexOf(cli, "--samples");
             string? samples = samplesIndex >= 0 && samplesIndex + 1 < cli.Length
                 ? cli[samplesIndex + 1] : null;
-            _ = DocShooter.RunAsync(cli[shootIndex + 1], samples);
+            int modelIndex = Array.IndexOf(cli, "--model");
+            string? model = modelIndex >= 0 && modelIndex + 1 < cli.Length
+                ? cli[modelIndex + 1] : null;
+            _ = DocShooter.RunAsync(cli[shootIndex + 1], samples, model);
             return;
         }
 

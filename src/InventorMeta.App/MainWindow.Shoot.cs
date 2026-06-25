@@ -22,10 +22,10 @@ public sealed partial class MainWindow
     public void ShootResize(int width, int height) =>
         _appWindow?.Resize(new SizeInt32(width, height));
 
-    /// <summary>Removes every open tab, returning to the empty drop-zone (snapshotter reset).</summary>
+    /// <summary>Closes the document tabs and shows the Home tab (snapshotter reset).</summary>
     public void ShootCloseAllTabs()
     {
-        DocTabs.TabItems.Clear();
-        UpdateEmptyState();
+        CloseAllTabs();                  // removes doc tabs but keeps the pinned Home tab
+        DocTabs.SelectedItem = HomeTab;  // show the Home / welcome view
     }
 }
