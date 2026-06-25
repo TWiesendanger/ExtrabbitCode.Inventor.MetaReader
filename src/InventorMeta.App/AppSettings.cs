@@ -65,6 +65,7 @@ internal static class AppSettings
 
     public static string? Get(string key) => Map().TryGetValue(key, out string? v) ? v : null;
     public static int GetInt(string key, int fallback) => int.TryParse(Get(key), out int v) ? v : fallback;
+    public static bool GetBool(string key, bool fallback) => bool.TryParse(Get(key), out bool v) ? v : fallback;
 
     public static void Set(string key, string value)
     {
