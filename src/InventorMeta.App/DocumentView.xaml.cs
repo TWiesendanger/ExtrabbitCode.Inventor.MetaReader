@@ -236,6 +236,7 @@ public sealed partial class DocumentView
     {
         FilePath = path;
         PathText.Text = path;
+        _shown3DTip = false;
         try
         {
             if (!CompoundFile.LooksLikeCompoundFile(path))
@@ -794,6 +795,8 @@ public sealed partial class DocumentView
     }
 
     /// <summary>Renders the sidebar (thumbnail + chosen properties) per the current SidebarConfig.</summary>
+    private bool _shown3DTip;
+
     private void RenderSidebar()
     {
         if (Document == null)
@@ -810,6 +813,23 @@ public sealed partial class DocumentView
         bool is3D = Document.Kind is InventorDocument.DocKind.Part or InventorDocument.DocKind.Assembly;
         View3DButton.Visibility = is3D && !showThumb ? Visibility.Visible : Visibility.Collapsed;
         ThreeDHint.Visibility = is3D && showThumb ? Visibility.Visible : Visibility.Collapsed;
+
+        // Discoverability tip (once per loaded doc): point at the 3D trigger when Inventor is installed.
+        if (is3D && !_shown3DTip && InventorInstalls.Detect().Count > 0)
+        {
+            _shown3DTip = true;
+            TipService.Show((Panel)Content, showThumb ? ThumbHost : View3DButton, new Tip
+            {
+                Id = "view.3d",
+                Title = "See it in 3D",
+                Message = showThumb
+                    ? "Click the preview to open this model in the interactive 3D viewer."
+                    : "Open this model in the interactive 3D viewer.",
+                Glyph = 0xF158,                       // 3D cube glyph
+                ActionText = "Open 3D view",
+                Action = () => _ = OpenViewer3DAsync()
+            });
+        }
 
         // every property present in the file, keyed for lookup (value may be empty)
         Dictionary<string, InventorDocument.PropEntry> byKey = new(StringComparer.Ordinal);
@@ -1294,6 +1314,25 @@ public sealed partial class DocumentView
         toolbar.Children.Add(thumbs);
         toolbar.Children.Add(full);
         viewport.Children.Add(toolbar);
+
+        // Discoverability tip: point at the thumbnails toggle (unless already on).
+        if (!_showThumbs)
+        {
+            TipService.Show(viewport, thumbs, new Tip
+            {
+                Id = "refs.thumbnails",
+                Title = "Did you know?",
+                Message = "You can show each referenced file's preview thumbnail right in the graph.",
+                ActionText = "Show thumbnails",
+                Action = () =>
+                {
+                    thumbs.IsChecked = true;
+                    _showThumbs = true;
+                    LayoutAndDraw(canvas, root);
+                    ZoomToFit(viewport, canvas, xf);
+                }
+            });
+        }
 
         return viewport;
     }

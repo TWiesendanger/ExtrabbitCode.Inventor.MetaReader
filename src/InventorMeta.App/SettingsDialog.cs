@@ -74,6 +74,13 @@ internal static class SettingsDialog
         openLog.Click += (_, _) => AppLog.OpenLatest();
         body.Children.Add(Row("Diagnostics log", "App and 3D-viewer activity (today's log file).", openLog));
 
+        body.Children.Add(SectionHeader("Tips"));
+        ToggleSwitch tips = new() { IsOn = TipSettings.Enabled };
+        body.Children.Add(Row("Show tips", "Occasional hints that point out features you might have missed.", tips));
+        Button resetTips = new() { Content = "Reset" };
+        resetTips.Click += (_, _) => TipSettings.Reset();
+        body.Children.Add(Row("Dismissed tips", "Bring back tips you turned off with “Don't show again”.", resetTips));
+
         body.Children.Add(SectionHeader("Privacy"));
         ToggleSwitch analytics = new() { IsOn = AnalyticsConsent.Enabled };
         body.Children.Add(Row("Share anonymous usage data",
@@ -98,6 +105,7 @@ internal static class SettingsDialog
 
         ViewerSettings.NetworkPath = string.IsNullOrWhiteSpace(network.Text) ? null : network.Text.Trim();
         ViewerSettings.InventorYear = version.SelectedIndex <= 0 ? 0 : installs[version.SelectedIndex - 1].Year;
+        TipSettings.Enabled = tips.IsOn;
         ViewerSettings.HideInventor = hideInventor.IsOn;
         ViewerSettings.SilentInventor = silentInventor.IsOn;
         AnalyticsConsent.Enabled = analytics.IsOn;
