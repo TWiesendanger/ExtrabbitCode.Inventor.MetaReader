@@ -90,6 +90,28 @@ public sealed partial class MainWindow
 
         await AnalyticsConsentDialog.MaybeAskAsync(Content.XamlRoot, _theme);
         Analytics.Capture("app_opened");
+        MaybeShowWelcomeTip();
+    }
+
+    private Microsoft.UI.Xaml.Controls.TeachingTip? _welcomeTip;
+
+    /// <summary>On the empty welcome screen, offer to open the bundled sample assembly.</summary>
+    private void MaybeShowWelcomeTip()
+    {
+        if (!_isPrimary || DocTabs.TabItems.Count > 0) { return; }   // a file was already opened (CLI)
+        if (SampleFiles.EnsureSampleAssembly() is null) { return; }  // nothing bundled
+
+        _welcomeTip = TipService.Show((Microsoft.UI.Xaml.Controls.Panel)Content, WelcomeAnchor, new Tip
+        {
+            Id = "welcome.sample",
+            Title = "Want to try it out?",
+            Message = "Open a bundled sample assembly to explore its parts, references and 3D view right away.",
+            ActionText = "Open sample",
+            Delay = TimeSpan.FromSeconds(1.0),
+            AutoDismiss = TimeSpan.Zero,                            // stays until the user acts
+            Placement = Microsoft.UI.Xaml.Controls.TeachingTipPlacementMode.Bottom,   // hang from the top-right corner
+            Action = () => { if (SampleFiles.EnsureSampleAssembly() is string p) { OpenFile(p); } }
+        });
     }
 
     private AppWindow? _appWindow;
@@ -258,6 +280,8 @@ public sealed partial class MainWindow
 
     private void OpenFile(string path)
     {
+        if (_welcomeTip != null) { _welcomeTip.IsOpen = false; _welcomeTip = null; }   // leaving the welcome screen
+
         // if already open, just select that tab
         foreach (TabViewItem t in DocTabs.TabItems.OfType<TabViewItem>())
         {
