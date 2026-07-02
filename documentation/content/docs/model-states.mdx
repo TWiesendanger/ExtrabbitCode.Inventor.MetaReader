@@ -19,7 +19,9 @@ document has model states, a **Model States** tab appears.
 - **Differences between states** - a table at the top showing only the properties whose value
   actually *changes* from one state to another. In the example above, `Project`, `Title` and the
   custom `ThisIsATest` differ across `[Primary]`, `Model State1` and `Model State2`.
-- A **per-state breakdown** below, listing each state's key iProperties.
+- A **per-state breakdown** below, listing each state's key iProperties - each with its **own cached
+  preview thumbnail** (click it to enlarge). Because a state can suppress features or change geometry,
+  the previews can differ from one state to the next.
 
 The first column is the document's top-level state - the one Inventor stores outside the model-state
 members and names `[Primary]`; the other columns are the additional model states read from the file.

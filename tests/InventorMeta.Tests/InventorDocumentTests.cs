@@ -46,6 +46,20 @@ public class InventorDocumentTests
     }
 
     [Fact]
+    public void ExtractsAThumbnailPerModelState()
+    {
+        // Each state caches its own preview (its geometry can differ): the surfaced [Primary] state
+        // carries the document thumbnail, and each member doc carries its own.
+        InventorDocument doc = Samples.Load(Samples.Part);
+        Assert.True(doc.HasModelStates);
+        Assert.All(doc.ModelStateDetails, s =>
+        {
+            Assert.NotNull(s.Thumbnail);
+            Assert.NotEmpty(s.Thumbnail!);
+        });
+    }
+
+    [Fact]
     public void DetectsTheMemberTableMarker()
     {
         // IsIPart comes from the member-table marker, which Inventor uses for BOTH published

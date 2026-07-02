@@ -58,6 +58,8 @@ public sealed class InventorDocument
         public bool   IsActive;           // true if this state's stored properties match the active document
         public List<PropEntry> Properties = [];
         public Dictionary<string, string> Summary = new();
+        public byte[]? Thumbnail;         // this state's own cached preview (PNG/BMP), or null
+        public string  ThumbnailExt = "";
     }
 
     public List<PropEntry> Properties { get; } = [];
@@ -257,7 +259,12 @@ public sealed class InventorDocument
             // ----- primary (active) document property sets -----
             if (PropertySet.IsPropertySet(data))
             {
-                ParsePropertySetInto(data, Properties, allowThumbnail: true);
+                byte[]? thumbData = ParsePropertySetInto(data, Properties, captureThumbnail: Thumbnail == null);
+                if (thumbData != null && Thumbnail == null)
+                {
+                    (byte[]? t, string ext) = DecodeThumbnail(thumbData);
+                    if (t != null) { Thumbnail = t; ThumbnailExt = ext; }
+                }
                 continue;
             }
 
@@ -281,7 +288,12 @@ public sealed class InventorDocument
             };
             foreach (byte[] data in kv.Value)
             {
-                ParsePropertySetInto(data, ms.Properties, allowThumbnail: false);
+                byte[]? thumbData = ParsePropertySetInto(data, ms.Properties, captureThumbnail: ms.Thumbnail == null);
+                if (thumbData != null && ms.Thumbnail == null)
+                {
+                    (byte[]? t, string ext) = DecodeThumbnail(thumbData);
+                    if (t != null) { ms.Thumbnail = t; ms.ThumbnailExt = ext; }
+                }
             }
 
             BuildSummaryInto(ms.Properties, ms.Summary);
@@ -296,7 +308,8 @@ public sealed class InventorDocument
             ModelStateDetails.Insert(0, new ModelState
             {
                 Name = _primaryName, StorageName = "(active document)", IsActive = true,
-                Properties = Properties, Summary = Summary
+                Properties = Properties, Summary = Summary,
+                Thumbnail = Thumbnail, ThumbnailExt = ThumbnailExt
             });
         }
     }
@@ -324,9 +337,11 @@ public sealed class InventorDocument
         Add("Last saved by", DesignTrackingControlFmt, 16);
     }
 
-    /// <summary>Parse one OLE property set, appending entries to <paramref name="into"/>.</summary>
-    private void ParsePropertySetInto(byte[] data, List<PropEntry> into, bool allowThumbnail)
+    /// <summary>Parse one OLE property set, appending entries to <paramref name="into"/>. Returns the
+    /// first clipboard-format (thumbnail) blob found, when <paramref name="captureThumbnail"/> is set.</summary>
+    private byte[]? ParsePropertySetInto(byte[] data, List<PropEntry> into, bool captureThumbnail)
     {
+        byte[]? thumbBlob = null;
         PropertySet.ParsedSet set = PropertySet.Parse(data);
         foreach (PropertySet.Section sec in set.Sections)
         {
@@ -358,15 +373,17 @@ public sealed class InventorDocument
                     Name = name, Type = pr.TypeName, Value = val
                 });
 
-                if (allowThumbnail && pr.Value is PropertySet.Blob { Kind: "CF" } cf2 && Thumbnail == null)
+                if (captureThumbnail && thumbBlob == null && pr.Value is PropertySet.Blob { Kind: "CF" } cf2)
                 {
-                    ExtractThumbnail(cf2.Data);
+                    thumbBlob = cf2.Data;
                 }
             }
         }
+        return thumbBlob;
     }
 
-    private void ExtractThumbnail(byte[] img)
+    /// <summary>Decode a clipboard-format thumbnail blob to PNG/BMP bytes (null if it isn't an image).</summary>
+    private (byte[]? Data, string Ext) DecodeThumbnail(byte[] img)
     {
         int skip = -1;
         for (int off = 0; off < Math.Min(64, img.Length - 4); off++)
@@ -376,13 +393,13 @@ public sealed class InventorDocument
         }
         if (skip < 0)
         {
-            return;
+            return (null, "");
         }
 
         byte[] body = img[skip..];
-        if (Eq(body, 0, 0x89,0x50)) { Thumbnail = body; ThumbnailExt = "png"; }
-        else if (Eq(body, 0, 0x42,0x4D)) { Thumbnail = body; ThumbnailExt = "bmp"; }
-        else { Thumbnail = WrapDib(body); ThumbnailExt = "bmp"; }
+        if (Eq(body, 0, 0x89,0x50)) { return (body, "png"); }
+        if (Eq(body, 0, 0x42,0x4D)) { return (body, "bmp"); }
+        return (WrapDib(body), "bmp");
     }
 
     // UFRxDoc is proprietary; we robustly scrape UTF-16 strings for the useful bits.
@@ -553,6 +570,7 @@ public sealed class InventorDocument
             versionInfo = VersionInfo,
             modelStates = ModelStateDetails.Select(s => new {
                 name = s.Name, storage = s.StorageName, isActive = s.IsActive,
+                hasThumbnail = s.Thumbnail != null,
                 summary = s.Summary,
                 properties = s.Properties.GroupBy(p => p.Set).ToDictionary(
                     g => g.Key, g => g.Select(p => new { pid = p.Pid, name = p.Name, type = p.Type, value = p.Display }).ToArray())
