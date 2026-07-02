@@ -280,8 +280,17 @@ public sealed partial class DocumentView
         report("bubble loaded");
         const node = doc.getRoot().getDefaultGeometry();
         report("geometry node: " + (node ? "found" : "MISSING"));
-        viewer.loadDocumentNode(doc, node).then(
-          () => report("model loaded"),
+        // createWireframe makes LMV derive edges client-side (mesh boundaries + hard angles) - our
+        // SVF has no edge data, so without it model.hasEdges stays false and LMV hides the "Display
+        // edges" setting, meaning it could never be turned on. With it, the setting appears in the
+        // viewer's Appearance settings and the chosen state persists in localStorage.
+        viewer.loadDocumentNode(doc, node, { createWireframe: true }).then(
+          () => {
+            // edges on by default for an Inventor-like shaded-with-edges look; the setting still
+            // toggles it, but each opened model starts with edges shown
+            try { viewer.setDisplayEdges(true); } catch (e) { report("setDisplayEdges: " + e); }
+            report("model loaded");
+          },
           (err) => report("loadDocumentNode failed: " + JSON.stringify(err)));
       },
       (code, msg) => report("Document.load failed: code=" + code + " msg=" + msg));
