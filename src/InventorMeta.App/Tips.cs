@@ -50,13 +50,32 @@ internal static class TipService
 
         DispatcherTimer? auto = null;
         DispatcherTimer delay = new() { Interval = tip.Delay };
+
+        // An open TeachingTip keeps repositioning its callout against its Target. If that target (or
+        // the host) leaves the visual tree while the tip is still pending or open, the next reposition
+        // dereferences a torn-down element and the process fail-fasts (Control Flow Guard, 0xC0000409 -
+        // seen in the Store build). So the moment the target or host unloads, fully tear the tip down:
+        // stop the timers, clear Target *before* it can reposition against freed memory, close, remove.
+        void Teardown(object? _s, RoutedEventArgs? _e)
+        {
+            delay.Stop();
+            auto?.Stop();
+            target.Unloaded -= Teardown;
+            host.Unloaded -= Teardown;
+            teaching.Target = null;
+            teaching.IsOpen = false;
+            host.Children.Remove(teaching);
+        }
+        target.Unloaded += Teardown;
+        host.Unloaded += Teardown;
+
         delay.Tick += (_, _) =>
         {
             delay.Stop();
             // only show if the target is still in the tree and visible (tab torn down / screen hidden)
             if (target.XamlRoot == null || target.ActualWidth <= 0 || !host.Children.Contains(teaching))
             {
-                host.Children.Remove(teaching);
+                Teardown(null, null);
                 return;
             }
             teaching.IsOpen = true;
@@ -67,7 +86,7 @@ internal static class TipService
                 auto.Start();
             }
         };
-        teaching.Closed += (_, _) => { auto?.Stop(); host.Children.Remove(teaching); };
+        teaching.Closed += (_, _) => Teardown(null, null);
         delay.Start();
         return teaching;
     }
