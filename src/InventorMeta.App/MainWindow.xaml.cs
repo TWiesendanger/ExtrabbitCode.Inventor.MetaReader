@@ -264,6 +264,13 @@ public sealed partial class MainWindow
 
     private void OnAddTab(TabView sender, object args) => OnOpenClick(sender, null!);
 
+    /// <summary>Home "Try a sample": a gallery of bundled files, each showing off a capability.</summary>
+    private async void OnTrySamplesClick(object sender, RoutedEventArgs e)
+    {
+        Analytics.Capture("samples_gallery_opened");
+        await SamplesGallery.ShowAsync(Content.XamlRoot, OpenFile);
+    }
+
     /// <summary>Opens a document in a tab (used by the reference graph's click-to-open).</summary>
     public void OpenDocument(string path) => OpenFile(path);
 

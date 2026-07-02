@@ -170,13 +170,22 @@
                                        TextWrapping="Wrap" TextAlignment="Center" MaxWidth="440"/>
                         </StackPanel>
 
-                        <Button x:Name="BrowseButton" Click="OnOpenClick" HorizontalAlignment="Center"
-                                Style="{ThemeResource AccentButtonStyle}" Padding="20,8">
-                            <StackPanel Orientation="Horizontal" Spacing="8">
-                                <FontIcon Glyph="&#xE8E5;" FontSize="14"/>
-                                <TextBlock Text="Browse files…"/>
-                            </StackPanel>
-                        </Button>
+                        <StackPanel Orientation="Horizontal" Spacing="10" HorizontalAlignment="Center">
+                            <Button x:Name="BrowseButton" Click="OnOpenClick"
+                                    Style="{ThemeResource AccentButtonStyle}" Padding="20,8">
+                                <StackPanel Orientation="Horizontal" Spacing="8">
+                                    <FontIcon Glyph="&#xE8E5;" FontSize="14"/>
+                                    <TextBlock Text="Browse files…"/>
+                                </StackPanel>
+                            </Button>
+                            <Button x:Name="SamplesButton" Click="OnTrySamplesClick" Padding="20,8"
+                                    ToolTipService.ToolTip="Open a bundled sample that shows off what MetaReader can read">
+                                <StackPanel Orientation="Horizontal" Spacing="8">
+                                    <FontIcon Glyph="&#xE8F1;" FontSize="14"/>
+                                    <TextBlock Text="Try a sample"/>
+                                </StackPanel>
+                            </Button>
+                        </StackPanel>
                     </StackPanel>
                 </Border>
 
