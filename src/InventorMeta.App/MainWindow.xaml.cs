@@ -546,7 +546,10 @@ public sealed partial class MainWindow
                 Text = "Open in new window",
                 Icon = new FontIcon { Glyph = ((char)0xE78B).ToString() }
             };
-            newWin.Click += (_, _) => host.OpenInNewWindow(tab);
+            // Defer the reparent to the next tick: doing it synchronously in the flyout's Click handler
+            // moves the tab between windows' visual trees while the (tab-anchored) context menu is still
+            // dismissing - which the VS XAML diagnostics tap access-violates on. Let the flyout close first.
+            newWin.Click += (_, _) => host.DispatcherQueue.TryEnqueue(() => host.OpenInNewWindow(tab));
             menu.Items.Add(newWin);
 
             if (!host._isPrimary)
@@ -556,7 +559,7 @@ public sealed partial class MainWindow
                     Text = "Move to main window",
                     Icon = new FontIcon { Glyph = ((char)0xE8A7).ToString() }
                 };
-                toMain.Click += (_, _) => host.MoveToMain(tab);
+                toMain.Click += (_, _) => host.DispatcherQueue.TryEnqueue(() => host.MoveToMain(tab));
                 menu.Items.Add(toMain);
             }
 
