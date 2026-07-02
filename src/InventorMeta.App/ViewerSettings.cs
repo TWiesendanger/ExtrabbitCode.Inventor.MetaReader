@@ -5,6 +5,9 @@ namespace ExtrabbitCode.Inventor.MetaReader.App;
 /// <summary>How the reference graph arranges its nodes.</summary>
 internal enum GraphLayout { LeftRight, TopDown, Network }
 
+/// <summary>How the 3D viewer paints bodies: original materials, or a distinct colour per body.</summary>
+internal enum ColoringMode { Default, Multicolor }
+
 /// <summary>Persisted settings for the 3D viewer: the shared SVF network store and the Inventor
 /// release used to generate viewables.</summary>
 internal static class ViewerSettings
@@ -14,6 +17,7 @@ internal static class ViewerSettings
     private const string GraphLayoutKey = "viewer.graphLayout";
     private const string HideKey = "viewer.hideInventor";
     private const string SilentKey = "viewer.silentInventor";
+    private const string ColoringKey = "viewer.coloringMode";
 
     /// <summary>Optional shared cache path; null/empty means local-only.</summary>
     public static string? NetworkPath
@@ -53,5 +57,13 @@ internal static class ViewerSettings
     {
         get => AppSettings.GetBool(SilentKey, true);
         set => AppSettings.Set(SilentKey, value.ToString());
+    }
+
+    /// <summary>The mode the 3D viewer opens in: original materials, or a colour per body. The viewer
+    /// toolbar can still toggle it live; this is just the starting state.</summary>
+    public static ColoringMode ColoringMode
+    {
+        get => Enum.TryParse(AppSettings.Get(ColoringKey), out ColoringMode v) ? v : ColoringMode.Default;
+        set => AppSettings.Set(ColoringKey, value.ToString());
     }
 }
