@@ -39,9 +39,11 @@ public sealed partial class DocumentView
         }
 
         _viewerOpen = true;
+        string coloring = ViewerSettings.ColoringMode == ColoringMode.Multicolor ? "multicolor" : "default";
         Analytics.Capture("viewer_3d_opened", new System.Collections.Generic.Dictionary<string, object?>
         {
-            ["doc_kind"] = Document.Kind.ToString()
+            ["doc_kind"] = Document.Kind.ToString(),
+            ["coloring"] = coloring
         });
         ViewerLog.Clear();   // fresh log per open
 
@@ -172,7 +174,7 @@ public sealed partial class DocumentView
                 try { ViewerLog.Write("js: " + a.TryGetWebMessageAsString()); } catch { /* ignore */ }
             };
             web.CoreWebView2.NavigationCompleted += (_, _) => statusHost.Visibility = Visibility.Collapsed;
-            web.CoreWebView2.Navigate($"https://{ViewerHost}/viewer.html");
+            web.CoreWebView2.Navigate($"https://{ViewerHost}/viewer.html?coloring={coloring}");
         }
         catch (Exception ex)
         {
@@ -243,7 +245,11 @@ public sealed partial class DocumentView
 <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
 <link rel="stylesheet" href="https://developer.api.autodesk.com/modelderivative/v2/viewers/7.*/style.min.css" type="text/css"/>
 <script src="https://developer.api.autodesk.com/modelderivative/v2/viewers/7.*/viewer3D.min.js"></script>
-<style>html,body,#viewer{margin:0;height:100%;width:100%;overflow:hidden;background:#2b2b2b;}</style>
+<style>
+  html,body,#viewer{margin:0;height:100%;width:100%;overflow:hidden;background:#2b2b2b;}
+  /* palette glyph for the coloring toolbar button (LMV would otherwise show an empty icon) */
+  #extrabbit-coloring-btn .adsk-button-icon:before{content:"\1F3A8";font-size:20px;line-height:1;}
+</style>
 </head>
 <body>
 <div id="viewer"></div>
@@ -252,10 +258,95 @@ public sealed partial class DocumentView
   window.addEventListener("error", e => report("error: " + e.message));
   window.addEventListener("unhandledrejection", e => report("reject: " + (e.reason && e.reason.message || e.reason)));
 
+  // --- Coloring: give every body its own colour so parts of an assembly are easy to tell apart. ---
+  // Golden-angle hue spacing keeps neighbouring bodies separated; soft, CAD-ish saturation (low S,
+  // high V) keeps the palette muted rather than neon.
+  function hsvToRgb(h, s, v){
+    let r = v, g = v, b = v;
+    if (s > 0){
+      const hh = h * 6, i = Math.floor(hh) % 6, f = hh - Math.floor(hh);
+      const p = v * (1 - s), q = v * (1 - s * f), t = v * (1 - s * (1 - f));
+      if (i === 0){ r = v; g = t; b = p; }
+      else if (i === 1){ r = q; g = v; b = p; }
+      else if (i === 2){ r = p; g = v; b = t; }
+      else if (i === 3){ r = p; g = q; b = v; }
+      else if (i === 4){ r = t; g = p; b = v; }
+      else { r = v; g = p; b = q; }
+    }
+    return [r, g, b];
+  }
+  function bodyColor(i){
+    const rgb = hsvToRgb((i * 0.6180339887) % 1, 0.56, 0.80);   // golden-ratio hue, soft CAD saturation
+    // w < 1 blends the tint with the surface's own shading so it stays muted, not neon - theming
+    // paints over an already-lit surface, so a full-intensity tint reads much brighter than a baked colour.
+    return new THREE.Vector4(rgb[0], rgb[1], rgb[2], 0.86);
+  }
+
+  class ColoringExtension extends Autodesk.Viewing.Extension {
+    load(){
+      this._on = false;
+      this._maybeInitial = this._maybeInitial.bind(this);
+      this.viewer.addEventListener(Autodesk.Viewing.GEOMETRY_LOADED_EVENT, this._maybeInitial);
+      if (this.viewer.toolbar){ this.onToolbarCreated(this.viewer.toolbar); }
+      else { this._onTb = () => this.onToolbarCreated(this.viewer.toolbar); this.viewer.addEventListener(Autodesk.Viewing.TOOLBAR_CREATED_EVENT, this._onTb); }
+      return true;
+    }
+    unload(){
+      this.viewer.removeEventListener(Autodesk.Viewing.GEOMETRY_LOADED_EVENT, this._maybeInitial);
+      if (this._onTb){ this.viewer.removeEventListener(Autodesk.Viewing.TOOLBAR_CREATED_EVENT, this._onTb); }
+      if (this._group && this.viewer.toolbar){ this.viewer.toolbar.removeControl(this._group); }
+      this._group = this._button = null;
+      return true;
+    }
+    onToolbarCreated(toolbar){
+      if (this._group) { return; }                              // guard against a double call
+      this._button = new Autodesk.Viewing.UI.Button("extrabbit-coloring-btn");
+      this._button.setToolTip("Body coloring — give every body its own colour");
+      this._button.onClick = () => this.setEnabled(!this._on);
+      this._group = new Autodesk.Viewing.UI.ControlGroup("extrabbit-coloring-group");
+      this._group.addControl(this._button);
+      toolbar.addControl(this._group);
+      this._sync();
+      this._maybeInitial();
+    }
+    _maybeInitial(){                                            // apply the app's chosen starting mode, once the model is ready
+      if (this.options && this.options.initial && !this._on && this._hasTree()){ this.setEnabled(true); }
+    }
+    _hasTree(){ const m = this.viewer.model; return !!(m && m.getInstanceTree && m.getInstanceTree()); }
+    setEnabled(on){
+      this._on = on;
+      if (on){ this._applyColors(); } else { this.viewer.clearThemingColors(this.viewer.model); }
+      this._sync();
+      report("coloring " + (on ? "on" : "off"));
+    }
+    _sync(){
+      if (!this._button) { return; }
+      const S = Autodesk.Viewing.UI.Button.State;
+      this._button.setState(this._on ? S.ACTIVE : S.INACTIVE);
+    }
+    _applyColors(){
+      const model = this.viewer.model;
+      const tree = model && model.getInstanceTree && model.getInstanceTree();
+      if (!tree){ return; }
+      const leaves = [];
+      tree.enumNodeChildren(tree.getRootId(), (dbId) => {
+        if (tree.getChildCount(dbId) === 0){ leaves.push(dbId); }   // a leaf node is one body
+      }, true);
+      leaves.forEach((dbId, i) => this.viewer.setThemingColor(dbId, bodyColor(i), model, true));
+      report("colored " + leaves.length + " bodies");
+    }
+  }
+  Autodesk.Viewing.theExtensionManager.registerExtension("Extrabbit.Coloring", ColoringExtension);
+
+  const wantMulticolor = new URLSearchParams(location.search).get("coloring") === "multicolor";
+
   const viewer = new Autodesk.Viewing.GuiViewer3D(document.getElementById("viewer"));
   Autodesk.Viewing.Initializer({ env: "Local", useADP: false }, () => {
     report("initialized");
     viewer.start();
+    viewer.loadExtension("Extrabbit.Coloring", { initial: wantMulticolor }).then(
+      () => report("coloring extension loaded"),
+      (err) => report("coloring extension failed: " + err));
     viewer.addEventListener(Autodesk.Viewing.GEOMETRY_LOADED_EVENT, () => {
       const m = viewer.model;
       const box = m && m.getBoundingBox && m.getBoundingBox();
