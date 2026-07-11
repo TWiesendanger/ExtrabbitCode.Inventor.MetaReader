@@ -519,20 +519,22 @@ public sealed partial class DocumentView
   class ColoringExtension extends Autodesk.Viewing.Extension {
     load(){
       this._on = false;
-      this._maybeInitial = this._maybeInitial.bind(this);
-      this.viewer.addEventListener(Autodesk.Viewing.GEOMETRY_LOADED_EVENT, this._maybeInitial);
-      // The object tree often arrives AFTER the geometry (always for the built-in converter's raw
-      // SVF loads) - re-apply then, so an early enable (initial mode or a button click that hit a
-      // tree-less moment) still ends up colored.
-      this._onTree = () => { if (this._on){ this._applyColors(); } else { this._maybeInitial(); } };
-      this.viewer.addEventListener(Autodesk.Viewing.OBJECT_TREE_CREATED_EVENT, this._onTree);
+      // Coloring can run before the model is complete (the toolbar exists while fragments are
+      // still streaming in, and the object tree often arrives after the geometry - always for the
+      // built-in converter's raw SVF loads). So on BOTH "now it's complete" signals, re-apply if
+      // already on (an early pass only caught the bodies loaded so far) or apply the initial mode.
+      this._refresh = () => { if (this._on){ this._applyColors(); } else { this._maybeInitial(); } };
+      this.viewer.addEventListener(Autodesk.Viewing.GEOMETRY_LOADED_EVENT, this._refresh);
+      this.viewer.addEventListener(Autodesk.Viewing.OBJECT_TREE_CREATED_EVENT, this._refresh);
       if (this.viewer.toolbar){ this.onToolbarCreated(this.viewer.toolbar); }
       else { this._onTb = () => this.onToolbarCreated(this.viewer.toolbar); this.viewer.addEventListener(Autodesk.Viewing.TOOLBAR_CREATED_EVENT, this._onTb); }
       return true;
     }
     unload(){
-      this.viewer.removeEventListener(Autodesk.Viewing.GEOMETRY_LOADED_EVENT, this._maybeInitial);
-      if (this._onTree){ this.viewer.removeEventListener(Autodesk.Viewing.OBJECT_TREE_CREATED_EVENT, this._onTree); }
+      if (this._refresh){
+        this.viewer.removeEventListener(Autodesk.Viewing.GEOMETRY_LOADED_EVENT, this._refresh);
+        this.viewer.removeEventListener(Autodesk.Viewing.OBJECT_TREE_CREATED_EVENT, this._refresh);
+      }
       if (this._onTb){ this.viewer.removeEventListener(Autodesk.Viewing.TOOLBAR_CREATED_EVENT, this._onTb); }
       if (this._group && this.viewer.toolbar){ this.viewer.toolbar.removeControl(this._group); }
       this._group = this._button = null;
