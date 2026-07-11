@@ -141,8 +141,14 @@ public sealed partial class DocumentView
                     return;
                 }
 
+                string engineInfo;
                 if (engine == SvfEngine.Local)
                 {
+                    string converterVersion =
+                        typeof(ExtrabbitCode.Inventor.SvfConverter.InventorSvfConverter)
+                            .Assembly.GetName().Version?.ToString(3) ?? "unknown";
+                    engineInfo = $"Built-in converter (ExtrabbitCode.Inventor.SvfConverter {converterVersion}, best effort)";
+
                     statusText.Text = "Converting with the built-in engine (best effort)…";
                     Serilog.Log.Information("Converting SVF locally (best effort) for {File}", Path.GetFileName(FilePath));
                     string file = FilePath;
@@ -166,6 +172,7 @@ public sealed partial class DocumentView
                         statusText.Text = "No Inventor version selected.";
                         return;
                     }
+                    engineInfo = $"{inv.DisplayName} (SVF translator add-in, exact)";
 
                     statusText.Text = $"Generating the 3D view with {inv.DisplayName}…\nThis opens the model in Inventor and can take a while.";
                     Serilog.Log.Information("Generating SVF with {Version} for {File}", inv.DisplayName, Path.GetFileName(FilePath));
@@ -179,6 +186,19 @@ public sealed partial class DocumentView
                     }
                     Serilog.Log.Information("SVF generated for {File}", Path.GetFileName(FilePath));
                 }
+
+                // Provenance marker: which model this entry came from and which engine made it -
+                // makes cache entries (SHA-named folders) identifiable when browsing the store.
+                try
+                {
+                    File.WriteAllText(Path.Combine(store.EntryDir(key), "source.txt"),
+                        $"Source:    {Path.GetFileName(FilePath)}{Environment.NewLine}" +
+                        $"Path:      {FilePath}{Environment.NewLine}" +
+                        $"Engine:    {engineInfo}{Environment.NewLine}" +
+                        $"Generated: {DateTime.Now:yyyy-MM-dd HH:mm:ss}{Environment.NewLine}" +
+                        $"App:       Inventor MetaReader {AppInfo.Version}{Environment.NewLine}");
+                }
+                catch { /* best effort */ }
             }
 
             // An Inventor-generated entry has a bubble.json manifest at its root; a built-in-converter
