@@ -26,6 +26,10 @@ public sealed class InventorDocument
     public bool IsStep => Kind == DocKind.Step;
     public string StructureText { get; private set; } = "";
 
+    /// <summary>True when <paramref name="path"/> is a STEP file the constructor reads directly
+    /// (plain ISO-10303-21 text, no CFB container).</summary>
+    public static bool IsStepFile(string path) => StepFile.LooksLikeStepFile(path);
+
     public sealed class PropEntry
     {
         public string Set = "";   public Guid SetId;

@@ -10,7 +10,7 @@ Encoding.RegisterProvider(CodePagesEncodingProvider.Instance);
 if (args.Length < 2)
 {
     Console.WriteLine("""
-        Inventor metadata reader - reads .ipt/.iam/.idw/.ipn without Autodesk Inventor.
+        Inventor metadata reader - reads .ipt/.iam/.idw/.ipn and .stp/.step without Autodesk Inventor.
 
           invmeta info    <file>              friendly report (type, iProperties, refs, version)
           invmeta states  <file>              per-model-state iProperties (parts/assemblies)
@@ -28,9 +28,16 @@ if (args.Length < 2)
 string cmd = args[0].ToLowerInvariant();
 string file = args[1];
 
-if (!CompoundFile.LooksLikeCompoundFile(file))
+bool isStep = InventorDocument.IsStepFile(file);
+if (!isStep && !CompoundFile.LooksLikeCompoundFile(file))
 {
-    Console.Error.WriteLine($"{file} is not an OLE compound file (Inventor .ipt/.iam/.idw).");
+    Console.Error.WriteLine($"{file} is not an OLE compound file (Inventor .ipt/.iam/.idw) or a STEP file (.stp/.step).");
+    return 2;
+}
+
+if (isStep && cmd is "tree" or "cat" or "extract" or "thumb")
+{
+    Console.Error.WriteLine($"'{cmd}' reads the OLE compound file structure; STEP files (.stp/.step) don't have one.");
     return 2;
 }
 
@@ -40,7 +47,7 @@ switch (cmd)
     case "states":  States(new InventorDocument(file)); break;
     case "json":    Console.WriteLine(new InventorDocument(file).ToJson()); break;
     case "thumb":   Thumb(new InventorDocument(file), args.Length > 2 ? args[2] : Path.GetFileNameWithoutExtension(file) + "_thumb"); break;
-    case "props":   Props(file); break;
+    case "props":   if (isStep) { StepProps(new InventorDocument(file)); } else { Props(file); } break;
     case "graph":   Graph(new InventorDocument(file)); break;
     case "tree":    Tree(file); break;
     case "extract": Extract(file, args[2]); break;
@@ -228,6 +235,26 @@ static void Thumb(InventorDocument doc, string outBase)
     Console.WriteLine($"Wrote {p} ({doc.Thumbnail.Length:N0} bytes)");
 }
 
+// STEP files have no OLE property-set streams; list the parsed header/geometry/source
+// entries the library exposes, in the same layout as Props.
+static void StepProps(InventorDocument doc)
+{
+    foreach (IGrouping<string, InventorDocument.PropEntry> g in doc.Properties.GroupBy(p => p.Set))
+    {
+        Console.WriteLine($"\n[{g.Key}]  {g.First().SetId}");
+        foreach (InventorDocument.PropEntry p in g.OrderBy(x => x.Pid))
+        {
+            string v = p.Display;
+            if (v.Length > 160)
+            {
+                v = v[..160] + "…";
+            }
+
+            Console.WriteLine($"   {p.Pid,5}  {p.Name,-26} {p.Type,-10} {v}");
+        }
+    }
+}
+
 static void Props(string file)
 {
     using CompoundFile cf = new(file);
@@ -326,6 +353,7 @@ static void Cat(string file, string streamPath)
 // Friendly label for the document's headline category - kept in step with the viewer's badge.
 static string CategoryName(InventorDocument.DocCategory cat) => cat switch
 {
+    InventorDocument.DocCategory.NeutralCad        => "Neutral CAD",
     InventorDocument.DocCategory.ContentCenter     => "Content Center",
     InventorDocument.DocCategory.FrameGenerator    => "Frame Generator",
     InventorDocument.DocCategory.DesignAccelerator => "Design Accelerator",
