@@ -38,6 +38,30 @@ internal static class SampleFiles
     public static string? EnsureSampleFolder() => EnsureFolder(InventorFolder);
 
     /// <summary>Resolves a bundled sample to an openable path, extracting its folder as needed.
+        new("Line Guide Drive Shaft.ipt", "Real-world part", "A steel part with material, mass and volume, and version history reaching back to Inventor 11 (2006).", InventorDocument.DocKind.Part),
+    ];
+
+    /// <summary>Extracts the bundled sample folder to a writable location and returns it. Files a
+    /// previous app version already extracted are kept; ones added since (new samples in an update)
+    /// are copied in. Null if the samples aren't bundled.</summary>
+    public static string? EnsureSampleFolder()
+    {
+        try
+        {
+            string src = Path.Combine(AppContext.BaseDirectory, "Assets", "SampleFiles", Folder);
+            if (!File.Exists(Path.Combine(src, Assembly))) { return null; }
+
+            string dst = Path.Combine(
+                Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+                "ExtrabbitCode.Inventor.MetaReader", "samples", Folder);
+
+            CopyMissing(src, dst);
+            return Directory.Exists(dst) ? dst : (Directory.Exists(src) ? src : null);
+        }
+        catch { return null; }
+    }
+
+    /// <summary>Resolves a bundled sample to an openable path, extracting the folder on first use.
     /// Null if it isn't available.</summary>
     public static string? Resolve(string fileName, string folder = InventorFolder)
     {
