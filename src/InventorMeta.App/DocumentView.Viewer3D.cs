@@ -652,16 +652,21 @@ public sealed partial class DocumentView
     });
   }
 
-  // No fullscreen button: the viewer already fills a window overlay, and browser fullscreen inside
-  // the WebView fights with the overlay's Esc-to-close. It's an extension in LMV 7, so keep it from
-  // loading; the unload below covers viewer builds that ignore the config flag.
-  const viewer = new Autodesk.Viewing.GuiViewer3D(document.getElementById("viewer"), { disabledExtensions: { fullscreen: true } });
+  const viewer = new Autodesk.Viewing.GuiViewer3D(document.getElementById("viewer"));
   Autodesk.Viewing.Initializer({ env: "Local", useADP: false }, () => {
     report("initialized");
     viewer.start();
-    viewer.addEventListener(Autodesk.Viewing.TOOLBAR_CREATED_EVENT, () => {
-      try { viewer.unloadExtension("Autodesk.FullScreen"); } catch (e) { /* wasn't loaded */ }
-    });
+    // No fullscreen button: the viewer already fills a window overlay, and browser fullscreen inside
+    // the WebView fights with the overlay's Esc-to-close. The button is core GuiViewer3D UI (not the
+    // FullScreen extension's), so remove the control - deferred with setTimeout, because touching the
+    // toolbar DURING the TOOLBAR_CREATED dispatch breaks the viewer's own follow-up setup (NavTools,
+    // measure/section/explode) and strips the whole toolbar.
+    viewer.addEventListener(Autodesk.Viewing.TOOLBAR_CREATED_EVENT, () => setTimeout(() => {
+      try {
+        const st = viewer.getToolbar() && viewer.getToolbar().getControl("settingsTools");
+        if (st && st.removeControl("toolbar-fullscreenTool")) { report("fullscreen button removed"); }
+      } catch (e) { report("fullscreen removal: " + e); }
+    }, 0));
     viewer.loadExtension("Extrabbit.Coloring", { initial: wantMulticolor, bakedPalette: srcSvf }).then(
       () => report("coloring extension loaded"),
       (err) => report("coloring extension failed: " + err));
@@ -688,6 +693,16 @@ public sealed partial class DocumentView
       // call has the last word. The user can still toggle edges off for the session.
       try { viewer.setDisplayEdges(true); report("edges on"); }
       catch (e) { report("setDisplayEdges: " + e); }
+      // Direct-SVF loads never get GuiViewer3D's default tools: its internal model-added UI
+      // bootstrap throws on manifest-less models (killing the loadModel success chain too), so
+      // NavTools/measure/explode/... stay unloaded. Bring the standard set up ourselves - HERE,
+      // because GEOMETRY_LOADED demonstrably still fires; loadExtension is idempotent.
+      if (srcSvf) {
+        ["Autodesk.DefaultTools.NavTools", "Autodesk.ViewCubeUi", "Autodesk.ModelStructure",
+         "Autodesk.PropertiesManager", "Autodesk.Measure", "Autodesk.Section", "Autodesk.Explode"]
+          .forEach(id => viewer.loadExtension(id, viewer.config)
+            .then(() => report(id + " loaded"), (e) => report(id + " failed: " + e)));
+      }
     });
     if (srcSvf) {
       // A built-in-converter entry: no bubble manifest, load the raw SVF package directly.

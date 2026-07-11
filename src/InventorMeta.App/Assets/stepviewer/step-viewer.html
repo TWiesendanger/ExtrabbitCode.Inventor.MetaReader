@@ -124,12 +124,16 @@
     post("status:Starting Autodesk viewer...");
     await initializeViewer();
 
-    // No fullscreen button - the viewer already fills a window overlay (see viewer.html).
-    const viewer = new Autodesk.Viewing.GuiViewer3D(document.getElementById("viewer"), { disabledExtensions: { fullscreen: true } });
+    const viewer = new Autodesk.Viewing.GuiViewer3D(document.getElementById("viewer"));
     viewer.start();
-    viewer.addEventListener(Autodesk.Viewing.TOOLBAR_CREATED_EVENT, () => {
-      try { viewer.unloadExtension("Autodesk.FullScreen"); } catch (e) { /* wasn't loaded */ }
-    });
+    // No fullscreen button - the viewer already fills a window overlay. Core toolbar UI, removed
+    // AFTER the toolbar-created dispatch (mutating it during the dispatch strips the whole toolbar).
+    viewer.addEventListener(Autodesk.Viewing.TOOLBAR_CREATED_EVENT, () => setTimeout(() => {
+      try {
+        const st = viewer.getToolbar() && viewer.getToolbar().getControl("settingsTools");
+        if (st) { st.removeControl("toolbar-fullscreenTool"); }
+      } catch (e) { /* keep the toolbar */ }
+    }, 0));
     try { viewer.setTheme("dark-theme"); } catch (e) {}
 
     await loadGltfExtension(viewer);
