@@ -26,10 +26,12 @@ internal static class SampleFiles
         new("iPartSample.ipt", "iPart factory", "A table-driven family of part variants.", InventorDocument.DocKind.Part),
         new("iAssemblyFactory.iam", "iAssembly factory", "A table-driven family of assemblies.", InventorDocument.DocKind.Assembly),
         new("TubeAndPipe.ipt", "Tube & Pipe", "A routed part, categorised from its metadata.", InventorDocument.DocKind.Part),
+        new("Line Guide Drive Shaft.ipt", "Real-world part", "A steel part with material, mass and volume, and version history reaching back to Inventor 11 (2006).", InventorDocument.DocKind.Part),
     ];
 
-    /// <summary>Extracts the bundled sample folder to a writable location on first use and returns it.
-    /// Null if the samples aren't bundled.</summary>
+    /// <summary>Extracts the bundled sample folder to a writable location and returns it. Files a
+    /// previous app version already extracted are kept; ones added since (new samples in an update)
+    /// are copied in. Null if the samples aren't bundled.</summary>
     public static string? EnsureSampleFolder()
     {
         try
@@ -41,7 +43,7 @@ internal static class SampleFiles
                 Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
                 "ExtrabbitCode.Inventor.MetaReader", "samples", Folder);
 
-            if (!File.Exists(Path.Combine(dst, Assembly))) { CopyDir(src, dst); }
+            CopyMissing(src, dst);
             return Directory.Exists(dst) ? dst : (Directory.Exists(src) ? src : null);
         }
         catch { return null; }
@@ -66,16 +68,19 @@ internal static class SampleFiles
                .Where(t => t.Item2 != null)
                .Select(t => (t.s, t.Item2!));
 
-    private static void CopyDir(string src, string dst)
+    /// <summary>Copies files that don't exist at the destination yet; existing ones are left alone
+    /// (Inventor may have touched them when generating a viewable). Cheap when nothing is missing.</summary>
+    private static void CopyMissing(string src, string dst)
     {
         Directory.CreateDirectory(dst);
         foreach (string f in Directory.EnumerateFiles(src))
         {
-            File.Copy(f, Path.Combine(dst, Path.GetFileName(f)), overwrite: true);
+            string target = Path.Combine(dst, Path.GetFileName(f));
+            if (!File.Exists(target)) { File.Copy(f, target); }
         }
         foreach (string d in Directory.EnumerateDirectories(src))
         {
-            CopyDir(d, Path.Combine(dst, Path.GetFileName(d)));
+            CopyMissing(d, Path.Combine(dst, Path.GetFileName(d)));
         }
     }
 }
