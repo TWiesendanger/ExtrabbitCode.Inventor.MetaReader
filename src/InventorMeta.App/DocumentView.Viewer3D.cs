@@ -594,32 +594,30 @@ public sealed partial class DocumentView
       const S = Autodesk.Viewing.UI.Button.State;
       this._button.setState(this._on ? S.ACTIVE : S.INACTIVE);
     }
-    // Every body's dbId: instance-tree leaves when the tree exists, else straight from the
-    // fragment list (raw-SVF loads from the built-in converter may never grow a tree). The
-    // fragment lookup tries the API first, then the raw fragId2dbId array older/lean model
-    // representations use - getDbIds isn't available on all of them.
+    // Every body's dbId: the UNION of instance-tree leaves and the dbIds the fragments actually
+    // reference. Both sources are needed - a raw-SVF load may never grow a tree, and the built-in
+    // converter's single-body parts link their fragment to the ROOT node (dbId 1) while the tree's
+    // leaf is dbId 2, so theming only the leaves would leave the mesh untouched. The fragment
+    // lookup tries the API first, then the raw fragId2dbId array leaner model representations use.
     _collectIds(model){
+      const seen = new Set();
       const tree = model.getInstanceTree && model.getInstanceTree();
-      let ids = [];
       if (tree){
         tree.enumNodeChildren(tree.getRootId(), (dbId) => {
-          if (tree.getChildCount(dbId) === 0){ ids.push(dbId); }   // a leaf node is one body
+          if (tree.getChildCount(dbId) === 0){ seen.add(dbId); }   // a leaf node is one body
         }, true);
       }
-      if (!ids.length){
-        try {
-          const fl = model.getFragmentList();
-          const map = fl && fl.fragments && fl.fragments.fragId2dbId;
-          const n = (fl && fl.getCount) ? fl.getCount() : (map ? map.length : 0);
-          const seen = new Set();
-          for (let f = 0; f < n; f++) {
-            const d = (fl && fl.getDbIds) ? fl.getDbIds(f) : (map ? map[f] : 0);
-            (Array.isArray(d) ? d : [d]).forEach(x => { if (x > 0) seen.add(x); });
-          }
-          ids = [...seen].sort((a, b) => a - b);
-        } catch (e) { report("fragment dbId scan: " + e); }
-      }
-      ids._fromTree = !!tree && ids.length > 0;
+      try {
+        const fl = model.getFragmentList();
+        const map = fl && fl.fragments && fl.fragments.fragId2dbId;
+        const n = (fl && fl.getCount) ? fl.getCount() : (map ? map.length : 0);
+        for (let f = 0; f < n; f++) {
+          const d = (fl && fl.getDbIds) ? fl.getDbIds(f) : (map ? map[f] : 0);
+          (Array.isArray(d) ? d : [d]).forEach(x => { if (x > 0) seen.add(x); });
+        }
+      } catch (e) { report("fragment dbId scan: " + e); }
+      const ids = [...seen].sort((a, b) => a - b);
+      ids._fromTree = !!tree;
       return ids;
     }
     _applyColors(){
