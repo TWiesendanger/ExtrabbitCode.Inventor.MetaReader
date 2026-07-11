@@ -678,14 +678,17 @@ public sealed partial class DocumentView
       // lock the fitted view in as the home view (correct method lives on autocam)
       try { viewer.autocam.setHomeViewFrom(viewer.getCamera()); report("home set"); }
       catch (e) { report("autocam.setHomeViewFrom: " + e); }
+      // Edges on by default, HERE and not in the load callbacks: the viewer applies its persisted
+      // preference profile after the model root loads, so an earlier setDisplayEdges(true) gets
+      // overridden by a stored "off" - by GEOMETRY_LOADED the profile has been applied and this
+      // call has the last word. The user can still toggle edges off for the session.
+      try { viewer.setDisplayEdges(true); report("edges on"); }
+      catch (e) { report("setDisplayEdges: " + e); }
     });
     if (srcSvf) {
       // A built-in-converter entry: no bubble manifest, load the raw SVF package directly.
       viewer.loadModel("./output/0.svf", { createWireframe: true },
-        () => {
-          try { viewer.setDisplayEdges(true); } catch (e) { report("setDisplayEdges: " + e); }
-          report("model loaded (raw svf)");
-        },
+        () => report("model loaded (raw svf)"),
         (err) => report("loadModel failed: " + JSON.stringify(err)));
       return;
     }
@@ -700,12 +703,7 @@ public sealed partial class DocumentView
         // edges" setting, meaning it could never be turned on. With it, the setting appears in the
         // viewer's Appearance settings and the chosen state persists in localStorage.
         viewer.loadDocumentNode(doc, node, { createWireframe: true }).then(
-          () => {
-            // edges on by default for an Inventor-like shaded-with-edges look; the setting still
-            // toggles it, but each opened model starts with edges shown
-            try { viewer.setDisplayEdges(true); } catch (e) { report("setDisplayEdges: " + e); }
-            report("model loaded");
-          },
+          () => report("model loaded"),
           (err) => report("loadDocumentNode failed: " + JSON.stringify(err)));
       },
       (code, msg) => report("Document.load failed: code=" + code + " msg=" + msg));
