@@ -1,0 +1,157 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<link rel="stylesheet" href="https://developer.api.autodesk.com/modelderivative/v2/viewers/7.*/style.min.css" type="text/css"/>
+<script src="https://developer.api.autodesk.com/modelderivative/v2/viewers/7.*/viewer3D.min.js"></script>
+<script src="vendor/occt-import-js.js"></script>
+<script src="step-glb.js"></script>
+<style>
+  html, body, #viewer {
+    margin: 0;
+    height: 100%;
+    width: 100%;
+    overflow: hidden;
+    background: #2b2b2b;
+  }
+</style>
+</head>
+<body>
+<div id="viewer"></div>
+<script>
+  const query = new URLSearchParams(location.search);
+  const modelUrl = query.get("model");
+  const modelName = query.get("name") || "model.stp";
+
+  function post(message) {
+    try { window.chrome.webview.postMessage(String(message)); } catch (e) {}
+    console.log(message);
+  }
+
+  window.addEventListener("error", (event) => post("error:" + event.message));
+  window.addEventListener("unhandledrejection", (event) => {
+    const reason = event.reason && event.reason.message ? event.reason.message : event.reason;
+    post("error:" + reason);
+  });
+
+  async function readStepWithOcct() {
+    if (!modelUrl) {
+      throw new Error("No STEP file URL was provided.");
+    }
+
+    post("status:Loading OCCT...");
+    const occt = await occtimportjs();
+
+    post("status:Reading STEP file...");
+    const response = await fetch(modelUrl, { cache: "no-store" });
+    if (!response.ok) {
+      throw new Error("Could not read STEP file: HTTP " + response.status);
+    }
+
+    const buffer = await response.arrayBuffer();
+    const content = new Uint8Array(buffer);
+
+    post("status:Triangulating STEP geometry with OCCT...");
+    const result = occt.ReadStepFile(content, {
+      linearUnit: "millimeter",
+      linearDeflectionType: "bounding_box_ratio",
+      linearDeflection: 0.0007,
+      angularDeflection: 0.35
+    });
+    if (!result || result.success === false) {
+      throw new Error(result && result.error ? result.error : "OCCT could not import this STEP file.");
+    }
+
+    const stats = StepGlb.estimateOcctStats(result);
+    post("status:Building GLB (" + stats.meshes + " mesh(es), " + Math.round(stats.triangles).toLocaleString() + " triangles)...");
+    const glb = StepGlb.buildGlbFromOcctResult(result, { name: modelName });
+    return { glb, stats };
+  }
+
+  function initializeViewer() {
+    return new Promise((resolve) => {
+      Autodesk.Viewing.Initializer({ env: "Local", useADP: false, accessToken: "" }, resolve);
+    });
+  }
+
+  async function loadGltfExtension(viewer) {
+    const ids = ["Autodesk.glTF", "Autodesk.glTFExtension"];
+    let lastError = null;
+    for (const id of ids) {
+      try {
+        await viewer.loadExtension(id);
+        post("status:Loaded " + id + "...");
+        return;
+      } catch (error) {
+        lastError = error;
+      }
+    }
+    throw new Error("The Autodesk glTF viewer extension is not available: " + (lastError && lastError.message || lastError));
+  }
+
+  function loadGlbModel(viewer, url) {
+    const candidates = [];
+    const manager = Autodesk.Viewing.FileLoaderManager;
+    if (manager && manager.getFileLoaderForExtension) {
+      candidates.push({ fileLoader: manager.getFileLoaderForExtension("glb") });
+    }
+    candidates.push({ fileExt: "glb" });
+    candidates.push({});
+
+    let index = 0;
+    return new Promise((resolve, reject) => {
+      const tryNext = (previousError) => {
+        if (index >= candidates.length) {
+          reject(previousError || new Error("Autodesk viewer could not load the GLB."));
+          return;
+        }
+
+        const options = candidates[index++];
+        try {
+          viewer.loadModel(url, options, resolve, (code, message) => {
+            tryNext(new Error("loadModel failed: " + code + " " + (message || "")));
+          });
+        } catch (error) {
+          tryNext(error);
+        }
+      };
+      tryNext(null);
+    });
+  }
+
+  async function loadIntoAutodeskViewer(glb, stats) {
+    post("status:Starting Autodesk viewer...");
+    await initializeViewer();
+
+    const viewer = new Autodesk.Viewing.GuiViewer3D(document.getElementById("viewer"));
+    viewer.start();
+    try { viewer.setTheme("dark-theme"); } catch (e) {}
+
+    await loadGltfExtension(viewer);
+    const blob = new Blob([glb], { type: "model/gltf-binary" });
+    const blobUrl = URL.createObjectURL(blob);
+
+    post("status:Loading GLB into Autodesk viewer...");
+    await loadGlbModel(viewer, blobUrl);
+    try { viewer.fitToView(); } catch (e) {}
+    try { viewer.autocam.setHomeViewFrom(viewer.getCamera()); } catch (e) {}
+
+    post("loaded:Loaded " + modelName + " - " + stats.meshes + " mesh(es), " + Math.round(stats.triangles).toLocaleString() + " triangles.");
+  }
+
+  async function main() {
+    if (!window.Autodesk || !Autodesk.Viewing) {
+      throw new Error("Autodesk Viewer could not be loaded from the CDN.");
+    }
+    if (!window.occtimportjs) {
+      throw new Error("OCCT importer is missing.");
+    }
+    const converted = await readStepWithOcct();
+    await loadIntoAutodeskViewer(converted.glb, converted.stats);
+  }
+
+  main().catch((error) => post("error:" + (error && error.message ? error.message : error)));
+</script>
+</body>
+</html>

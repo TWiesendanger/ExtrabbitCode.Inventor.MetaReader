@@ -250,7 +250,7 @@ public sealed partial class MainWindow
         FileOpenPicker picker = new();
         IntPtr hwnd = WinRT.Interop.WindowNative.GetWindowHandle(this);
         WinRT.Interop.InitializeWithWindow.Initialize(picker, hwnd);
-        foreach (string ext in new[] { ".ipt", ".iam", ".idw", ".ipn", "*" })
+        foreach (string ext in new[] { ".ipt", ".iam", ".idw", ".ipn", ".stp", ".step", "*" })
         {
             picker.FileTypeFilter.Add(ext);
         }
@@ -516,6 +516,7 @@ public sealed partial class MainWindow
         ".idw" => InventorDocument.DocKind.Drawing,
         ".ipn" => InventorDocument.DocKind.Presentation,
         ".ipt" => InventorDocument.DocKind.Part,
+        ".stp" or ".step" => InventorDocument.DocKind.Step,
         _ => InventorDocument.DocKind.Unknown,
     };
 

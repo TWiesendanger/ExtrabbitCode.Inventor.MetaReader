@@ -14,6 +14,7 @@ internal static class DocCategoryUi
     // Chosen for adequate contrast with the badge's white text and to stay distinct from each other.
     public static readonly (InventorDocument.DocCategory Cat, string Name, Color Color)[] All =
     [
+        (InventorDocument.DocCategory.NeutralCad,       "Neutral CAD",       Color.FromArgb(255, 0x5B, 0x6B, 0x28)), // olive
         (InventorDocument.DocCategory.ContentCenter,    "Content Center",    Color.FromArgb(255, 0x25, 0x63, 0xEB)), // blue
         (InventorDocument.DocCategory.FrameGenerator,   "Frame Generator",   Color.FromArgb(255, 0xB4, 0x53, 0x09)), // amber
         (InventorDocument.DocCategory.DesignAccelerator,"Design Accelerator",Color.FromArgb(255, 0x15, 0x80, 0x3D)), // green
