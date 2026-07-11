@@ -521,12 +521,18 @@ public sealed partial class DocumentView
       this._on = false;
       this._maybeInitial = this._maybeInitial.bind(this);
       this.viewer.addEventListener(Autodesk.Viewing.GEOMETRY_LOADED_EVENT, this._maybeInitial);
+      // The object tree often arrives AFTER the geometry (always for the built-in converter's raw
+      // SVF loads) - re-apply then, so an early enable (initial mode or a button click that hit a
+      // tree-less moment) still ends up colored.
+      this._onTree = () => { if (this._on){ this._applyColors(); } else { this._maybeInitial(); } };
+      this.viewer.addEventListener(Autodesk.Viewing.OBJECT_TREE_CREATED_EVENT, this._onTree);
       if (this.viewer.toolbar){ this.onToolbarCreated(this.viewer.toolbar); }
       else { this._onTb = () => this.onToolbarCreated(this.viewer.toolbar); this.viewer.addEventListener(Autodesk.Viewing.TOOLBAR_CREATED_EVENT, this._onTb); }
       return true;
     }
     unload(){
       this.viewer.removeEventListener(Autodesk.Viewing.GEOMETRY_LOADED_EVENT, this._maybeInitial);
+      if (this._onTree){ this.viewer.removeEventListener(Autodesk.Viewing.OBJECT_TREE_CREATED_EVENT, this._onTree); }
       if (this._onTb){ this.viewer.removeEventListener(Autodesk.Viewing.TOOLBAR_CREATED_EVENT, this._onTb); }
       if (this._group && this.viewer.toolbar){ this.viewer.toolbar.removeControl(this._group); }
       this._group = this._button = null;
@@ -544,9 +550,8 @@ public sealed partial class DocumentView
       this._maybeInitial();
     }
     _maybeInitial(){                                            // apply the app's chosen starting mode, once the model is ready
-      if (this.options && this.options.initial && !this._on && this._hasTree()){ this.setEnabled(true); }
+      if (this.options && this.options.initial && !this._on && this.viewer.model){ this.setEnabled(true); }
     }
-    _hasTree(){ const m = this.viewer.model; return !!(m && m.getInstanceTree && m.getInstanceTree()); }
     setEnabled(on){
       this._on = on;
       if (on){ this._applyColors(); } else { this.viewer.clearThemingColors(this.viewer.model); }
@@ -560,14 +565,31 @@ public sealed partial class DocumentView
     }
     _applyColors(){
       const model = this.viewer.model;
-      const tree = model && model.getInstanceTree && model.getInstanceTree();
-      if (!tree){ return; }
-      const leaves = [];
-      tree.enumNodeChildren(tree.getRootId(), (dbId) => {
-        if (tree.getChildCount(dbId) === 0){ leaves.push(dbId); }   // a leaf node is one body
-      }, true);
-      leaves.forEach((dbId, i) => this.viewer.setThemingColor(dbId, bodyColor(i), model, true));
-      report("colored " + leaves.length + " bodies");
+      if (!model){ return; }
+      const tree = model.getInstanceTree && model.getInstanceTree();
+      let ids = [];
+      if (tree){
+        tree.enumNodeChildren(tree.getRootId(), (dbId) => {
+          if (tree.getChildCount(dbId) === 0){ ids.push(dbId); }   // a leaf node is one body
+        }, true);
+      }
+      if (!ids.length){
+        // No object tree (yet) - e.g. a raw-SVF load from the built-in converter before (or
+        // without) its property DB. The fragments carry the same dbIds, so collect them there.
+        try {
+          const fl = model.getFragmentList();
+          const n = fl.getCount ? fl.getCount() : 0;
+          const seen = new Set();
+          for (let f = 0; f < n; f++) {
+            const d = fl.getDbIds(f);
+            (Array.isArray(d) ? d : [d]).forEach(x => { if (x > 0) seen.add(x); });
+          }
+          ids = [...seen].sort((a, b) => a - b);
+        } catch (e) { report("fragment dbId scan: " + e); }
+      }
+      try { this.viewer.clearThemingColors(model); } catch (e) { /* fresh model */ }
+      ids.forEach((dbId, i) => this.viewer.setThemingColor(dbId, bodyColor(i), model, true));
+      report("colored " + ids.length + " bodies" + (tree ? "" : " (from fragments)"));
     }
   }
   Autodesk.Viewing.theExtensionManager.registerExtension("Extrabbit.Coloring", ColoringExtension);
