@@ -52,6 +52,10 @@
              Exclude="Assets\SampleFiles\SampleBg\**\OldVersions\**;Assets\SampleFiles\SampleBg\**\*.stp">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </Content>
+    <!-- Bundled STEP samples (the same part in three schemas) for the start-page gallery. -->
+    <Content Include="Assets\SampleFiles\SampleSteps\**\*.*">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
   </ItemGroup>
 
   <!-- MSIX packaging. Only active when built with -p:WindowsPackageType=MSIX; the default
