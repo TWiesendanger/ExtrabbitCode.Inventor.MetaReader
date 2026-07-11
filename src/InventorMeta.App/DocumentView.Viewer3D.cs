@@ -19,6 +19,11 @@ namespace ExtrabbitCode.Inventor.MetaReader.App;
 public sealed partial class DocumentView
 {
     private const string ViewerHost = "inventormeta.viewer";
+
+    /// <summary>The Autodesk (LMV) viewer release the app loads from the CDN. Pinned (issue #29) so an
+    /// Autodesk-pushed update can't change behaviour under us - bump deliberately and retest.</summary>
+    private const string LmvViewerVersion = "7.122";
+
     private bool _viewerOpen;
 
     private void OnOpen3D(object sender, RoutedEventArgs e) => _ = OpenViewer3DAsync();
@@ -161,7 +166,7 @@ public sealed partial class DocumentView
             // (same-origin too, so no CORS on the SVF/worker fetches).
             string entryDir = Path.GetDirectoryName(bubble)!;
             web.CoreWebView2.SetVirtualHostNameToFolderMapping(ViewerHost, entryDir, CoreWebView2HostResourceAccessKind.Allow);
-            try { File.WriteAllText(Path.Combine(entryDir, "viewer.html"), ViewerHtml); } catch { /* read-only store */ }
+            try { File.WriteAllText(Path.Combine(entryDir, "viewer.html"), ViewerHtml.Replace("{LMV_VERSION}", LmvViewerVersion)); } catch { /* read-only store */ }
 
             // diagnostics: log failed resource fetches and JS messages to %TEMP%\invmeta-viewer.log
             web.CoreWebView2.WebResourceResponseReceived += (_, a) =>
@@ -243,8 +248,8 @@ public sealed partial class DocumentView
 <head>
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-<link rel="stylesheet" href="https://developer.api.autodesk.com/modelderivative/v2/viewers/7.*/style.min.css" type="text/css"/>
-<script src="https://developer.api.autodesk.com/modelderivative/v2/viewers/7.*/viewer3D.min.js"></script>
+<link rel="stylesheet" href="https://developer.api.autodesk.com/modelderivative/v2/viewers/{LMV_VERSION}/style.min.css" type="text/css"/>
+<script src="https://developer.api.autodesk.com/modelderivative/v2/viewers/{LMV_VERSION}/viewer3D.min.js"></script>
 <style>
   html,body,#viewer{margin:0;height:100%;width:100%;overflow:hidden;background:#2b2b2b;}
   /* palette glyph for the coloring toolbar button (LMV would otherwise show an empty icon) */
