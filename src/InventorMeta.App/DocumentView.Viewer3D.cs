@@ -133,36 +133,66 @@ public sealed partial class DocumentView
 
             if (!cached)
             {
-                InventorInstall? inv = await ResolveInventorAsync(win);
-                if (inv == null)
+                SvfEngine? engine = await ResolveEngineAsync(win);
+                if (engine == null)
                 {
                     ring.IsActive = false;
-                    statusText.Text = InventorInstalls.Detect().Count == 0
-                        ? "Inventor isn't installed, so a 3D viewable can't be generated.\nOpen this model on a machine with Inventor, or point at a shared store that already has it."
-                        : "No Inventor version selected.";
+                    statusText.Text = "No 3D engine selected.";
                     return;
                 }
 
-                statusText.Text = $"Generating the 3D view with {inv.DisplayName}…\nThis opens the model in Inventor and can take a while.";
-                Serilog.Log.Information("Generating SVF with {Version} for {File}", inv.DisplayName, Path.GetFileName(FilePath));
-                SvfGenerator.Result res = await GenerateOnStaThread(inv, FilePath, store.EntryDir(key));
-                if (!res.Ok)
+                if (engine == SvfEngine.Local)
                 {
-                    Serilog.Log.Error("SVF generation failed for {File}: {Error}", FilePath, res.Error);
-                    ring.IsActive = false;
-                    statusText.Text = "Couldn't generate the 3D view:\n" + res.Error;
-                    return;
+                    statusText.Text = "Converting with the built-in engine (best effort)…";
+                    Serilog.Log.Information("Converting SVF locally (best effort) for {File}", Path.GetFileName(FilePath));
+                    string file = FilePath;
+                    string outDir = store.OutputDir(key);
+                    string status = await Task.Run(() =>
+                        ExtrabbitCode.Inventor.SvfConverter.InventorSvfConverter.ConvertFile(file, outDir));
+                    Serilog.Log.Information("Local SVF conversion for {File}: {Status}", Path.GetFileName(FilePath), status);
+                    if (status.Contains("0v/0t"))
+                    {
+                        ring.IsActive = false;
+                        statusText.Text = "The built-in converter found no displayable geometry cached in this file.\nSave the model once in Inventor (to refresh its cached mesh) and try again.";
+                        return;
+                    }
                 }
-                Serilog.Log.Information("SVF generated for {File}", Path.GetFileName(FilePath));
+                else
+                {
+                    InventorInstall? inv = await ResolveInventorAsync(win);
+                    if (inv == null)
+                    {
+                        ring.IsActive = false;
+                        statusText.Text = "No Inventor version selected.";
+                        return;
+                    }
+
+                    statusText.Text = $"Generating the 3D view with {inv.DisplayName}…\nThis opens the model in Inventor and can take a while.";
+                    Serilog.Log.Information("Generating SVF with {Version} for {File}", inv.DisplayName, Path.GetFileName(FilePath));
+                    SvfGenerator.Result res = await GenerateOnStaThread(inv, FilePath, store.EntryDir(key));
+                    if (!res.Ok)
+                    {
+                        Serilog.Log.Error("SVF generation failed for {File}: {Error}", FilePath, res.Error);
+                        ring.IsActive = false;
+                        statusText.Text = "Couldn't generate the 3D view:\n" + res.Error;
+                        return;
+                    }
+                    Serilog.Log.Information("SVF generated for {File}", Path.GetFileName(FilePath));
+                }
             }
 
+            // An Inventor-generated entry has a bubble.json manifest at its root; a built-in-converter
+            // entry has the raw SVF at output\0.svf. The layout doubles as the "which engine made
+            // this?" marker, so cached best-effort entries keep their warning badge.
             string? bubble = store.FindBubble(key);
-            if (bubble == null)
+            string? localSvf = bubble == null ? store.FindLocalSvf(key) : null;
+            if (bubble == null && localSvf == null)
             {
                 ring.IsActive = false;
                 statusText.Text = "The 3D view was generated but its manifest is missing.";
                 return;
             }
+            bool bestEffort = bubble == null;
 
             statusText.Text = "Loading viewer…";
             await web.EnsureCoreWebView2Async();
@@ -171,8 +201,11 @@ public sealed partial class DocumentView
             // bubble = <entry>\bubble.json (copied to the root by the generator). Map the host to
             // <entry> and serve the page from the host ROOT, loading "./bubble.json" - so the LMV
             // viewer sets $file$ = <entry> and "$file$/output/..." resolves to <entry>\output\...
-            // (same-origin too, so no CORS on the SVF/worker fetches).
-            string entryDir = Path.GetDirectoryName(bubble)!;
+            // (same-origin too, so no CORS on the SVF/worker fetches). For a best-effort entry the
+            // page loads the raw SVF from ./output/0.svf instead.
+            string entryDir = bestEffort
+                ? Path.GetDirectoryName(Path.GetDirectoryName(localSvf!))!
+                : Path.GetDirectoryName(bubble!)!;
             web.CoreWebView2.SetVirtualHostNameToFolderMapping(ViewerHost, entryDir, CoreWebView2HostResourceAccessKind.Allow);
             try { File.WriteAllText(Path.Combine(entryDir, "viewer.html"), ViewerHtml.Replace("{LMV_VERSION}", LmvViewerVersion)); } catch { /* read-only store */ }
 
@@ -184,10 +217,25 @@ public sealed partial class DocumentView
             };
             web.CoreWebView2.WebMessageReceived += (_, a) =>
             {
-                try { ViewerLog.Write("js: " + a.TryGetWebMessageAsString()); } catch { /* ignore */ }
+                try
+                {
+                    string msg = a.TryGetWebMessageAsString();
+                    if (msg == "report-issue")   // the best-effort badge's "Report this model" link
+                    {
+                        System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo
+                        {
+                            FileName = EngineDialogs.ReportUri(Document?.FileName).AbsoluteUri,
+                            UseShellExecute = true
+                        });
+                        return;
+                    }
+                    ViewerLog.Write("js: " + msg);
+                }
+                catch { /* ignore */ }
             };
             web.CoreWebView2.NavigationCompleted += (_, _) => statusHost.Visibility = Visibility.Collapsed;
-            web.CoreWebView2.Navigate($"https://{ViewerHost}/viewer.html?coloring={coloring}");
+            string query = $"?coloring={coloring}" + (bestEffort ? "&src=svf&engine=local" : "");
+            web.CoreWebView2.Navigate($"https://{ViewerHost}/viewer.html{query}");
         }
         catch (Exception ex)
         {
@@ -340,6 +388,28 @@ public sealed partial class DocumentView
         }
     }
 
+    /// <summary>Which engine to generate with. Without Inventor it's always the built-in converter,
+    /// behind a one-time best-effort notice; with Inventor the saved choice applies, asking (two-card
+    /// chooser, persisted) on first use. Null when the user backs out of the chooser.</summary>
+    private static async Task<SvfEngine?> ResolveEngineAsync(MainWindow win)
+    {
+        if (InventorInstalls.Detect().Count == 0)
+        {
+            if (!ViewerSettings.LocalEngineInfoShown)
+            {
+                await EngineDialogs.ShowBestEffortInfoAsync(win.Content.XamlRoot);
+                ViewerSettings.LocalEngineInfoShown = true;
+            }
+            return SvfEngine.Local;
+        }
+
+        if (ViewerSettings.Engine != SvfEngine.Ask) { return ViewerSettings.Engine; }
+
+        SvfEngine? choice = await EngineDialogs.ShowChooserAsync(win.Content.XamlRoot);
+        if (choice != null) { ViewerSettings.Engine = choice.Value; }
+        return choice;
+    }
+
     /// <summary>Resolves which Inventor release to generate with: the saved choice, the only one
     /// installed, or a prompt (remembered). Null if none installed or the user cancels.</summary>
     private static async Task<InventorInstall?> ResolveInventorAsync(MainWindow win)
@@ -406,10 +476,17 @@ public sealed partial class DocumentView
   html,body,#viewer{margin:0;height:100%;width:100%;overflow:hidden;background:#2b2b2b;}
   /* palette glyph for the coloring toolbar button (LMV would otherwise show an empty icon) */
   #extrabbit-coloring-btn .adsk-button-icon:before{content:"\1F3A8";font-size:20px;line-height:1;}
+  /* best-effort warning badge (shown when the model came from the built-in converter) */
+  #warn{position:fixed;top:10px;left:10px;z-index:20;display:none;max-width:360px;
+    background:rgba(146,64,14,.92);color:#fff;font:12px/1.45 "Segoe UI",system-ui,sans-serif;
+    padding:7px 11px;border-radius:6px;box-shadow:0 2px 10px rgba(0,0,0,.35);}
+  #warn a{color:#fff;font-weight:600;}
 </style>
 </head>
 <body>
 <div id="viewer"></div>
+<div id="warn">&#9888; Best-effort view &mdash; positions or rotations may be off.
+  <a href="#" id="warnReport">Report this model</a></div>
 <script>
   function report(m){ try{ window.chrome.webview.postMessage(String(m)); }catch(e){} console.log(m); }
   window.addEventListener("error", e => report("error: " + e.message));
@@ -495,7 +572,17 @@ public sealed partial class DocumentView
   }
   Autodesk.Viewing.theExtensionManager.registerExtension("Extrabbit.Coloring", ColoringExtension);
 
-  const wantMulticolor = new URLSearchParams(location.search).get("coloring") === "multicolor";
+  const params = new URLSearchParams(location.search);
+  const wantMulticolor = params.get("coloring") === "multicolor";
+  const srcSvf = params.get("src") === "svf";           // raw SVF from the built-in converter
+  const bestEffort = params.get("engine") === "local";  // show the warning badge
+  if (bestEffort) {
+    document.getElementById("warn").style.display = "block";
+    document.getElementById("warnReport").addEventListener("click", (e) => {
+      e.preventDefault();
+      try { window.chrome.webview.postMessage("report-issue"); } catch (err) { /* no host */ }
+    });
+  }
 
   const viewer = new Autodesk.Viewing.GuiViewer3D(document.getElementById("viewer"));
   Autodesk.Viewing.Initializer({ env: "Local", useADP: false }, () => {
@@ -522,6 +609,16 @@ public sealed partial class DocumentView
       try { viewer.autocam.setHomeViewFrom(viewer.getCamera()); report("home set"); }
       catch (e) { report("autocam.setHomeViewFrom: " + e); }
     });
+    if (srcSvf) {
+      // A built-in-converter entry: no bubble manifest, load the raw SVF package directly.
+      viewer.loadModel("./output/0.svf", { createWireframe: true },
+        () => {
+          try { viewer.setDisplayEdges(true); } catch (e) { report("setDisplayEdges: " + e); }
+          report("model loaded (raw svf)");
+        },
+        (err) => report("loadModel failed: " + JSON.stringify(err)));
+      return;
+    }
     Autodesk.Viewing.Document.load(
       "./bubble.json",
       (doc) => {
