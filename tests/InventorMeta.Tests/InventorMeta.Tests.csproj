@@ -30,6 +30,7 @@
        iPartSample/ generated members come along, but skips Inventor's OldVersions/ backups. -->
   <ItemGroup>
     <None Include="..\..\src\InventorMeta.App\Assets\SampleFiles\SampleBg\**\*.*" Exclude="..\..\src\InventorMeta.App\Assets\SampleFiles\SampleBg\**\OldVersions\**" Link="SampleBg\%(RecursiveDir)%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="StepSamples\**\*.stp;StepSamples\**\*.step" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
 </Project>

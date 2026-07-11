@@ -7,10 +7,10 @@ namespace ExtrabbitCode.Inventor.MetaReader.App;
 internal static class AppInfo
 {
     public const string Name = "ExtrabbitCode.Inventor.MetaReader";
-    public const string Tagline = "Read .ipt / .iam / .idw /.ipn metadata without Autodesk Inventor";
+    public const string Tagline = "Read .ipt / .iam / .idw / .ipn / .stp metadata without Autodesk Inventor";
     public const string Description =
-        "Inspect Autodesk Inventor part, assembly and drawing metadata - iProperties, " +
-        "references, thumbnails and per-model-state values - straight from the file, " +
+        "Inspect Autodesk Inventor and STEP metadata - iProperties, " +
+        "references, thumbnails, per-model-state values and neutral CAD headers - straight from the file, " +
         "without Autodesk Inventor installed.";
 
     public const string ExtrabbitUrl = "https://extrabbitcode.com";

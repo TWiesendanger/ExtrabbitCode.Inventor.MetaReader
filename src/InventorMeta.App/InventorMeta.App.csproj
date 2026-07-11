@@ -42,6 +42,10 @@
     <Content Include="Assets\vis\**\*">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </Content>
+    <!-- Bundled STEP viewer assets: OCCT WASM importer, license files, and the GLB bridge page. -->
+    <Content Include="Assets\stepviewer\**\*">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
     <!-- Bundled sample assembly (+ all its parts) so the welcome tip can open a model to try out;
          skips Inventor's OldVersions backups and any stray STEP exports. -->
     <Content Include="Assets\SampleFiles\SampleBg\**\*.*"

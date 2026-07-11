@@ -311,6 +311,7 @@ public sealed partial class DocumentView
                 InventorDocument.DocKind.Assembly => "assembly",
                 InventorDocument.DocKind.Drawing => "drawing",
                 InventorDocument.DocKind.Presentation => "presentation",
+                InventorDocument.DocKind.Step => "other",
                 _ => "other"
             };
 

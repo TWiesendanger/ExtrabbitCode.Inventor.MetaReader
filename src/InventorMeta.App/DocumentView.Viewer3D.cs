@@ -19,13 +19,15 @@ namespace ExtrabbitCode.Inventor.MetaReader.App;
 public sealed partial class DocumentView
 {
     private const string ViewerHost = "inventormeta.viewer";
+    private const string StepViewerHost = "inventormeta.stepviewer";
+    private const string StepModelHost = "inventormeta.stepmodel";
     private bool _viewerOpen;
 
     private void OnOpen3D(object sender, RoutedEventArgs e) => _ = OpenViewer3DAsync();
 
     private void OnThumbTapped(object sender, TappedRoutedEventArgs e)
     {
-        if (Document?.Kind is InventorDocument.DocKind.Part or InventorDocument.DocKind.Assembly)
+        if (Document?.Kind is InventorDocument.DocKind.Part or InventorDocument.DocKind.Assembly or InventorDocument.DocKind.Step)
         {
             _ = OpenViewer3DAsync();
         }
@@ -35,6 +37,12 @@ public sealed partial class DocumentView
     {
         if (_viewerOpen || Document == null || HostWindow is not MainWindow win || !File.Exists(FilePath))
         {
+            return;
+        }
+
+        if (Document.IsStep)
+        {
+            await OpenStepViewer3DAsync(win);
             return;
         }
 
@@ -181,6 +189,149 @@ public sealed partial class DocumentView
             Serilog.Log.Error(ex, "3D view error for {File}", FilePath);
             ring.IsActive = false;
             statusText.Text = "3D view error:\n" + ex.Message;
+        }
+    }
+
+    private async Task OpenStepViewer3DAsync(MainWindow win)
+    {
+        _viewerOpen = true;
+        Analytics.Capture("viewer_3d_opened", new System.Collections.Generic.Dictionary<string, object?>
+        {
+            ["doc_kind"] = "Step",
+            ["converter"] = "occt-import-js",
+            ["viewer"] = "Autodesk.glTF"
+        });
+        ViewerLog.Clear();
+
+        WebView2 web = new();
+        ProgressRing ring = new() { IsActive = true, Width = 36, Height = 36 };
+        TextBlock statusText = new()
+        {
+            Text = "Preparing STEP conversion...", FontSize = 14, TextAlignment = TextAlignment.Center, TextWrapping = TextWrapping.Wrap,
+            Foreground = new SolidColorBrush(Microsoft.UI.Colors.White), MaxWidth = 520
+        };
+        Border statusHost = new()
+        {
+            Background = new SolidColorBrush(Windows.UI.Color.FromArgb(0xE6, 0x1B, 0x1B, 0x1B)),
+            Child = new StackPanel
+            {
+                Spacing = 16, HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center,
+                Children = { ring, statusText }
+            }
+        };
+
+        Button close = new()
+        {
+            Content = new FontIcon { Glyph = G(0xE711), FontSize = 14 },
+            HorizontalAlignment = HorizontalAlignment.Right, VerticalAlignment = VerticalAlignment.Top,
+            Margin = new Thickness(0, 10, 10, 0), Width = 36, Height = 36, Padding = new Thickness(0),
+            CornerRadius = new CornerRadius(18)
+        };
+        ToolTipService.SetToolTip(close, "Close (Esc)");
+
+        Grid panelGrid = new();
+        panelGrid.Children.Add(web);
+        panelGrid.Children.Add(statusHost);
+        panelGrid.Children.Add(close);
+
+        Border panel = new()
+        {
+            Margin = new Thickness(48), CornerRadius = new CornerRadius(10), Child = panelGrid,
+            Background = (Brush)Application.Current.Resources["SolidBackgroundFillColorBaseBrush"],
+            BorderBrush = (Brush)Application.Current.Resources["CardStrokeColorDefaultSolidBrush"],
+            BorderThickness = new Thickness(1)
+        };
+        panel.Tapped += (_, e) => e.Handled = true;
+
+        Grid root = new() { Background = new SolidColorBrush(Microsoft.UI.Colors.Transparent) };
+        root.Children.Add(panel);
+
+        void Close()
+        {
+            if (!_viewerOpen) { return; }
+            _viewerOpen = false;
+            try { web.Close(); } catch { /* disposing */ }
+            win.HideOverlay();
+        }
+
+        root.Tapped += (_, _) => Close();
+        close.Click += (_, _) => Close();
+        KeyboardAccelerator esc = new() { Key = Windows.System.VirtualKey.Escape };
+        esc.Invoked += (_, e) => { e.Handled = true; Close(); };
+        close.KeyboardAccelerators.Add(esc);
+
+        win.ShowOverlay(root, dimmed: true);
+        close.Focus(FocusState.Programmatic);
+
+        try
+        {
+            string assetsDir = Path.Combine(AppContext.BaseDirectory, "Assets", "stepviewer");
+            string viewerPage = Path.Combine(assetsDir, "step-viewer.html");
+            if (!File.Exists(viewerPage))
+            {
+                ring.IsActive = false;
+                statusText.Text = "The bundled STEP viewer assets are missing.";
+                return;
+            }
+
+            statusText.Text = "Preparing local model cache...";
+            string key = await Task.Run(() => SvfStore.ComputeKey(FilePath));
+            string modelDir = Path.Combine(
+                Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+                "ExtrabbitCode.Inventor.MetaReader", "step-cache", key);
+            Directory.CreateDirectory(modelDir);
+            string modelPath = Path.Combine(modelDir, "model.stp");
+            if (!File.Exists(modelPath))
+            {
+                File.Copy(FilePath, modelPath);
+            }
+
+            await web.EnsureCoreWebView2Async();
+            if (!_viewerOpen) { return; }
+
+            web.CoreWebView2.SetVirtualHostNameToFolderMapping(
+                StepViewerHost, assetsDir, CoreWebView2HostResourceAccessKind.Allow);
+            web.CoreWebView2.SetVirtualHostNameToFolderMapping(
+                StepModelHost, modelDir, CoreWebView2HostResourceAccessKind.Allow);
+
+            web.CoreWebView2.WebResourceResponseReceived += (_, a) =>
+            {
+                try { int s = a.Response.StatusCode; if (s is 0 or >= 400) { ViewerLog.Write($"HTTP {s}  {a.Request.Uri}"); } }
+                catch { /* ignore */ }
+            };
+            web.CoreWebView2.WebMessageReceived += (_, a) =>
+            {
+                try
+                {
+                    string msg = a.TryGetWebMessageAsString();
+                    ViewerLog.Write("step js: " + msg);
+                    if (msg.StartsWith("status:", StringComparison.Ordinal))
+                    {
+                        statusText.Text = msg["status:".Length..];
+                    }
+                    else if (msg.StartsWith("loaded:", StringComparison.Ordinal))
+                    {
+                        statusHost.Visibility = Visibility.Collapsed;
+                        StatusSink?.Invoke(msg["loaded:".Length..]);
+                    }
+                    else if (msg.StartsWith("error:", StringComparison.Ordinal))
+                    {
+                        ring.IsActive = false;
+                        statusText.Text = "STEP 3D view error:\n" + msg["error:".Length..];
+                    }
+                }
+                catch { /* ignore malformed viewer messages */ }
+            };
+
+            string modelUrl = $"https://{StepModelHost}/model.stp";
+            string nav = $"https://{StepViewerHost}/step-viewer.html?model={Uri.EscapeDataString(modelUrl)}&name={Uri.EscapeDataString(Document?.FileName ?? "model.stp")}";
+            web.CoreWebView2.Navigate(nav);
+        }
+        catch (Exception ex)
+        {
+            Serilog.Log.Error(ex, "STEP 3D view error for {File}", FilePath);
+            ring.IsActive = false;
+            statusText.Text = "STEP 3D view error:\n" + ex.Message;
         }
     }
 
