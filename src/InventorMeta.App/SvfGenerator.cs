@@ -38,8 +38,13 @@ public static class SvfGenerator
         object? inv = null;
         bool startedByUs = false;
         bool? prevSilent = null;   // previous SilentOperation, restored on a borrowed session
+        IDisposable? filter = null;
         try
         {
+            // A running Inventor that's momentarily busy (mid-operation or showing a dialog) rejects
+            // incoming COM calls; without a message filter that surfaces instantly as
+            // RPC_E_CALL_REJECTED. The filter retries the busy call instead of failing.
+            filter = OleMessageFilter.Register(L);
             L("Connecting to Inventor…");
             (inv, startedByUs) = ConnectOrLaunch(inventor);
             L(startedByUs ? "Launched a new Inventor instance." : "Attached to a running Inventor instance.");
@@ -125,7 +130,9 @@ public static class SvfGenerator
         }
         catch (Exception ex)
         {
-            return new Result(false, null, ex.Message);
+            // Log the raw HRESULT + type so a failure is diagnosable; show the user a friendlier line.
+            L($"FAILED: {ex.GetType().Name} 0x{ex.HResult:X8} - {ex.Message}");
+            return new Result(false, null, FriendlyError(ex));
         }
         finally
         {
@@ -143,12 +150,28 @@ public static class SvfGenerator
                 }
                 try { Marshal.FinalReleaseComObject(inv); } catch { /* ignore */ }
             }
+            filter?.Dispose();   // revoke the message filter last, so it still covers Quit / release above
         }
     }
 
     /// <summary>Sets a NameValueMap entry (a COM parameterized property) by late binding.</summary>
     private static void SetValue(object nameValueMap, string name, object value) =>
         nameValueMap.GetType().InvokeMember("Value", BindingFlags.SetProperty, null, nameValueMap, [name, value]);
+
+    // HRESULTs a busy/modal Inventor throws at an incoming COM call.
+    private const int RPC_E_CALL_REJECTED = unchecked((int)0x80010001);
+    private const int RPC_E_SERVERCALL_RETRYLATER = unchecked((int)0x8001010A);
+    private const int RPC_E_SERVERCALL_REJECTED = unchecked((int)0x80010004);
+
+    /// <summary>Turns a COM failure into a message worth showing the user; the raw HRESULT is logged
+    /// separately for diagnosis.</summary>
+    private static string FriendlyError(Exception ex) => ex.HResult switch
+    {
+        RPC_E_CALL_REJECTED or RPC_E_SERVERCALL_RETRYLATER or RPC_E_SERVERCALL_REJECTED =>
+            "Inventor was busy and didn't respond in time. Close any open dialog in Inventor (or close "
+            + "that Inventor session so MetaReader can start its own), then try again.",
+        _ => ex.Message,
+    };
 
     /// <summary>Uses a running Inventor if one is up; otherwise launches the selected release and
     /// waits for it to register as a COM server.</summary>
@@ -186,4 +209,61 @@ public static class SvfGenerator
     [DllImport("oleaut32.dll", PreserveSig = false)]
     private static extern void GetActiveObject(ref Guid rclsid, IntPtr pvReserved,
         [MarshalAs(UnmanagedType.IUnknown)] out object ppunk);
+
+    [DllImport("ole32.dll")]
+    private static extern int CoRegisterMessageFilter(IOleMessageFilter? newFilter, out IOleMessageFilter? oldFilter);
+
+    // The classic OLE IMessageFilter (KB316353): registered on the STA thread that drives Inventor so
+    // that a call rejected by a busy Inventor is retried instead of failing instantly.
+    [ComImport, Guid("00000016-0000-0000-C000-000000000046"),
+     InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
+    private interface IOleMessageFilter
+    {
+        [PreserveSig] int HandleInComingCall(int dwCallType, IntPtr hTaskCaller, int dwTickCount, IntPtr lpInterfaceInfo);
+        [PreserveSig] int RetryRejectedCall(IntPtr hTaskCallee, int dwTickCount, int dwRejectType);
+        [PreserveSig] int MessagePending(IntPtr hTaskCallee, int dwTickCount, int dwPendingType);
+    }
+
+    private sealed class OleMessageFilter : IOleMessageFilter
+    {
+        private const int SERVERCALL_RETRYLATER = 2;   // dwRejectType values
+        private const int SERVERCALL_REJECTED = 1;
+        private const int PENDINGMSG_WAITDEFPROCESS = 2;
+        private const int RetryBudgetMs = 60_000;      // keep retrying a busy Inventor for up to a minute
+
+        /// <summary>Registers the filter on the current STA thread; returns a token that revokes it
+        /// (restoring any previous filter) on dispose, or null if it couldn't be registered.</summary>
+        public static IDisposable? Register(Action<string> log)
+        {
+            if (Thread.CurrentThread.GetApartmentState() != ApartmentState.STA)
+            {
+                log("No COM message filter (thread isn't STA).");
+                return null;
+            }
+            int hr = CoRegisterMessageFilter(new OleMessageFilter(), out IOleMessageFilter? previous);
+            if (hr < 0)
+            {
+                log($"CoRegisterMessageFilter failed (0x{hr:X8}).");
+                return null;
+            }
+            log("COM message filter registered (retries a busy Inventor).");
+            return new Revoker(previous);
+        }
+
+        private sealed class Revoker(IOleMessageFilter? previous) : IDisposable
+        {
+            public void Dispose() { try { CoRegisterMessageFilter(previous, out _); } catch { /* revoking */ } }
+        }
+
+        // Accept incoming calls (SERVERCALL_ISHANDLED).
+        public int HandleInComingCall(int dwCallType, IntPtr hTaskCaller, int dwTickCount, IntPtr lpInterfaceInfo) => 0;
+
+        // Retry a rejected/busy call for up to a minute, then cancel (>=100 => wait that many ms and retry;
+        // -1 => cancel, so the COM call throws).
+        public int RetryRejectedCall(IntPtr hTaskCallee, int dwTickCount, int dwRejectType) =>
+            dwRejectType is SERVERCALL_RETRYLATER or SERVERCALL_REJECTED && dwTickCount < RetryBudgetMs ? 200 : -1;
+
+        // While we're waiting on an outgoing call, let the message pump keep running.
+        public int MessagePending(IntPtr hTaskCallee, int dwTickCount, int dwPendingType) => PENDINGMSG_WAITDEFPROCESS;
+    }
 }

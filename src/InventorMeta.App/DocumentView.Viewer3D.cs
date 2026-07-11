@@ -227,7 +227,8 @@ public sealed partial class DocumentView
         TaskCompletionSource<SvfGenerator.Result> tcs = new();
         Thread t = new(() =>
         {
-            try { tcs.SetResult(SvfGenerator.Generate(inv, file, baseDir, hide, silent)); }
+            try { tcs.SetResult(SvfGenerator.Generate(inv, file, baseDir, hide, silent,
+                log: m => Serilog.Log.Information("SVF gen: {Step}", m))); }
             catch (Exception ex) { tcs.SetResult(new SvfGenerator.Result(false, null, ex.Message)); }
         }) { IsBackground = true };
         t.SetApartmentState(ApartmentState.STA);
