@@ -543,7 +543,11 @@ public sealed partial class DocumentView
       // still streaming in, and the object tree often arrives after the geometry - always for the
       // built-in converter's raw SVF loads). So on BOTH "now it's complete" signals, re-apply if
       // already on (an early pass only caught the bodies loaded so far) or apply the initial mode.
-      this._refresh = () => { if (this._on){ this._applyColors(); } else { this._maybeInitial(); } };
+      this._refresh = () => {
+        if (this._on){ this._applyColors(); return; }
+        this._maybeInitial();                                   // may switch coloring on
+        if (!this._on && this.options && this.options.bakedPalette){ this._applyNeutral(); }
+      };
       this.viewer.addEventListener(Autodesk.Viewing.GEOMETRY_LOADED_EVENT, this._refresh);
       this.viewer.addEventListener(Autodesk.Viewing.OBJECT_TREE_CREATED_EVENT, this._refresh);
       if (this.viewer.toolbar){ this.onToolbarCreated(this.viewer.toolbar); }
@@ -576,7 +580,12 @@ public sealed partial class DocumentView
     }
     setEnabled(on){
       this._on = on;
-      if (on){ this._applyColors(); } else { this.viewer.clearThemingColors(this.viewer.model); }
+      // The built-in converter BAKES a palette colour per component into the SVF materials, so just
+      // clearing the theming would still show a multicoloured model. For those, "off" means a
+      // neutral grey theme over every body - the converter carries no real appearances to reveal.
+      if (on){ this._applyColors(); }
+      else if (this.options && this.options.bakedPalette){ this._applyNeutral(); }
+      else { this.viewer.clearThemingColors(this.viewer.model); }
       this._sync();
       report("coloring " + (on ? "on" : "off"));
     }
@@ -585,9 +594,11 @@ public sealed partial class DocumentView
       const S = Autodesk.Viewing.UI.Button.State;
       this._button.setState(this._on ? S.ACTIVE : S.INACTIVE);
     }
-    _applyColors(){
-      const model = this.viewer.model;
-      if (!model){ return; }
+    // Every body's dbId: instance-tree leaves when the tree exists, else straight from the
+    // fragment list (raw-SVF loads from the built-in converter may never grow a tree). The
+    // fragment lookup tries the API first, then the raw fragId2dbId array older/lean model
+    // representations use - getDbIds isn't available on all of them.
+    _collectIds(model){
       const tree = model.getInstanceTree && model.getInstanceTree();
       let ids = [];
       if (tree){
@@ -596,22 +607,37 @@ public sealed partial class DocumentView
         }, true);
       }
       if (!ids.length){
-        // No object tree (yet) - e.g. a raw-SVF load from the built-in converter before (or
-        // without) its property DB. The fragments carry the same dbIds, so collect them there.
         try {
           const fl = model.getFragmentList();
-          const n = fl.getCount ? fl.getCount() : 0;
+          const map = fl && fl.fragments && fl.fragments.fragId2dbId;
+          const n = (fl && fl.getCount) ? fl.getCount() : (map ? map.length : 0);
           const seen = new Set();
           for (let f = 0; f < n; f++) {
-            const d = fl.getDbIds(f);
+            const d = (fl && fl.getDbIds) ? fl.getDbIds(f) : (map ? map[f] : 0);
             (Array.isArray(d) ? d : [d]).forEach(x => { if (x > 0) seen.add(x); });
           }
           ids = [...seen].sort((a, b) => a - b);
         } catch (e) { report("fragment dbId scan: " + e); }
       }
+      ids._fromTree = !!tree && ids.length > 0;
+      return ids;
+    }
+    _applyColors(){
+      const model = this.viewer.model;
+      if (!model){ return; }
+      const ids = this._collectIds(model);
       try { this.viewer.clearThemingColors(model); } catch (e) { /* fresh model */ }
       ids.forEach((dbId, i) => this.viewer.setThemingColor(dbId, bodyColor(i), model, true));
-      report("colored " + ids.length + " bodies" + (tree ? "" : " (from fragments)"));
+      report("colored " + ids.length + " bodies" + (ids._fromTree ? "" : " (from fragments)"));
+    }
+    _applyNeutral(){
+      const model = this.viewer.model;
+      if (!model){ return; }
+      const ids = this._collectIds(model);
+      const grey = new THREE.Vector4(0.72, 0.72, 0.72, 1.0);
+      try { this.viewer.clearThemingColors(model); } catch (e) { /* fresh model */ }
+      ids.forEach((dbId) => this.viewer.setThemingColor(dbId, grey, model, true));
+      report("neutralized " + ids.length + " bodies");
     }
   }
   Autodesk.Viewing.theExtensionManager.registerExtension("Extrabbit.Coloring", ColoringExtension);
@@ -632,7 +658,7 @@ public sealed partial class DocumentView
   Autodesk.Viewing.Initializer({ env: "Local", useADP: false }, () => {
     report("initialized");
     viewer.start();
-    viewer.loadExtension("Extrabbit.Coloring", { initial: wantMulticolor }).then(
+    viewer.loadExtension("Extrabbit.Coloring", { initial: wantMulticolor, bakedPalette: srcSvf }).then(
       () => report("coloring extension loaded"),
       (err) => report("coloring extension failed: " + err));
     viewer.addEventListener(Autodesk.Viewing.GEOMETRY_LOADED_EVENT, () => {
