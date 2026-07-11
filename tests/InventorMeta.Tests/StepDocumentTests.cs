@@ -53,11 +53,13 @@ public class StepDocumentTests
         }
     }
 
+    // The bundled SampleSteps files: the same part exported by Inventor 2027 in three schemas,
+    // so every application protocol the app claims to open is covered.
     [Theory]
-    [InlineData("front_pivot_links_ap203.stp", "CONFIG_CONTROL_DESIGN", "AP203", "Front Pivot Links", 9)]
-    [InlineData("front_pivot_links_ap214.step", "AUTOMOTIVE_DESIGN", "214", "Front Pivot Links", 9)]
-    [InlineData("pivot_rod_ap242.stp", "AP242_MANAGED_MODEL_BASED_3D_ENGINEERING", "442", "Pivot Rod", 1)]
-    public void ReadsRealInventorStepExportsFromSampleBg(
+    [InlineData("Line Guide Drive Shaft_203.stp", "CONFIG_CONTROL_DESIGN", "CONFIG_CONTROL_DESIGN", "Line Guide Drive Shaft", 1)]
+    [InlineData("Line Guide Drive Shaft_214.step", "AUTOMOTIVE_DESIGN", "214", "Line Guide Drive Shaft", 1)]
+    [InlineData("Line Guide Drive Shaft_242.stp", "AP242_MANAGED_MODEL_BASED_3D_ENGINEERING", "442", "Line Guide Drive Shaft", 1)]
+    public void ReadsTheBundledStepSamples(
         string fileName,
         string schemaNeedle,
         string protocolNeedle,
@@ -78,7 +80,7 @@ public class StepDocumentTests
         Assert.Contains(schemaNeedle, doc.Summary["Schema"]);
         Assert.Contains(protocolNeedle, doc.CfbVersionInfo);
         Assert.Equal("Autodesk Inventor 2027", doc.Summary["Originating System"]);
-        Assert.Equal("MetaReader Tests", doc.Summary["Author"]);
+        Assert.Equal("tobia", doc.Summary["Author"]);
         Assert.Contains(productNeedle, Prop(doc, "Products"));
         Assert.Equal(expectedSolids.ToString(), Prop(doc, "Manifold Solid B-Reps"));
         Assert.True(int.Parse(Prop(doc, "Advanced B-Rep Representations")) > 0);
@@ -86,8 +88,8 @@ public class StepDocumentTests
     }
 
     [Theory]
-    [InlineData("front_pivot_links_ap203.stp")]
-    [InlineData("front_pivot_links_ap214.step")]
+    [InlineData("Line Guide Drive Shaft_203.stp")]
+    [InlineData("Line Guide Drive Shaft_214.step")]
     public void HandlesBothStepExtensions(string fileName)
     {
         InventorDocument doc = new(StepSample(fileName));
@@ -100,13 +102,13 @@ public class StepDocumentTests
     [Fact]
     public void JsonExportIncludesStepSpecificMetadata()
     {
-        InventorDocument doc = new(StepSample("front_pivot_links_ap214.step"));
+        InventorDocument doc = new(StepSample("Line Guide Drive Shaft_214.step"));
 
         string json = doc.ToJson();
 
         Assert.Contains("\"documentType\": \"STEP model (.stp/.step)\"", json);
         Assert.Contains("\"primaryCategory\": \"NeutralCad\"", json);
-        Assert.Contains("Front Pivot Links", json);
+        Assert.Contains("Line Guide Drive Shaft", json);
         Assert.Contains("AUTOMOTIVE_DESIGN", json);
     }
 
