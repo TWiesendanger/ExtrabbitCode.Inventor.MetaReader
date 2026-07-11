@@ -652,10 +652,16 @@ public sealed partial class DocumentView
     });
   }
 
-  const viewer = new Autodesk.Viewing.GuiViewer3D(document.getElementById("viewer"));
+  // No fullscreen button: the viewer already fills a window overlay, and browser fullscreen inside
+  // the WebView fights with the overlay's Esc-to-close. It's an extension in LMV 7, so keep it from
+  // loading; the unload below covers viewer builds that ignore the config flag.
+  const viewer = new Autodesk.Viewing.GuiViewer3D(document.getElementById("viewer"), { disabledExtensions: { fullscreen: true } });
   Autodesk.Viewing.Initializer({ env: "Local", useADP: false }, () => {
     report("initialized");
     viewer.start();
+    viewer.addEventListener(Autodesk.Viewing.TOOLBAR_CREATED_EVENT, () => {
+      try { viewer.unloadExtension("Autodesk.FullScreen"); } catch (e) { /* wasn't loaded */ }
+    });
     viewer.loadExtension("Extrabbit.Coloring", { initial: wantMulticolor, bakedPalette: srcSvf }).then(
       () => report("coloring extension loaded"),
       (err) => report("coloring extension failed: " + err));
