@@ -3,6 +3,55 @@ title: What's New
 description: Highlights of each MetaReader release.
 ---
 
+## 1.2.0
+
+3D everywhere: STEP files open with a 3D view, viewables generate **without Inventor**, and you can
+now **draw on the model** - markup layers, 3D paint and rebindable shortcuts.
+
+### STEP files
+
+MetaReader now opens neutral **STEP** files (`.stp` / `.step`) - the full ISO-10303 header
+(description, authors, organizations, originating system, schema), per-entity counts, products and
+solid bodies, **and the 3D model**. STEP geometry is triangulated right in the app by Open CASCADE
+and shown in the same viewer - no Inventor, no cloud conversion. Three STEP samples (AP203, AP214,
+AP242) ship in the start-page gallery, and the [CLI](/docs/command-line) reads STEP too.
+
+### 3D views without Inventor
+
+The 3D viewer gained a **built-in converter**: it decodes the display mesh Inventor cached inside
+the file, so parts and assemblies get a 3D view **on machines without Inventor installed** - it's
+used automatically there. With Inventor installed you choose (once) between **exact** Inventor
+generation and the **fast, best-effort** built-in engine; best-effort views carry a badge and a
+one-click way to report a model that looks wrong. See [3D viewer](/docs/3d-view).
+
+### Redlining - draw on the model
+
+Circle a problem, add an arrow and a note, or **paint straight onto the geometry** with the 3D pen -
+strokes hug the surface and stay put while you orbit. Markup is organized in **layers** (rename,
+hide, per-layer camera pose) and **saved with the cached viewable**, so it's still there next time.
+Export any view as a **PNG or to the clipboard**, optionally stamped with file, layer and date. See
+[Redlining](/docs/redlining).
+
+### Body coloring
+
+One click (or `C`) gives **every body its own colour** - muted, evenly spaced hues that make
+neighbouring parts easy to tell apart, on both engines.
+
+### Rebindable shortcuts
+
+A **keyboard button** in the viewer toolbar opens a shortcuts window: see every binding, click one,
+press its replacement. Bindings persist like any other setting.
+
+### Smaller touches
+
+- **Try a sample** gallery on the start page - including a real-world steel part with version
+  history back to Inventor 11, and the three STEP schema samples.
+- **Model-state thumbnails** - each state shows its own preview, click to enlarge.
+- Models open **shaded with edges** for an Inventor-like look (toggle in the viewer settings).
+- The Autodesk viewer is **pinned to a fixed version** for reproducible rendering.
+- Fixes: a busy Inventor is retried during generation, and two rare crashes (tab tear-out,
+  in-app tips) are gone.
+
 ## 1.1.0
 
 A big update to the Windows viewer: an interactive reference graph, a pinned Home tab with recent
