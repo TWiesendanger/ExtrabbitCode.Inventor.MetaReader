@@ -48,6 +48,20 @@ public sealed partial class DocumentView
             ? _viewer3dWeb.TransformToVisual(relativeTo).TransformPoint(new Point(0, 0))
             : null;
 
+    /// <summary>The reference graph WebView2's top-left corner relative to the window content.</summary>
+    internal Point? ShootGraphOrigin(UIElement relativeTo) =>
+        _graphWeb is { ActualWidth: > 0 }
+            ? _graphWeb.TransformToVisual(relativeTo).TransformPoint(new Point(0, 0))
+            : null;
+
+    /// <summary>Runs JavaScript in the reference graph page (demo tour).</summary>
+    internal async Task<string> ShootGraphScriptAsync(string js)
+    {
+        if (_graphWeb?.CoreWebView2 is null) { return "null"; }
+        try { return await _graphWeb.CoreWebView2.ExecuteScriptAsync(js); }
+        catch (Exception) { return "null"; }
+    }
+
     /// <summary>Captures the reference-graph WebView2 (which RenderTargetBitmap renders blank) as a PNG,
     /// with its bounds inside <paramref name="relativeTo"/>, so the shooter can paint it into the shot.</summary>
     public async Task<(byte[] png, double x, double y, double width, double height)?> ShootGraphImageAsync(UIElement relativeTo)

@@ -2,7 +2,9 @@ using System;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Media;
+using Microsoft.UI.Xaml.Shapes;
 using Windows.Graphics;
+using Windows.Foundation;
 
 namespace ExtrabbitCode.Inventor.MetaReader.App;
 
@@ -11,6 +13,9 @@ namespace ExtrabbitCode.Inventor.MetaReader.App;
 public sealed partial class MainWindow
 {
     private Border? _shootCaption;
+    private Canvas? _shootCursorLayer;
+    private Grid? _shootCursor;
+    private Ellipse? _shootCursorPulse;
 
     /// <summary>The document view in the currently selected tab, if any.</summary>
     public DocumentView? CurrentView =>
@@ -61,6 +66,64 @@ public sealed partial class MainWindow
         ((TextBlock)_shootCaption.Child!).Text = text;
     }
 
+    /// <summary>Shows the demo tour's own cursor at a window-content position, or hides it for
+    /// <c>null</c>. Keeping the cursor inside the captured visual means the recorder never takes
+    /// control of the user's real pointer.</summary>
+    internal void ShootCursor(Point? position)
+    {
+        if (Content is not Grid root) { return; }
+        if (_shootCursorLayer == null)
+        {
+            _shootCursorLayer = new Canvas { IsHitTestVisible = false };
+            Grid.SetRowSpan(_shootCursorLayer, Math.Max(1, root.RowDefinitions.Count));
+            Grid.SetColumnSpan(_shootCursorLayer, Math.Max(1, root.ColumnDefinitions.Count));
+
+            _shootCursorPulse = new Ellipse
+            {
+                Width = 26,
+                Height = 26,
+                Stroke = new SolidColorBrush(Windows.UI.Color.FromArgb(0xE8, 0x1E, 0x88, 0xE5)),
+                StrokeThickness = 2.5,
+                Visibility = Visibility.Collapsed
+            };
+            Polygon arrow = new()
+            {
+                Points =
+                {
+                    new Point(1, 1), new Point(1, 25), new Point(7, 19),
+                    new Point(12, 30), new Point(17, 27), new Point(12, 17), new Point(22, 17)
+                },
+                Fill = new SolidColorBrush(Microsoft.UI.Colors.White),
+                Stroke = new SolidColorBrush(Microsoft.UI.Colors.Black),
+                StrokeThickness = 1.6,
+                StrokeLineJoin = PenLineJoin.Round
+            };
+            _shootCursor = new Grid { Width = 28, Height = 34 };
+            _shootCursor.Children.Add(_shootCursorPulse);
+            _shootCursor.Children.Add(arrow);
+            _shootCursorLayer.Children.Add(_shootCursor);
+            root.Children.Add(_shootCursorLayer);
+        }
+
+        if (position is not { } p)
+        {
+            _shootCursorLayer.Visibility = Visibility.Collapsed;
+            return;
+        }
+        _shootCursorLayer.Visibility = Visibility.Visible;
+        Canvas.SetLeft(_shootCursor!, p.X);
+        Canvas.SetTop(_shootCursor!, p.Y);
+    }
+
+    /// <summary>Highlights a scripted click around the in-app demo cursor.</summary>
+    internal void ShootCursorPressed(bool pressed)
+    {
+        if (_shootCursorPulse != null)
+        {
+            _shootCursorPulse.Visibility = pressed ? Visibility.Visible : Visibility.Collapsed;
+        }
+    }
+
     /// <summary>Resolves a window-level named element, for capturing just that region.</summary>
     public FrameworkElement? ShootElement(string name) =>
         (Content as FrameworkElement)?.FindName(name) as FrameworkElement;
@@ -96,5 +159,15 @@ public sealed partial class MainWindow
     {
         CloseAllTabs();                  // removes doc tabs but keeps the pinned Home tab
         DocTabs.SelectedItem = HomeTab;  // show the Home / welcome view
+    }
+
+    /// <summary>Closes the currently selected document tab (demo tour).</summary>
+    internal void ShootCloseSelectedTab()
+    {
+        if (DocTabs.SelectedItem is TabViewItem tab && !ReferenceEquals(tab, HomeTab))
+        {
+            DocTabs.TabItems.Remove(tab);
+            AfterTabRemoved();
+        }
     }
 }

@@ -40,7 +40,7 @@ $rec = "$out\tour.mkv"
 $psi = New-Object System.Diagnostics.ProcessStartInfo
 $psi.FileName = $ffmpeg
 $psi.Arguments = "-y -f gdigrab -framerate 30 -offset_x $($rect.x) -offset_y $($rect.y) " +
-                 "-video_size ${w}x${h} -i desktop -c:v libx264 -preset veryfast -crf 18 " +
+                 "-video_size ${w}x${h} -draw_mouse 0 -i desktop -c:v libx264 -preset veryfast -crf 18 " +
                  "-pix_fmt yuv420p `"$rec`""
 $psi.UseShellExecute = $false
 $psi.RedirectStandardInput = $true

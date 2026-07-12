@@ -19,9 +19,9 @@ namespace ExtrabbitCode.Inventor.MetaReader.App;
 /// recorder to create <c>record-ready.flag</c>, then walks the app's features at a human pace -
 /// once per theme - and writes <c>chapters.json</c> with the start/end of every segment.
 ///
-/// The REAL mouse cursor is choreographed along the way (the recorder picks it up automatically):
-/// it glides onto each control before the action fires, and traces the redline strokes as they are
-/// drawn, so the footage reads as a person using the app. Don't touch the mouse while it runs.
+/// An in-app cursor is choreographed along the way: it glides onto each control before the action
+/// fires and traces the redline strokes as they are drawn. The operating-system cursor is never
+/// moved or injected, so the user can keep working while the recorder runs.
 /// </summary>
 internal static class DemoTour
 {
@@ -161,8 +161,11 @@ internal static class DemoTour
                 if (layoutPick != null) { await cursor.MoveToElementAsync(layoutPick, 650); }
                 dv?.ShootSetGraphLayout(GraphLayout.Network);
                 await Task.Delay(5200);
-                dv?.ShootFitGraph();
-                await Task.Delay(2600);
+                if (dv != null)
+                {
+                    await RunGraphInteractionAsync(dv, cursor, w);
+                }
+                await Task.Delay(700);
                 chapters.Add(new("references", t, c0, clock.ElapsedMilliseconds));
             }
 
@@ -257,6 +260,8 @@ internal static class DemoTour
                     {
                         await Task.Delay(1500);
                         await v3.ShootViewer3DScriptAsync(DefineFireJs);   // page-side event helper
+                        await v3.ShootViewer3DScriptAsync(
+                            "(function(){const e=document.getElementById('warn');if(e)e.style.display='none';return 'ok';})()");
                         ViewerCursor vc = new(cursor, w, v3);
 
                         c0 = clock.ElapsedMilliseconds;
@@ -360,9 +365,9 @@ internal static class DemoTour
         }
     }
 
-    /// <summary>Redlining with the cursor doing the drawing: a 3D paint stroke, then a colour and
-    /// width pick from the dropdowns, a circle, a text note, an erase, and a layer visibility
-    /// toggle - each pointer event fired in the page while the real cursor sits on that spot.</summary>
+    /// <summary>Redlining with the cursor doing the drawing: a focused 3D paint stroke, then a
+    /// circle, arrow and text note on a second layer, an erase/undo, and a layer visibility toggle.
+    /// Each pointer event is fired in the page while the in-app cursor sits on that spot.</summary>
     private static async Task RunRedlineAsync(DocumentView v3, ViewerCursor vc, MainWindow w)
     {
         // deterministic framing for the plan, whatever the previous chapters did to the camera
@@ -371,7 +376,7 @@ internal static class DemoTour
         await Task.Delay(900);
         await vc.MoveToDomAsync("#extrabbit-redline-btn", 700);
         await v3.ShootViewer3DScriptAsync(RedlinePrepJs);
-        await Task.Delay(1200);
+        await Task.Delay(900);
 
         // the page plans the stroke paths (hit-testing needs the live model); C# walks them
         string planJson = await v3.ShootViewer3DScriptAsync(RedlinePlanJs);
@@ -383,79 +388,176 @@ internal static class DemoTour
         {
             await vc.MoveToDomAsync("#redlinePanel .rl-tool[title^=\"Paint\"]", 650);
             await v3.ShootViewer3DScriptAsync("NOP_VIEWER.getExtension('Extrabbit.Redline')._selectTool('paint3d')");
-            await Task.Delay(350);
-            await vc.TraceStrokeAsync(plan.Paint, stepMs: 46);
+            await Task.Delay(250);
+            await vc.TraceStrokeAsync(plan.Paint, stepMs: 40);
         }
-        await Task.Delay(600);
+        await Task.Delay(450);
 
         // 2. a second layer for the annotations that follow
         w.ShootCaption("Organize markup in layers");
-        await vc.MoveToDomAsync("#redlineLayers .rl-layers-head .rl-layer-btn", 700);   // the +
+        await vc.MoveToDomAsync("#redlineLayers .rl-layers-head .rl-layer-btn", 550);   // the +
         await vc.ClickDomAsync("#redlineLayers .rl-layers-head .rl-layer-btn", 0);
-        await Task.Delay(1100);
+        await v3.ShootViewer3DScriptAsync(
+            "(function(){const e=NOP_VIEWER.getExtension('Extrabbit.Redline');e._renameLayer(e._activeId,'Inspection notes');return 'ok';})()");
+        await Task.Delay(650);
 
         // 3. pick a colour and a thicker stroke from the dropdowns
         w.ShootCaption("Colours, stroke widths, shapes and text");
-        await vc.MoveToDomAsync("#redlinePanel .rl-style", 650, index: 1);        // colour trigger
+        await vc.MoveToDomAsync("#redlinePanel .rl-style", 500, index: 1);        // colour trigger
         await vc.ClickDomAsync("#redlinePanel .rl-style", 1);
-        await Task.Delay(450);
-        await vc.MoveToDomAsync("#redlinePanel .rl-style-menu .rl-swatch", 550, index: 4);   // blue
-        await vc.ClickDomAsync("#redlinePanel .rl-style-menu .rl-swatch", 4);
-        await Task.Delay(450);
-        await vc.MoveToDomAsync("#redlinePanel .rl-style", 550, index: 2);        // width trigger
+        await Task.Delay(300);
+        await vc.MoveToDomAsync("#redlinePanel .rl-style-menu.open .rl-swatch", 420, index: 4);   // blue
+        await vc.ClickDomAsync("#redlinePanel .rl-style-menu.open .rl-swatch", 4);
+        await Task.Delay(300);
+        await vc.MoveToDomAsync("#redlinePanel .rl-style", 450, index: 2);        // width trigger
         await vc.ClickDomAsync("#redlinePanel .rl-style", 2);
-        await Task.Delay(450);
-        await vc.MoveToDomAsync("#redlinePanel .rl-style-menu:nth-of-type(3) .rl-tool", 500, index: 2);
+        await Task.Delay(300);
+        await vc.MoveToDomAsync("#redlinePanel .rl-style-menu.open .rl-tool", 400, index: 2);
         await v3.ShootViewer3DScriptAsync(
             "(function(){const m=document.querySelectorAll('#redlinePanel .rl-style-menu')[2];m.querySelectorAll('.rl-tool')[2].click();return 'ok';})()");
-        await Task.Delay(450);
+        await Task.Delay(300);
 
         // 4. a circle in the new colour and width
         await v3.ShootViewer3DScriptAsync("NOP_VIEWER.getExtension('Extrabbit.Redline')._selectTool('circle')");
-        await vc.TraceStrokeAsync(plan.Circle, stepMs: 55);
-        await Task.Delay(500);
+        await vc.TraceStrokeAsync(plan.Circle, stepMs: 42);
+        await Task.Delay(350);
 
-        // 5. a text note next to it
+        // 5. an arrow makes the annotation read as a deliberate callout, not a loose shape
+        await v3.ShootViewer3DScriptAsync("NOP_VIEWER.getExtension('Extrabbit.Redline')._selectTool('arrow')");
+        await vc.TraceStrokeAsync(plan.Arrow, stepMs: 42);
+        await Task.Delay(350);
+
+        // 6. a text note at the arrow's tail
         if (plan.Text.Count > 0)
         {
             await v3.ShootViewer3DScriptAsync("NOP_VIEWER.getExtension('Extrabbit.Redline')._selectTool('text')");
             (int tx, int ty) = vc.PageToScreenPublic(plan.Text[0]);
             await vc.GlideAsync(tx, ty, 550);
             await vc.FirePublic("pointerdown", plan.Text[0]);
-            await Task.Delay(400);
-            foreach (string chunk in new[] { "Check", " fit", " here" })
+            await Task.Delay(300);
+            foreach (string chunk in new[] { "Inspect", " this", " fit" })
             {
                 await v3.ShootViewer3DScriptAsync(
                     $"(function(){{const i=document.getElementById('redlineText');i.value+='{chunk}';return 'ok';}})()");
-                await Task.Delay(480);
+                await Task.Delay(300);
             }
-            await Task.Delay(400);
+            await Task.Delay(250);
             await v3.ShootViewer3DScriptAsync("NOP_VIEWER.getExtension('Extrabbit.Redline')._commitText()");
-            await Task.Delay(700);
+            await Task.Delay(450);
         }
 
-        // 6. the eraser takes the paint stroke away again
-        w.ShootCaption("Erase anything, undo everything");
-        await vc.MoveToDomAsync("#redlinePanel .rl-tool[title^=\"Eraser\"]", 650);
+        // 7. erase the arrow, then undo: the action reads clearly while the finished callout stays
+        w.ShootCaption("Erase a mark, then undo it");
+        await vc.MoveToDomAsync("#redlinePanel .rl-tool[title^=\"Eraser\"]", 500);
         await v3.ShootViewer3DScriptAsync("NOP_VIEWER.getExtension('Extrabbit.Redline')._selectTool('erase')");
-        await Task.Delay(350);
-        if (plan.Paint.Count >= 12)
+        await Task.Delay(250);
+        if (plan.Arrow.Count > 2)
         {
-            List<Point> swipe = plan.Paint.GetRange(plan.Paint.Count / 3, plan.Paint.Count / 3);
-            await vc.TraceStrokeAsync(swipe, stepMs: 40);
+            Point erase = plan.Arrow[plan.Arrow.Count / 2];
+            (int ex, int ey) = vc.PageToScreenPublic(erase);
+            await vc.GlideAsync(ex, ey, 450);
+            // Chromium hit-testing synthetic SVG pointer events can be inconsistent. Remove the
+            // arrow through the extension's own undo model at the instant the cursor reaches it,
+            // so the recorded erase/undo beat is deterministic.
+            await v3.ShootViewer3DScriptAsync(
+                "(function(){const e=NOP_VIEWER.getExtension('Extrabbit.Redline'),l=e._layer();" +
+                "const el=Array.from(l.g.children).findLast(x=>x.tagName.toLowerCase()==='path');" +
+                "if(!el)return 'miss';el.remove();e._undo.push({layer:l,kind:'erase2d',el});" +
+                "e._persist();return 'ok';})()");
+            await Task.Delay(750);
+            await v3.ShootViewer3DScriptAsync("NOP_VIEWER.getExtension('Extrabbit.Redline').undo()");
         }
-        await Task.Delay(800);
+        await Task.Delay(650);
 
-        // 7. layers: hide and show the annotation layer from the layer browser
+        // 8. layers: hide and show annotations; the surface-bound paint remains visible throughout
         w.ShootCaption("Layers hide, show, and are saved with the model");
-        await vc.MoveToDomAsync("#redlineLayers .rl-layer .rl-layer-btn", 700, index: 4);   // 2nd row's eye
+        await vc.MoveToDomAsync("#redlineLayers .rl-layer .rl-layer-btn", 550, index: 4);   // 2nd row's eye
         await vc.ClickDomAsync("#redlineLayers .rl-layer .rl-layer-btn", 4);
-        await Task.Delay(1300);
+        await Task.Delay(850);
         await vc.ClickDomAsync("#redlineLayers .rl-layer .rl-layer-btn", 4);
-        await Task.Delay(900);
+        await Task.Delay(750);
+
+        // 9. leave the screenshot export menu open long enough for all three options to read
+        w.ShootCaption("Export a layer to PNG or copy it to the clipboard");
+        await vc.MoveToDomAsync("#redlinePanel .rl-style", 500, index: 3);       // camera trigger
+        await vc.ClickDomAsync("#redlinePanel .rl-style", 3);
+        await Task.Delay(450);
+        await vc.MoveToDomAsync("#redlinePanel .rl-style-menu.open .rl-menu-item", 450, index: 0);
+        await Task.Delay(750);
+        await vc.MoveToDomAsync("#redlinePanel .rl-style-menu.open .rl-menu-item", 450, index: 1);
+        await Task.Delay(1100);
+        await v3.ShootViewer3DScriptAsync("NOP_VIEWER.getExtension('Extrabbit.Redline')._closeMenus()");
 
         await v3.ShootViewer3DScriptAsync("NOP_VIEWER.getExtension('Extrabbit.Redline')._selectTool('free')");
+        await Task.Delay(650);
+    }
+
+    /// <summary>Zooms into an openable network node, drags it a short distance, then opens it in a
+    /// tab. The opened tab is closed after a readable pause so the rest of the tour keeps its
+    /// deterministic tab order.</summary>
+    private static async Task RunGraphInteractionAsync(DocumentView graph, Cursor cursor, MainWindow w)
+    {
+        GraphPlan? plan = ParseGraphPlan(await graph.ShootGraphScriptAsync(GraphPlanJs));
+        if (plan == null) { graph.ShootFitGraph(); return; }
+
+        w.ShootCaption("Zoom, rearrange, then open any referenced file");
+        await graph.ShootGraphScriptAsync(
+            $"network.focus({plan.Id},{{scale:1.45,animation:{{duration:1000,easingFunction:'easeInOutQuad'}}}})");
+        await Task.Delay(1150);
+        plan = ParseGraphPlan(await graph.ShootGraphScriptAsync(GraphPlanJs));
+        Point? origin = graph.ShootGraphOrigin(w.Content);
+        if (plan == null || origin == null) { graph.ShootFitGraph(); return; }
+
+        (int sx, int sy) = cursor.ToScreen(new Point(origin.Value.X + plan.Page.X, origin.Value.Y + plan.Page.Y));
+        await cursor.GlideToAsync(sx, sy, 700);
+        await graph.ShootGraphScriptAsync(
+            $"network.body.nodes[{plan.Id}].options.fixed={{x:true,y:true}};network.stopSimulation();'ok'");
+
+        const int steps = 24;
+        const double dx = 70;
+        const double dy = 32;
+        for (int i = 1; i <= steps; i++)
+        {
+            double k = (double)i / steps;
+            double eased = k * k * (3 - 2 * k);
+            double cx = plan.Canvas.X + dx * eased;
+            double cy = plan.Canvas.Y + dy * Math.Sin(eased * Math.PI / 2);
+            double px = plan.Page.X + (cx - plan.Canvas.X) * plan.Scale;
+            double py = plan.Page.Y + (cy - plan.Canvas.Y) * plan.Scale;
+            (int x, int y) = cursor.ToScreen(new Point(origin.Value.X + px, origin.Value.Y + py));
+            cursor.InjectMove(x, y);
+            await graph.ShootGraphScriptAsync(
+                $"network.moveNode({plan.Id},{cx.ToString(System.Globalization.CultureInfo.InvariantCulture)},{cy.ToString(System.Globalization.CultureInfo.InvariantCulture)});'ok'");
+            await Task.Delay(24);
+        }
         await Task.Delay(500);
+
+        await cursor.PulseClickAsync(2);
+        await graph.ShootGraphScriptAsync(
+            $"window.chrome.webview.postMessage(JSON.stringify({{type:'open',id:{plan.Id}}}));'ok'");
+        await Task.Delay(3000);
+        w.ShootCloseSelectedTab();
+        w.ShootSelectTabIndex(1);                       // back to the showcase assembly
+        await Task.Delay(850);
+    }
+
+    private sealed record GraphPlan(int Id, Point Page, Point Canvas, double Scale);
+
+    private static GraphPlan? ParseGraphPlan(string json)
+    {
+        try
+        {
+            string? inner = JsonSerializer.Deserialize<string>(json);
+            if (inner == null || inner.StartsWith("err", StringComparison.Ordinal)) { return null; }
+            using JsonDocument d = JsonDocument.Parse(inner);
+            JsonElement r = d.RootElement;
+            JsonElement page = r.GetProperty("page"), canvas = r.GetProperty("canvas");
+            return new GraphPlan(r.GetProperty("id").GetInt32(),
+                new Point(page[0].GetDouble(), page[1].GetDouble()),
+                new Point(canvas[0].GetDouble(), canvas[1].GetDouble()),
+                r.GetProperty("scale").GetDouble());
+        }
+        catch { return null; }
     }
 
     private sealed record RedlinePlan(List<Point> Paint, List<Point> Circle, List<Point> Arrow, List<Point> Text);
@@ -506,9 +608,8 @@ internal static class DemoTour
         "(function(){try{return (window.NOP_VIEWER && NOP_VIEWER.model && NOP_VIEWER.model.isLoadDone() && document.getElementById('extrabbit-group')) ? '1' : '0';}catch(e){return '0';}})()";
 
     /// <summary>Installs a tiny page-global so per-step pointer events are cheap to fire.
-    /// pointerId 7777, NOT 1: the real mouse (which the cursor choreography moves via SendInput)
-    /// is pointerId 1 in Chromium, and its button-less moves would otherwise pass the stroke's
-    /// same-pointer check and end it as a lost pointerup after the first point.</summary>
+    /// A reserved pointer id keeps the scripted stroke independent from any real pointer activity
+    /// that may happen while the user keeps working during the recording.</summary>
     private const string DefineFireJs =
         """
         (function () {
@@ -527,7 +628,7 @@ internal static class DemoTour
             const ext = NOP_VIEWER.getExtension("Extrabbit.Redline");
             ext.setActive(true);
             while (ext._layers.length) { ext._deleteLayer(ext._layers[0].id); }
-            ext._ensureLayer().name = "Review notes";
+            ext._ensureLayer().name = "Surface paint";
             ext._syncBrowser();
             ext._width = 2;
             return "ok";
@@ -535,44 +636,84 @@ internal static class DemoTour
         })()
         """;
 
-    /// <summary>Plans the demo strokes in page coordinates: a wavy run along the model surface
-    /// (hit-tested), a circle around a feature and an arrow pointing at it.</summary>
+    /// <summary>Plans the demo strokes in page coordinates. The paint path is the best contiguous
+    /// hit-tested surface run near the model centre, preventing a single stroke from jumping across
+    /// the open spaces in an assembly. The callout is anchored to a real central surface hit.</summary>
     private const string RedlinePlanJs =
         """
         (function () {
           try {
             const vv = window.NOP_VIEWER;
             const W = vv.canvas.clientWidth, H = vv.canvas.clientHeight;
-            const row = (yF) => {
-              const y = H * yF, xs = [];
-              for (let i = 0; i <= 80; i++) {
-                const x = W * 0.2 + i * (W * 0.6 / 80);
-                if (vv.impl.hitTest(x, y, false)) { xs.push(x); }
+            const runsAt = (yF) => {
+              const y = H * yF, runs = [];
+              let run = [];
+              for (let i = 0; i <= 120; i++) {
+                const x = W * 0.16 + i * (W * 0.68 / 120);
+                if (vv.impl.hitTest(x, y, false)) { run.push([x, y]); }
+                else if (run.length) { runs.push(run); run = []; }
               }
-              return { y, xs };
+              if (run.length) { runs.push(run); }
+              return runs;
             };
-            // camera-independent: probe several heights and paint along the widest run of surface
-            let r = { y: H * 0.5, xs: [] };
-            let mid = r;
-            for (const yF of [0.4, 0.45, 0.5, 0.55, 0.6, 0.65]) {
-              const cand = row(yF);
-              if (cand.xs.length > r.xs.length) { mid = r.xs.length ? r : cand; r = cand; }
-              else if (cand.xs.length > mid.xs.length) { mid = cand; }
+            let best = [];
+            let bestScore = -Infinity;
+            for (const yF of [0.50, 0.54, 0.58, 0.62, 0.66]) {
+              for (const run of runsAt(yF)) {
+                if (run.length < 8) { continue; }
+                const centre = run[Math.floor(run.length / 2)][0];
+                const score = run.length * 12 - Math.abs(centre - W * 0.48) * 0.35;
+                if (score > bestScore) { best = run; bestScore = score; }
+              }
             }
-            const paint = r.xs.map((x, i) => [x, r.y + Math.sin(i / 3) * 10]);
-            const cx = mid.xs.length ? mid.xs[Math.floor(mid.xs.length / 2)] : W * 0.55;
-            const cy = mid.xs.length ? mid.y : H * 0.42;
+            if (best.length > 38) {
+              const start = Math.floor((best.length - 38) / 2);
+              best = best.slice(start, start + 38);
+            }
+            const paint = best.map((p, i) => {
+              const waved = [p[0], p[1] + Math.sin(i / 3.5) * 5];
+              return vv.impl.hitTest(waved[0], waved[1], false) ? waved : p;
+            });
+
+            // Find the actual surface point closest to the desired callout area.
+            let anchor = [W * 0.54, H * 0.46], anchorScore = Infinity;
+            for (let yi = 0; yi <= 12; yi++) {
+              const y = H * (0.34 + yi * 0.025);
+              for (let xi = 0; xi <= 20; xi++) {
+                const x = W * (0.38 + xi * 0.015);
+                if (!vv.impl.hitTest(x, y, false)) { continue; }
+                const score = Math.hypot(x - W * 0.53, y - H * 0.46);
+                if (score < anchorScore) { anchor = [x, y]; anchorScore = score; }
+              }
+            }
+            const cx = anchor[0], cy = anchor[1];
             const circle = [];
             for (let i = 0; i <= 14; i++) {
-              circle.push([cx - 45 + i * (90 / 14), cy - 32 + i * (64 / 14)]);
+              circle.push([cx - 52 + i * (104 / 14), cy - 38 + i * (76 / 14)]);
             }
-            const ax = Math.min(cx + 170, W - 30), ay = cy - 110;
+            const ax = Math.min(cx + 185, W - 185), ay = Math.max(cy - 105, 72);
             const arrow = [];
             for (let i = 0; i <= 12; i++) {
-              arrow.push([ax + i * ((cx + 52 - ax) / 12), ay + i * ((cy - 26 - ay) / 12)]);
+              arrow.push([ax + i * ((cx + 58 - ax) / 12), ay + i * ((cy - 32 - ay) / 12)]);
             }
-            const text = [[Math.min(cx + 70, W - 220), cy - 80]];
+            const text = [[Math.min(ax - 8, W - 190), Math.max(ay - 24, 34)]];
             return JSON.stringify({ paint, circle, arrow, text });
+          } catch (e) { return "err:" + e.message; }
+        })()
+        """;
+
+    /// <summary>Returns an openable graph node's page/canvas coordinates at the current zoom.</summary>
+    private const string GraphPlanJs =
+        """
+        (function () {
+          try {
+            if (typeof network === "undefined" || !network || typeof nodesDS === "undefined" || !nodesDS) { return "err:not ready"; }
+            const choices = nodesDS.get({ filter: n => n.canopen });
+            if (!choices.length) { return "err:no openable node"; }
+            const n = choices[Math.min(2, choices.length - 1)];
+            const c = network.getPositions([n.id])[n.id];
+            const p = network.canvasToDOM(c);
+            return JSON.stringify({ id: n.id, page: [p.x, p.y], canvas: [c.x, c.y], scale: network.getScale() });
           } catch (e) { return "err:" + e.message; }
         })()
         """;
@@ -611,28 +752,30 @@ internal static class DemoTour
 
     // ---------- the choreographed cursor ----------
 
-    /// <summary>Moves the REAL mouse cursor (SetCursorPos) so the recording shows a person at
-    /// work: eased glides onto controls, and stroke tracing for the redline drawing. Coordinates
-    /// go from XAML DIPs to physical pixels through the window's rasterization scale.</summary>
+    /// <summary>Moves the in-app demo cursor so the recording shows a person at work. Coordinates
+    /// go from XAML DIPs through physical pixels only to share one mapping with WebView CSS pixels;
+    /// the operating-system cursor is never touched.</summary>
     private sealed class Cursor
     {
         private readonly MainWindow _w;
         private readonly IntPtr _hwnd;
-        private POINT _saved;
+        private int _x;
+        private int _y;
 
         public Cursor(MainWindow w)
         {
             _w = w;
             _hwnd = WinRT.Interop.WindowNative.GetWindowHandle(w);
-            GetCursorPos(out _saved);
+            POINT origin = default;
+            ClientToScreen(_hwnd, ref origin);
+            FrameworkElement content = (FrameworkElement)w.Content;
+            _x = origin.X + (int)(content.ActualWidth / 2);
+            _y = origin.Y + (int)(content.ActualHeight / 2);
         }
 
-        public void ParkOffWindow()
-        {
-            if (_w.ShootWindowRect() is { } r) { SetCursorPos(r.X + r.W + 60, r.Y + r.H / 2); }
-        }
+        public void ParkOffWindow() => _w.ShootCursor(null);
 
-        public void Restore() => SetCursorPos(_saved.X, _saved.Y);
+        public void Restore() => _w.ShootCursor(null);
 
         /// <summary>Screen position of a point given in window-content DIPs.</summary>
         public (int X, int Y) ToScreen(Point dips)
@@ -655,74 +798,51 @@ internal static class DemoTour
             await Task.Delay(180);                       // dwell so the hover state reads on camera
         }
 
-        /// <summary>Eased (smooth-step) glide from wherever the cursor is to the target. Movement
-        /// goes through SendInput, not SetCursorPos: only real injected input raises the pointer
-        /// events that XAML hover visuals and tooltips (e.g. the category legend) react to.</summary>
+        /// <summary>Eased (smooth-step) glide from the last demo-cursor position to the target.</summary>
         public async Task GlideToAsync(int tx, int ty, int durationMs)
         {
-            GetCursorPos(out POINT from);
+            int fromX = _x, fromY = _y;
             int steps = Math.Max(2, durationMs / 12);
             for (int i = 1; i <= steps; i++)
             {
                 double k = (double)i / steps;
                 double e = k * k * (3 - 2 * k);
-                InjectMove((int)Math.Round(from.X + (tx - from.X) * e),
-                           (int)Math.Round(from.Y + (ty - from.Y) * e));
+                InjectMove((int)Math.Round(fromX + (tx - fromX) * e),
+                           (int)Math.Round(fromY + (ty - fromY) * e));
                 await Task.Delay(12);
             }
         }
 
-        /// <summary>Moves the cursor via SendInput (absolute, primary screen).</summary>
-        public static void InjectMove(int x, int y)
+        /// <summary>Moves only the cursor drawn inside the app.</summary>
+        public void InjectMove(int x, int y)
         {
-            int sw = GetSystemMetrics(0), sh = GetSystemMetrics(1);   // SM_CXSCREEN / SM_CYSCREEN
-            INPUT[] input =
-            [
-                new INPUT
-                {
-                    type = 0,   // INPUT_MOUSE
-                    mi = new MOUSEINPUT
-                    {
-                        dx = (int)Math.Round(x * 65535.0 / (sw - 1)),
-                        dy = (int)Math.Round(y * 65535.0 / (sh - 1)),
-                        dwFlags = 0x0001 | 0x8000   // MOVE | ABSOLUTE
-                    }
-                }
-            ];
-            if (SendInput(1, input, Marshal.SizeOf<INPUT>()) == 0) { SetCursorPos(x, y); }
+            _x = x; _y = y;
+            double scale = _w.Content.XamlRoot?.RasterizationScale ?? 1.0;
+            POINT origin = default;
+            ClientToScreen(_hwnd, ref origin);
+            _w.ShootCursor(new Point((x - origin.X) / scale, (y - origin.Y) / scale));
         }
 
-        [DllImport("user32.dll")] private static extern bool SetCursorPos(int x, int y);
-        [DllImport("user32.dll")] private static extern bool GetCursorPos(out POINT p);
+        public async Task PulseClickAsync(int count = 1)
+        {
+            for (int i = 0; i < count; i++)
+            {
+                _w.ShootCursorPressed(true);
+                await Task.Delay(110);
+                _w.ShootCursorPressed(false);
+                await Task.Delay(120);
+            }
+        }
+
         [DllImport("user32.dll")] private static extern bool ClientToScreen(IntPtr hWnd, ref POINT p);
-        [DllImport("user32.dll")] private static extern uint SendInput(uint nInputs, INPUT[] pInputs, int cbSize);
-        [DllImport("user32.dll")] private static extern int GetSystemMetrics(int nIndex);
 
         [StructLayout(LayoutKind.Sequential)]
         private struct POINT { public int X; public int Y; }
-
-        [StructLayout(LayoutKind.Sequential)]
-        private struct INPUT
-        {
-            public uint type;
-            public MOUSEINPUT mi;
-        }
-
-        [StructLayout(LayoutKind.Sequential)]
-        private struct MOUSEINPUT
-        {
-            public int dx;
-            public int dy;
-            public uint mouseData;
-            public uint dwFlags;
-            public uint time;
-            public IntPtr dwExtraInfo;
-        }
     }
 
     /// <summary>Cursor choreography inside the 3D viewer page: maps page (CSS px) coordinates to
     /// the screen via the WebView2's position, hovers DOM elements, and traces redline strokes -
-    /// each pointer event fires while the real cursor sits on exactly that point.</summary>
+    /// each pointer event fires while the in-app cursor sits on exactly that point.</summary>
     private sealed class ViewerCursor(Cursor cursor, MainWindow w, DocumentView view)
     {
         public async Task MoveToDomAsync(string selector, int durationMs, int index = 0)
@@ -757,7 +877,7 @@ internal static class DemoTour
             for (int i = 1; i < path.Count; i++)
             {
                 (int x, int y) = PageToScreen(path[i]);
-                Cursor.InjectMove(x, y);
+                cursor.InjectMove(x, y);
                 await Fire("pointermove", path[i]);
                 await Task.Delay(stepMs);
             }
