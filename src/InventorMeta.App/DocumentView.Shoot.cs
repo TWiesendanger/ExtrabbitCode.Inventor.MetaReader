@@ -101,6 +101,46 @@ public sealed partial class DocumentView
         if (_graphWeb is not null) { Post(_graphWeb, "{\"cmd\":\"showcase\"}"); }
     }
 
+    /// <summary>The graph's node-thumbnails toggle, as a cursor target (demo tour).</summary>
+    internal FrameworkElement? ShootGraphThumbsToggle() => _graphThumbsToggle;
+
+    /// <summary>Turns node thumbnails on in the reference graph (demo tour).</summary>
+    internal void ShootShowGraphThumbs()
+    {
+        if (_graphThumbsToggle is { } toggle && _graphWeb is not null && _graphRoot is not null)
+        {
+            toggle.IsChecked = true;
+            _showThumbs = true;
+            SendGraph(_graphWeb, _graphRoot);
+        }
+    }
+
+    /// <summary>Smooth-scrolls the ScrollViewer that hosts a named detail panel (demo tour).</summary>
+    internal void ShootScrollPanel(string panelName, double toOffset)
+    {
+        if (FindName(panelName) is FrameworkElement panel && panel.Parent is ScrollViewer sv)
+        {
+            sv.ChangeView(null, toOffset, null);
+        }
+    }
+
+    /// <summary>Collapses or expands every property group (demo tour).</summary>
+    internal void ShootSetPropsExpanded(bool expanded) => SetAllExpanded(expanded);
+
+    /// <summary>A property group's header (the chevron's parent), as a cursor target.</summary>
+    internal FrameworkElement? ShootPropGroupHeader(int index) =>
+        index >= 0 && index < _collapsibles.Count ? _collapsibles[index].chevron.Parent as FrameworkElement : null;
+
+    /// <summary>Expands a single property group (demo tour).</summary>
+    internal void ShootExpandPropGroup(int index)
+    {
+        if (index >= 0 && index < _collapsibles.Count)
+        {
+            _collapsibles[index].body.Visibility = Visibility.Visible;
+            _collapsibles[index].chevron.Glyph = G(ChevronUp);
+        }
+    }
+
     // ---- 3D viewer (snapshotter): the overlay opens only through private event handlers, so the
     // shooter gets its own entry points. The WebView2 is captured like the graph's - via
     // CapturePreviewAsync - because RenderTargetBitmap renders WebView2 content blank. ----

@@ -58,7 +58,7 @@ class ColoringExtension extends Autodesk.Viewing.Extension {
   _tooltip(){
     let key = "C";
     try { key = window.Hotkeys.get("coloring").toUpperCase(); } catch (e) { /* registry not loaded */ }
-    return "Body coloring — give every body its own colour (" + key + ")";
+    return "Body coloring: give every body its own colour (" + key + ")";
   }
   onToolbarCreated(toolbar){
     if (this._button) { return; }                             // guard against a double call

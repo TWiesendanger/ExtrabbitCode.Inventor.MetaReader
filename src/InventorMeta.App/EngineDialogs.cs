@@ -24,8 +24,10 @@ internal static class EngineDialogs
             + "Please attach the part/assembly file (plus referenced parts for an assembly) so the converter can be fixed.\n"));
 
     /// <summary>First-use chooser between the two engines - two side-by-side cards with their
-    /// trade-offs. Returns the picked engine, or null if the user backed out.</summary>
-    public static async Task<SvfEngine?> ShowChooserAsync(XamlRoot xamlRoot)
+    /// trade-offs. Returns the picked engine, or null if the user backed out.
+    /// <paramref name="built"/> hands the dialog instance to the demo tour, which shows the
+    /// chooser on camera (setting its theme and closing it again).</summary>
+    public static async Task<SvfEngine?> ShowChooserAsync(XamlRoot xamlRoot, Action<ContentDialog>? built = null)
     {
         SvfEngine? picked = null;
 
@@ -41,6 +43,7 @@ internal static class EngineDialogs
         dlg.Resources["ContentDialogMaxWidth"] = 720d;
         dlg.Content = BuildChooserBody(e => { picked = e; dlg.Hide(); });
 
+        built?.Invoke(dlg);
         await dlg.ShowAsync();
         return picked;
     }

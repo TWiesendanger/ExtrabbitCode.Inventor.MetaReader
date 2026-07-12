@@ -82,9 +82,9 @@ internal static class DemoTour
             ThemeManager.Apply(w, ElementTheme.Light);
             await Task.Delay(600);
 
-            // -- home: the welcome screen with recents and the sample gallery ------------------
+            // -- home: the welcome screen, the recent list and the sample gallery --------------
             long c0 = clock.ElapsedMilliseconds;
-            w.ShootCaption("Read Inventor & STEP files — no Inventor install needed");
+            w.ShootCaption("Read Inventor & STEP files, no Inventor install needed");
             RecentFiles.Clear();
             foreach (string? recent in new[] { tnp, asm, part })
             {
@@ -92,7 +92,26 @@ internal static class DemoTour
             }
             w.ShootCloseAllTabs();
             w.SetStatus("Ready. Open or drop an Inventor file to begin.");
-            await Task.Delay(3600);
+            await Task.Delay(2400);
+            if (w.ShootElement("RecentCard") is { } recents)     // linger on the recent files
+            {
+                await cursor.MoveToElementAsync(recents, 700, yFraction: 0.3);
+                await Task.Delay(1400);
+            }
+            w.ShootCaption("Bundled samples: parts, assemblies, drawings and STEP");
+            if (w.ShootElement("SamplesButton") is { } samplesBtn)
+            {
+                await cursor.MoveToElementAsync(samplesBtn, 650);
+            }
+            {
+                Microsoft.UI.Xaml.Controls.ContentDialog? gallery = null;
+                Task pendingGallery = SamplesGallery.ShowAsync(w.Content.XamlRoot, _ => { },
+                    d => { gallery = d; d.RequestedTheme = ElementTheme.Light; });
+                await Task.Delay(3400);
+                gallery?.Hide();
+                try { await pendingGallery; } catch { /* dismissed */ }
+                await Task.Delay(400);
+            }
             chapters.Add(new("home", t, c0, clock.ElapsedMilliseconds));
 
             // -- open the showcase assembly: thumbnail, iProperties, categories ----------------
@@ -101,12 +120,26 @@ internal static class DemoTour
                 c0 = clock.ElapsedMilliseconds;
                 w.ShootCaption("Every iProperty, straight from the file");
                 w.ShootOpen(asm);
-                await Task.Delay(5200);
+                await Task.Delay(3200);
+                if (w.CurrentView is { } ov)
+                {
+                    ov.ShootScrollPanel("PropsPanel", 700);      // stroll down the property sets
+                    await Task.Delay(2200);
+                    ov.ShootScrollPanel("PropsPanel", 0);
+                    await Task.Delay(1200);
+                    ov.ShootSetPropsExpanded(false);             // collapse them all...
+                    await Task.Delay(1400);
+                    if (ov.ShootPropGroupHeader(1) is { } group) { await cursor.MoveToElementAsync(group, 600); }
+                    ov.ShootExpandPropGroup(1);                  // ...and open just one
+                    await Task.Delay(2200);
+                    ov.ShootSetPropsExpanded(true);
+                    await Task.Delay(600);
+                }
                 chapters.Add(new("overview", t, c0, clock.ElapsedMilliseconds));
 
                 // -- the interactive reference graph ------------------------------------------
                 c0 = clock.ElapsedMilliseconds;
-                w.ShootCaption("The reference graph — explore, zoom, rearrange");
+                w.ShootCaption("The reference graph: explore, zoom, rearrange");
                 DocumentView? dv = w.CurrentView;
                 if (dv?.ShootTabHeader("References") is { } refsTab)
                 {
@@ -115,6 +148,12 @@ internal static class DemoTour
                 dv?.ShootSelectTab("References");
                 await Task.Delay(3000);
                 dv?.ShootExpandGraph();
+                await Task.Delay(2400);
+                if (dv?.ShootGraphThumbsToggle() is { } thumbsToggle)   // every node with its preview
+                {
+                    await cursor.MoveToElementAsync(thumbsToggle, 650);
+                }
+                dv?.ShootShowGraphThumbs();
                 await Task.Delay(2400);
                 dv?.ShootGraphShowcase();                 // camera ride into a few nodes and back
                 await Task.Delay(6000);
@@ -136,12 +175,22 @@ internal static class DemoTour
                 await Task.Delay(1400);
                 w.ShootOpen(tnp);
                 await Task.Delay(1800);
-                foreach (int tab in new[] { 1, 3, 2 })    // reel -> pipe -> part, cursor first
+                foreach (int tab in new[] { 1, 3 })       // reel first, then the pipe
                 {
                     if (w.ShootTab(tab) is { } header) { await cursor.MoveToElementAsync(header, 650); }
                     w.ShootSelectTabIndex(tab);
                     await Task.Delay(1500);
                 }
+                // the pipe's category badge: hover it so the legend with every category shows
+                w.ShootCaption("Categories recognized: Piping, Frame Generator, Sheet Metal and more");
+                if (w.CurrentView?.ShootElement("CategoryBadge") is { } badge)
+                {
+                    await cursor.MoveToElementAsync(badge, 700);
+                    await Task.Delay(2800);               // the tooltip lists all categories
+                }
+                if (w.ShootTab(2) is { } partHeader) { await cursor.MoveToElementAsync(partHeader, 650); }
+                w.ShootSelectTabIndex(2);
+                await Task.Delay(1200);
                 chapters.Add(new("tabs", t, c0, clock.ElapsedMilliseconds));
 
                 // -- model states side by side (the part tab is already selected) --------------
@@ -152,8 +201,35 @@ internal static class DemoTour
                     await cursor.MoveToElementAsync(statesTab, 700);
                 }
                 w.CurrentView?.ShootSelectTab("Model States");
-                await Task.Delay(4200);
+                await Task.Delay(2600);
+                w.CurrentView?.ShootScrollPanel("StatesPanel", 520);   // each state has its own thumbnail
+                await Task.Delay(2400);
+                w.CurrentView?.ShootScrollPanel("StatesPanel", 0);
+                await Task.Delay(1000);
                 chapters.Add(new("model-states", t, c0, clock.ElapsedMilliseconds));
+            }
+
+            // -- the engine choice: exact Inventor translation vs the built-in converter -------
+            {
+                c0 = clock.ElapsedMilliseconds;
+                w.ShootCaption("Pick your 3D engine: exact Inventor, or the fast built-in converter");
+                Microsoft.UI.Xaml.Controls.ContentDialog? chooser = null;
+                Task<SvfEngine?> pending = EngineDialogs.ShowChooserAsync(
+                    w.Content.XamlRoot, d => { chooser = d; d.RequestedTheme = ElementTheme.Light; });
+                await Task.Delay(1000);
+                // linger on each card so the trade-offs can be read
+                if (chooser?.Content is Microsoft.UI.Xaml.Controls.StackPanel body
+                    && body.Children[^1] is Microsoft.UI.Xaml.Controls.Grid cards)
+                {
+                    if (cards.Children[0] is FrameworkElement inv) { await cursor.MoveToElementAsync(inv, 800); }
+                    await Task.Delay(1900);
+                    if (cards.Children[1] is FrameworkElement loc) { await cursor.MoveToElementAsync(loc, 700); }
+                    await Task.Delay(1900);
+                }
+                chooser?.Hide();
+                try { await pending; } catch { /* dismissed */ }
+                await Task.Delay(500);
+                chapters.Add(new("engine", t, c0, clock.ElapsedMilliseconds));
             }
 
             // -- the 3D viewer: orbit, body coloring, redlining, shortcuts ---------------------
@@ -165,7 +241,7 @@ internal static class DemoTour
                 await Task.Delay(900);
                 if (w.CurrentView is { } v3)
                 {
-                    w.ShootCaption("Interactive 3D — generated without Inventor");
+                    w.ShootCaption("Interactive 3D, generated without Inventor");
                     if (v3.ShootElement("SidebarCard") is { } card)
                     {
                         await cursor.MoveToElementAsync(card, 700, yFraction: 0.18);
@@ -200,8 +276,8 @@ internal static class DemoTour
                         await Task.Delay(700);
 
                         c0 = clock.ElapsedMilliseconds;
-                        w.ShootCaption("Redlining — draw and paint directly on the model");
-                        await RunRedlineAsync(v3, vc);
+                        w.ShootCaption("Redlining: draw and paint directly on the model");
+                        await RunRedlineAsync(v3, vc, w);
                         chapters.Add(new("redlining", t, c0, clock.ElapsedMilliseconds));
 
                         c0 = clock.ElapsedMilliseconds;
@@ -220,9 +296,24 @@ internal static class DemoTour
                 }
             }
 
+            // -- STEP import: neutral CAD files open like any other -----------------------------
+            if (Sample(samplesDir, "SampleSteps", "Line Guide Drive Shaft_242.stp") is { } step)
+            {
+                c0 = clock.ElapsedMilliseconds;
+                w.ShootCaption("STEP import: full ISO-10303 header, geometry summary and 3D");
+                w.ShootOpen(step);
+                await Task.Delay(3200);
+                if (w.CurrentView is { } sv)
+                {
+                    sv.ShootScrollPanel("PropsPanel", 400);
+                    await Task.Delay(2400);
+                }
+                chapters.Add(new("step", t, c0, clock.ElapsedMilliseconds));
+            }
+
             // -- back home for a clean outro ----------------------------------------------------
             c0 = clock.ElapsedMilliseconds;
-            w.ShootCaption("Inventor MetaReader — free on the Microsoft Store");
+            w.ShootCaption("Inventor MetaReader, free on the Microsoft Store");
             w.ShootCloseAllTabs();
             cursor.ParkOffWindow();
             await Task.Delay(2600);
@@ -245,10 +336,10 @@ internal static class DemoTour
         }
     }
 
-    /// <summary>Redlining with the cursor doing the drawing: activates the mode from its toolbar
-    /// button, then draws a 3D paint stroke, a circle and an arrow - each pointer event fired in
-    /// the page while the real cursor sits exactly on that spot.</summary>
-    private static async Task RunRedlineAsync(DocumentView v3, ViewerCursor vc)
+    /// <summary>Redlining with the cursor doing the drawing: a 3D paint stroke, then a colour and
+    /// width pick from the dropdowns, a circle, a text note, an erase, and a layer visibility
+    /// toggle - each pointer event fired in the page while the real cursor sits on that spot.</summary>
+    private static async Task RunRedlineAsync(DocumentView v3, ViewerCursor vc, MainWindow w)
     {
         await vc.MoveToDomAsync("#extrabbit-redline-btn", 700);
         await v3.ShootViewer3DScriptAsync(RedlinePrepJs);
@@ -259,6 +350,7 @@ internal static class DemoTour
         RedlinePlan? plan = ParsePlan(planJson);
         if (plan == null) { return; }
 
+        // 1. the 3D pen, in the default red
         if (plan.Paint.Count >= 8)
         {
             await vc.MoveToDomAsync("#redlinePanel .rl-tool[title^=\"Paint\"]", 650);
@@ -268,19 +360,77 @@ internal static class DemoTour
         }
         await Task.Delay(600);
 
-        await vc.MoveToDomAsync("#redlinePanel .rl-style", 650);   // the shapes dropdown trigger
+        // 2. a second layer for the annotations that follow
+        w.ShootCaption("Organize markup in layers");
+        await vc.MoveToDomAsync("#redlineLayers .rl-layers-head .rl-layer-btn", 700);   // the +
+        await vc.ClickDomAsync("#redlineLayers .rl-layers-head .rl-layer-btn", 0);
+        await Task.Delay(1100);
+
+        // 3. pick a colour and a thicker stroke from the dropdowns
+        w.ShootCaption("Colours, stroke widths, shapes and text");
+        await vc.MoveToDomAsync("#redlinePanel .rl-style", 650, index: 1);        // colour trigger
+        await vc.ClickDomAsync("#redlinePanel .rl-style", 1);
+        await Task.Delay(450);
+        await vc.MoveToDomAsync("#redlinePanel .rl-style-menu .rl-swatch", 550, index: 4);   // blue
+        await vc.ClickDomAsync("#redlinePanel .rl-style-menu .rl-swatch", 4);
+        await Task.Delay(450);
+        await vc.MoveToDomAsync("#redlinePanel .rl-style", 550, index: 2);        // width trigger
+        await vc.ClickDomAsync("#redlinePanel .rl-style", 2);
+        await Task.Delay(450);
+        await vc.MoveToDomAsync("#redlinePanel .rl-style-menu:nth-of-type(3) .rl-tool", 500, index: 2);
+        await v3.ShootViewer3DScriptAsync(
+            "(function(){const m=document.querySelectorAll('#redlinePanel .rl-style-menu')[2];m.querySelectorAll('.rl-tool')[2].click();return 'ok';})()");
+        await Task.Delay(450);
+
+        // 4. a circle in the new colour and width
         await v3.ShootViewer3DScriptAsync("NOP_VIEWER.getExtension('Extrabbit.Redline')._selectTool('circle')");
-        await Task.Delay(350);
         await vc.TraceStrokeAsync(plan.Circle, stepMs: 42);
         await Task.Delay(500);
 
-        await v3.ShootViewer3DScriptAsync("NOP_VIEWER.getExtension('Extrabbit.Redline')._selectTool('arrow')");
-        await vc.TraceStrokeAsync(plan.Arrow, stepMs: 42);
-        await v3.ShootViewer3DScriptAsync("NOP_VIEWER.getExtension('Extrabbit.Redline')._selectTool('free')");
+        // 5. a text note next to it
+        if (plan.Text.Count > 0)
+        {
+            await v3.ShootViewer3DScriptAsync("NOP_VIEWER.getExtension('Extrabbit.Redline')._selectTool('text')");
+            (int tx, int ty) = vc.PageToScreenPublic(plan.Text[0]);
+            await vc.GlideAsync(tx, ty, 550);
+            await vc.FirePublic("pointerdown", plan.Text[0]);
+            await Task.Delay(400);
+            foreach (string chunk in new[] { "Check", " fit", " here" })
+            {
+                await v3.ShootViewer3DScriptAsync(
+                    $"(function(){{const i=document.getElementById('redlineText');i.value+='{chunk}';return 'ok';}})()");
+                await Task.Delay(320);
+            }
+            await Task.Delay(400);
+            await v3.ShootViewer3DScriptAsync("NOP_VIEWER.getExtension('Extrabbit.Redline')._commitText()");
+            await Task.Delay(700);
+        }
+
+        // 6. the eraser takes the paint stroke away again
+        w.ShootCaption("Erase anything, undo everything");
+        await vc.MoveToDomAsync("#redlinePanel .rl-tool[title^=\"Eraser\"]", 650);
+        await v3.ShootViewer3DScriptAsync("NOP_VIEWER.getExtension('Extrabbit.Redline')._selectTool('erase')");
+        await Task.Delay(350);
+        if (plan.Paint.Count >= 12)
+        {
+            List<Point> swipe = plan.Paint.GetRange(plan.Paint.Count / 3, plan.Paint.Count / 3);
+            await vc.TraceStrokeAsync(swipe, stepMs: 30);
+        }
+        await Task.Delay(800);
+
+        // 7. layers: hide and show the annotation layer from the layer browser
+        w.ShootCaption("Layers hide, show, and are saved with the model");
+        await vc.MoveToDomAsync("#redlineLayers .rl-layer .rl-layer-btn", 700, index: 4);   // 2nd row's eye
+        await vc.ClickDomAsync("#redlineLayers .rl-layer .rl-layer-btn", 4);
+        await Task.Delay(1300);
+        await vc.ClickDomAsync("#redlineLayers .rl-layer .rl-layer-btn", 4);
         await Task.Delay(900);
+
+        await v3.ShootViewer3DScriptAsync("NOP_VIEWER.getExtension('Extrabbit.Redline')._selectTool('free')");
+        await Task.Delay(500);
     }
 
-    private sealed record RedlinePlan(List<Point> Paint, List<Point> Circle, List<Point> Arrow);
+    private sealed record RedlinePlan(List<Point> Paint, List<Point> Circle, List<Point> Arrow, List<Point> Text);
 
     private static RedlinePlan? ParsePlan(string json)
     {
@@ -302,7 +452,8 @@ internal static class DemoTour
             return new RedlinePlan(
                 Pts(doc.RootElement.GetProperty("paint")),
                 Pts(doc.RootElement.GetProperty("circle")),
-                Pts(doc.RootElement.GetProperty("arrow")));
+                Pts(doc.RootElement.GetProperty("arrow")),
+                Pts(doc.RootElement.GetProperty("text")));
         }
         catch { return null; }
     }
@@ -384,7 +535,8 @@ internal static class DemoTour
             for (let i = 0; i <= 12; i++) {
               arrow.push([ax + i * ((cx + 52 - ax) / 12), ay + i * ((cy - 26 - ay) / 12)]);
             }
-            return JSON.stringify({ paint, circle, arrow });
+            const text = [[Math.min(cx + 70, W - 220), cy - 80]];
+            return JSON.stringify({ paint, circle, arrow, text });
           } catch (e) { return "err:" + e.message; }
         })()
         """;
@@ -458,14 +610,18 @@ internal static class DemoTour
         public async Task MoveToElementAsync(FrameworkElement element, int durationMs, double yFraction = 0.5)
         {
             if (element.ActualWidth <= 0) { return; }
-            Point center = element.TransformToVisual(_w.Content)
+            // transform to the root visual (null), not to Content: popup-hosted elements such as
+            // ContentDialog cards are not in the Content subtree
+            Point center = element.TransformToVisual(null)
                 .TransformPoint(new Point(element.ActualWidth / 2, element.ActualHeight * yFraction));
             (int x, int y) = ToScreen(center);
             await GlideToAsync(x, y, durationMs);
             await Task.Delay(180);                       // dwell so the hover state reads on camera
         }
 
-        /// <summary>Eased (smooth-step) glide from wherever the cursor is to the target.</summary>
+        /// <summary>Eased (smooth-step) glide from wherever the cursor is to the target. Movement
+        /// goes through SendInput, not SetCursorPos: only real injected input raises the pointer
+        /// events that XAML hover visuals and tooltips (e.g. the category legend) react to.</summary>
         public async Task GlideToAsync(int tx, int ty, int durationMs)
         {
             GetCursorPos(out POINT from);
@@ -474,18 +630,58 @@ internal static class DemoTour
             {
                 double k = (double)i / steps;
                 double e = k * k * (3 - 2 * k);
-                SetCursorPos((int)Math.Round(from.X + (tx - from.X) * e),
-                             (int)Math.Round(from.Y + (ty - from.Y) * e));
+                InjectMove((int)Math.Round(from.X + (tx - from.X) * e),
+                           (int)Math.Round(from.Y + (ty - from.Y) * e));
                 await Task.Delay(12);
             }
+        }
+
+        /// <summary>Moves the cursor via SendInput (absolute, primary screen).</summary>
+        public static void InjectMove(int x, int y)
+        {
+            int sw = GetSystemMetrics(0), sh = GetSystemMetrics(1);   // SM_CXSCREEN / SM_CYSCREEN
+            INPUT[] input =
+            [
+                new INPUT
+                {
+                    type = 0,   // INPUT_MOUSE
+                    mi = new MOUSEINPUT
+                    {
+                        dx = (int)Math.Round(x * 65535.0 / (sw - 1)),
+                        dy = (int)Math.Round(y * 65535.0 / (sh - 1)),
+                        dwFlags = 0x0001 | 0x8000   // MOVE | ABSOLUTE
+                    }
+                }
+            ];
+            if (SendInput(1, input, Marshal.SizeOf<INPUT>()) == 0) { SetCursorPos(x, y); }
         }
 
         [DllImport("user32.dll")] private static extern bool SetCursorPos(int x, int y);
         [DllImport("user32.dll")] private static extern bool GetCursorPos(out POINT p);
         [DllImport("user32.dll")] private static extern bool ClientToScreen(IntPtr hWnd, ref POINT p);
+        [DllImport("user32.dll")] private static extern uint SendInput(uint nInputs, INPUT[] pInputs, int cbSize);
+        [DllImport("user32.dll")] private static extern int GetSystemMetrics(int nIndex);
 
         [StructLayout(LayoutKind.Sequential)]
         private struct POINT { public int X; public int Y; }
+
+        [StructLayout(LayoutKind.Sequential)]
+        private struct INPUT
+        {
+            public uint type;
+            public MOUSEINPUT mi;
+        }
+
+        [StructLayout(LayoutKind.Sequential)]
+        private struct MOUSEINPUT
+        {
+            public int dx;
+            public int dy;
+            public uint mouseData;
+            public uint dwFlags;
+            public uint time;
+            public IntPtr dwExtraInfo;
+        }
     }
 
     /// <summary>Cursor choreography inside the 3D viewer page: maps page (CSS px) coordinates to
@@ -493,15 +689,25 @@ internal static class DemoTour
     /// each pointer event fires while the real cursor sits on exactly that point.</summary>
     private sealed class ViewerCursor(Cursor cursor, MainWindow w, DocumentView view)
     {
-        public async Task MoveToDomAsync(string selector, int durationMs)
+        public async Task MoveToDomAsync(string selector, int durationMs, int index = 0)
         {
             string json = await view.ShootViewer3DScriptAsync(
-                $"(function(){{const e=document.querySelector('{selector}');if(!e)return '';const r=e.getBoundingClientRect();return JSON.stringify([r.x+r.width/2,r.y+r.height/2]);}})()");
+                $"(function(){{const e=document.querySelectorAll('{selector}')[{index}];if(!e)return '';const r=e.getBoundingClientRect();return JSON.stringify([r.x+r.width/2,r.y+r.height/2]);}})()");
             if (PagePoint(json) is not { } p) { return; }
             (int x, int y) = PageToScreen(p);
             await cursor.GlideToAsync(x, y, durationMs);
             await Task.Delay(220);
         }
+
+        /// <summary>Clicks a DOM element through its real click handler (menu triggers, swatches,
+        /// layer buttons), assuming the cursor already sits on it.</summary>
+        public Task<string> ClickDomAsync(string selector, int index = 0) =>
+            view.ShootViewer3DScriptAsync(
+                $"(function(){{const e=document.querySelectorAll('{selector}')[{index}];if(!e)return '';e.click();return 'ok';}})()");
+
+        public (int X, int Y) PageToScreenPublic(Point p) => PageToScreen(p);
+        public Task GlideAsync(int x, int y, int ms) => cursor.GlideToAsync(x, y, ms);
+        public Task<string> FirePublic(string type, Point p, bool up = false) => Fire(type, p, up);
 
         /// <summary>Walks a planned stroke: pointerdown at the first point, a move per step with
         /// the cursor riding along, pointerup at the last.</summary>
@@ -515,7 +721,7 @@ internal static class DemoTour
             for (int i = 1; i < path.Count; i++)
             {
                 (int x, int y) = PageToScreen(path[i]);
-                _ = SetCursor(x, y);
+                Cursor.InjectMove(x, y);
                 await Fire("pointermove", path[i]);
                 await Task.Delay(stepMs);
             }
@@ -545,9 +751,5 @@ internal static class DemoTour
             catch { return null; }
         }
 
-        private static bool SetCursor(int x, int y) => SetCursorPosNative(x, y);
-
-        [DllImport("user32.dll", EntryPoint = "SetCursorPos")]
-        private static extern bool SetCursorPosNative(int x, int y);
     }
 }

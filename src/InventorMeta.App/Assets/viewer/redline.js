@@ -207,7 +207,7 @@ class RedlineExtension extends Autodesk.Viewing.Extension {
     if (this._button){ return; }
     try {
       this._button = new Autodesk.Viewing.UI.Button("extrabbit-redline-btn");
-      this._button.setToolTip("Redline — draw on the model" + rlHotkeySuffix("redline"));
+      this._button.setToolTip("Redline: draw on the model" + rlHotkeySuffix("redline"));
       this._button.onClick = () => this.setActive(!this._active);
       extrabbitToolbarGroup(toolbar).addControl(this._button); // shared Extrabbit button group
       // The palette has no move button of its own - Autodesk's navigation tools take that role.
@@ -639,7 +639,7 @@ class RedlineExtension extends Autodesk.Viewing.Extension {
         this._toolBtns.paint3d.title = "Paint on the model (experimental) - strokes stick to the surface" + rlHotkeySuffix("paint3d");
       }
     }
-    if (this._button){ this._button.setToolTip("Redline — draw on the model" + rlHotkeySuffix("redline")); }
+    if (this._button){ this._button.setToolTip("Redline: draw on the model" + rlHotkeySuffix("redline")); }
   }
   _selectTool(id){
     if (this._tool !== id){ this._finishStroke(); }

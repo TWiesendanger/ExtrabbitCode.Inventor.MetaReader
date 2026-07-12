@@ -34,19 +34,31 @@ if (-not (Test-Path $rectFile)) { throw "window-rect.json never appeared" }
 $rect = Get-Content $rectFile | ConvertFrom-Json
 $w = [int]($rect.w - ($rect.w % 2)); $h = [int]($rect.h - ($rect.h % 2))
 
-# 2. record that desktop region
+# 2. record that desktop region. ffmpeg is stopped GRACEFULLY via 'q' on stdin afterwards - a hard
+# kill loses the last few unflushed seconds (the tour's final chapters).
 $rec = "$out\tour.mkv"
-$ffArgs = @("-y","-f","gdigrab","-framerate","30","-offset_x","$($rect.x)","-offset_y","$($rect.y)",
-            "-video_size","${w}x${h}","-i","desktop","-c:v","libx264","-preset","veryfast","-crf","18",
-            "-pix_fmt","yuv420p","$rec")
-$ffProc = Start-Process $ffmpeg -ArgumentList $ffArgs -PassThru -WindowStyle Hidden -RedirectStandardError "$out\ffmpeg.log"
+$psi = New-Object System.Diagnostics.ProcessStartInfo
+$psi.FileName = $ffmpeg
+$psi.Arguments = "-y -f gdigrab -framerate 30 -offset_x $($rect.x) -offset_y $($rect.y) " +
+                 "-video_size ${w}x${h} -i desktop -c:v libx264 -preset veryfast -crf 18 " +
+                 "-pix_fmt yuv420p `"$rec`""
+$psi.UseShellExecute = $false
+$psi.RedirectStandardInput = $true
+$psi.RedirectStandardError = $true
+$psi.CreateNoWindow = $true
+$ffProc = [System.Diagnostics.Process]::Start($psi)
+$null = $ffProc.StandardError.ReadToEndAsync()   # drain so the pipe never blocks
 Start-Sleep -Seconds 3
 Set-Content "$out\record-ready.flag" "go"
 
 # 3. wait for the tour, then stop the recorder
 for ($i = 0; $i -lt 600 -and -not (Test-Path "$out\tour-done.flag"); $i++) { Start-Sleep -Milliseconds 500 }
-Start-Sleep -Seconds 2
-if (-not $ffProc.HasExited) { Stop-Process -Id $ffProc.Id -Force -Confirm:$false }
+Start-Sleep -Seconds 3
+if (-not $ffProc.HasExited) {
+    $ffProc.StandardInput.Write("q")
+    $ffProc.StandardInput.Close()
+    if (-not $ffProc.WaitForExit(10000)) { Stop-Process -Id $ffProc.Id -Force -Confirm:$false }
+}
 if (-not $appProc.HasExited) { Stop-Process -Id $appProc.Id -Force -Confirm:$false -ErrorAction SilentlyContinue }
 
 # 4. cut chapters: +2.5 s maps tour-clock time to video time (recorder spin-up before the flag)

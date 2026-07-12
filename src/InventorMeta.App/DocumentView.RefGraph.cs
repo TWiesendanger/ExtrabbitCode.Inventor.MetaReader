@@ -29,6 +29,7 @@ public sealed partial class DocumentView
     // The live graph, kept so we can re-theme it when the app switches light/dark.
     private WebView2? _graphWeb;
     private ComboBox? _graphLayoutPick;   // the layout dropdown; the snapshotter drives it so the label stays in sync
+    private ToggleButton? _graphThumbsToggle;   // the node-thumbnails toggle, driven by the demo tour
     private RefNode? _graphRoot;
     private Border? _graphChrome;
 
@@ -130,6 +131,7 @@ public sealed partial class DocumentView
             Padding = new Thickness(8, 5, 8, 5), MinWidth = 0, IsChecked = _showThumbs
         };
         ToolTipService.SetToolTip(thumbs, "Show thumbnails");
+        _graphThumbsToggle = thumbs;
         thumbs.Click += (_, _) => { _showThumbs = thumbs.IsChecked == true; SendGraph(web, root); };
 
         // Fullscreen: pop the viewport (graph + toolbar) into a window-filling overlay + OS fullscreen.
