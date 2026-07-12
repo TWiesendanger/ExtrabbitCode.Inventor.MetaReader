@@ -19,25 +19,36 @@ internal static class WhatsNewDialog
     private const string SeenVersionKey = "whatsnew.version";
 
     private sealed record Section(string Title, string Blurb, string? GifAsset);
+    private sealed record Release(string Version, Section[] Sections);
 
-    private static readonly Section[] Sections =
+    private static readonly Release[] Releases =
     [
-        new("Redlining: draw on the model",
-            "Circle a problem, add text, or paint directly onto the geometry with the 3D pen. " +
-            "Markup lives on layers and is saved with the model.",
-            "redlining.gif"),
-        new("3D views, with or without Inventor",
-            "A built-in converter renders parts and assemblies on machines without Inventor. " +
-            "Body coloring gives every part its own colour with one click.",
-            "viewer3d.gif"),
-        new("Reference graph with thumbnails",
-            "Every node can draw its part's preview image, and the camera work is all yours: " +
-            "zoom, drag, three layouts.",
-            "references.gif"),
-        new("Also new",
-            "STEP import (.stp/.step) with a full header readout and 3D view. Rebindable keyboard " +
-            "shortcuts. A richer sample gallery, including a real-world fishing-reel assembly.",
-            null),
+        new("1.2.0",
+        [
+            new("Redlining: draw on the model",
+                "Circle a problem, add text, or paint directly onto the geometry with the 3D pen. " +
+                "Markup lives on layers and is saved with the model.",
+                "redlining.gif"),
+            new("3D views, with or without Inventor",
+                "A built-in converter renders parts and assemblies on machines without Inventor. " +
+                "Body coloring gives every part its own colour with one click.",
+                "viewer3d.gif"),
+            new("Also new",
+                "STEP import (.stp/.step) with a full header readout and 3D view. Rebindable keyboard " +
+                "shortcuts. A richer sample gallery, including a real-world fishing-reel assembly.",
+                null),
+        ]),
+        new("1.1.0",
+        [
+            new("Reference graph, reimagined",
+                "The References tab became an interactive graph: drag nodes, zoom, expand and " +
+                "collapse, pick one of three layouts, and every node can show its part's thumbnail.",
+                "references.gif"),
+            new("Also in 1.1.0",
+                "A pinned Home tab with recent files. Colour-coded document categories. Hidden, " +
+                "silent 3D generation with Inventor.",
+                null),
+        ]),
     ];
 
     /// <summary>Shows the dialog if this app version hasn't presented it yet. Returns whether it
@@ -85,19 +96,37 @@ internal static class WhatsNewDialog
         }
 
         StackPanel content = new() { Spacing = 18 };
-        foreach (Section s in Sections)
+        foreach (Release release in Releases)
         {
-            StackPanel section = new() { Spacing = 6 };
-            section.Children.Add(new TextBlock
+            Border versionPill = new()
             {
-                Text = s.Title, FontSize = 16, FontWeight = FontWeights.SemiBold
-            });
-            section.Children.Add(new TextBlock
+                Background = (Brush)Application.Current.Resources["AccentFillColorDefaultBrush"],
+                CornerRadius = new CornerRadius(10),
+                Padding = new Thickness(10, 3, 10, 4),
+                HorizontalAlignment = HorizontalAlignment.Left,
+                Margin = new Thickness(0, release == Releases[0] ? 0 : 10, 0, 0),
+                Child = new TextBlock
+                {
+                    Text = release.Version, FontSize = 12, FontWeight = FontWeights.SemiBold,
+                    Foreground = (Brush)Application.Current.Resources["TextOnAccentFillColorPrimaryBrush"]
+                }
+            };
+            content.Children.Add(versionPill);
+
+            foreach (Section s in release.Sections)
             {
-                Text = s.Blurb, Opacity = 0.8, FontSize = 13, TextWrapping = TextWrapping.Wrap
-            });
-            if (s.GifAsset != null) { section.Children.Add(GifCard(s.GifAsset, OpenFullscreen)); }
-            content.Children.Add(section);
+                StackPanel section = new() { Spacing = 6 };
+                section.Children.Add(new TextBlock
+                {
+                    Text = s.Title, FontSize = 16, FontWeight = FontWeights.SemiBold
+                });
+                section.Children.Add(new TextBlock
+                {
+                    Text = s.Blurb, Opacity = 0.8, FontSize = 13, TextWrapping = TextWrapping.Wrap
+                });
+                if (s.GifAsset != null) { section.Children.Add(GifCard(s.GifAsset, OpenFullscreen)); }
+                content.Children.Add(section);
+            }
         }
 
         ScrollViewer scroll = new()
@@ -110,7 +139,7 @@ internal static class WhatsNewDialog
 
         TextBlock title = new()
         {
-            Text = "What's new in " + string.Join('.', AppInfo.Version.Split('.'), 0, 3),
+            Text = "What's new",
             FontSize = 20, FontWeight = FontWeights.SemiBold, VerticalAlignment = VerticalAlignment.Center
         };
         Button close = new()
