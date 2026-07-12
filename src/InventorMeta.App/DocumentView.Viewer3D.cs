@@ -146,8 +146,7 @@ public sealed partial class DocumentView
                 SvfEngine? engine = await ResolveEngineAsync(win);
                 if (engine == null)
                 {
-                    ring.IsActive = false;
-                    statusText.Text = "No 3D engine selected.";
+                    Close();   // backed out of the chooser - nothing to show, don't strand the user in an empty overlay
                     return;
                 }
 
