@@ -65,10 +65,17 @@ if (-not $appProc.HasExited) { Stop-Process -Id $appProc.Id -Force -Confirm:$fal
 $ch = (Get-Content "$out\chapters.json" | ConvertFrom-Json).chapters
 $off = 2.5
 function Chapter($name, $theme) { $ch | Where-Object { $_.name -eq $name -and $_.theme -eq $theme } }
+function Cut($ss, $dur, $w, $fps, $outFile) {
+    & $ffmpeg -y -v error -ss $ss -t $dur -i $rec -vf "fps=$fps,scale=${w}:-1:flags=lanczos,palettegen=stats_mode=diff" "$out\pal.png"
+    & $ffmpeg -y -v error -ss $ss -t $dur -i $rec -i "$out\pal.png" -lavfi "fps=$fps,scale=${w}:-1:flags=lanczos[x];[x][1:v]paletteuse=dither=bayer:bayer_scale=4:diff_mode=rectangle" $outFile
+}
+$appGifDir = "$repo\src\InventorMeta.App\Assets\whatsnew"
 function Gif($start, $dur, $name) {
-    & $ffmpeg -y -v error -ss ($start + $off) -t $dur -i $rec -vf "fps=11,scale=820:-1:flags=lanczos,palettegen=stats_mode=diff" "$out\pal.png"
-    & $ffmpeg -y -v error -ss ($start + $off) -t $dur -i $rec -i "$out\pal.png" -lavfi "fps=11,scale=820:-1:flags=lanczos[x];[x][1:v]paletteuse=dither=bayer:bayer_scale=4:diff_mode=rectangle" "$gifDir\$name"
-    "{0}: {1:N2} MB" -f $name, ((Get-Item "$gifDir\$name").Length / 1MB)
+    $ss = $start + $off
+    Cut $ss $dur 820 11 "$gifDir\$name"                                          # docs, inline
+    Cut $ss $dur 1600 11 "$gifDir\$($name -replace '\.gif$', '-hd.gif')"         # docs, lightbox
+    Cut $ss $dur 1280 10 "$appGifDir\$($name -replace '^demo__', '')"            # app what's-new dialog
+    "{0}: {1:N2} MB (+hd, +app)" -f $name, ((Get-Item "$gifDir\$name").Length / 1MB)
 }
 $refs = Chapter "references" "light"; $orb = Chapter "viewer-orbit" "light"
 $col = Chapter "coloring" "light"; $red = Chapter "redlining" "light"

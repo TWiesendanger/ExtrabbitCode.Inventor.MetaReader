@@ -25,28 +25,59 @@ internal static class WhatsNewDialog
     [
         new("1.2.0",
         [
+            new("STEP files",
+                "Neutral CAD files (.stp/.step) open like any other document: the full ISO-10303 " +
+                "header, per-entity counts, products and solid bodies, and the 3D model, converted " +
+                "right in the app. Three STEP samples ship in the gallery.",
+                null),
             new("Redlining: draw on the model",
                 "Circle a problem, add text, or paint directly onto the geometry with the 3D pen. " +
-                "Markup lives on layers and is saved with the model.",
+                "Markup lives on layers with their own camera poses, is saved with the model, and " +
+                "exports as a PNG or to the clipboard.",
                 "redlining.gif"),
             new("3D views, with or without Inventor",
-                "A built-in converter renders parts and assemblies on machines without Inventor. " +
-                "Body coloring gives every part its own colour with one click.",
+                "A built-in converter reads the display mesh cached inside the file, so parts and " +
+                "assemblies get a 3D view on machines without Inventor. With Inventor installed you " +
+                "choose once between exact translation and the fast best-effort engine.",
+                null),
+            new("Body coloring",
+                "One click (or C) gives every body its own colour: muted, evenly spaced hues that " +
+                "make neighbouring parts easy to tell apart, on both engines.",
                 "viewer3d.gif"),
-            new("Also new",
-                "STEP import (.stp/.step) with a full header readout and 3D view. Rebindable keyboard " +
-                "shortcuts. A richer sample gallery, including a real-world fishing-reel assembly.",
+            new("Rebindable shortcuts",
+                "The keyboard button in the viewer toolbar opens a shortcuts window: see every " +
+                "binding, click one, press its replacement. Bindings persist like any other setting.",
+                null),
+            new("Smaller touches",
+                "A Try-a-sample gallery with a real-world fishing-reel assembly. Per-model-state " +
+                "thumbnails, clickable to enlarge. Models open shaded with edges. The 3D viewer is " +
+                "pinned to a fixed version for reproducible rendering.",
                 null),
         ]),
         new("1.1.0",
         [
             new("Reference graph, reimagined",
                 "The References tab became an interactive graph: drag nodes, zoom, expand and " +
-                "collapse, pick one of three layouts, and every node can show its part's thumbnail.",
+                "collapse, pick one of three layouts, and every node can show its part's thumbnail. " +
+                "iPart factories and members are highlighted.",
                 "references.gif"),
-            new("Also in 1.1.0",
-                "A pinned Home tab with recent files. Colour-coded document categories. Hidden, " +
-                "silent 3D generation with Inventor.",
+            new("Home tab & recent files",
+                "The welcome screen is a pinned Home tab that stays at the far left, one click away " +
+                "while you work, with a recent-files list of the documents you opened before.",
+                "tabs.gif"),
+            new("Document categories",
+                "MetaReader recognizes the subsystem that produced a document - Content Center, " +
+                "Piping, Frame Generator, Design Accelerator, Weldment, Sheet Metal, iPart and " +
+                "iAssembly - and shows it as a colour-coded badge.",
+                null),
+            new("Hidden, silent 3D generation",
+                "Generating a viewable keeps Inventor's window hidden and suppresses its prompts by " +
+                "default. An Inventor session you already had open is never touched.",
+                null),
+            new("Smaller touches",
+                "A bundled sample assembly on the welcome screen. Close-other and close-all tabs, " +
+                "Ctrl+W. In-app tips. A diagnostics log in Settings. The reference graph follows " +
+                "the light or dark theme instantly.",
                 null),
         ]),
     ];

@@ -18,6 +18,8 @@ interface DemoGifProps {
 export function DemoGif({ src, alt }: DemoGifProps) {
   const [full, setFull] = useState(false);
   const url = resolve(src);
+  // the lightbox swaps in a full-resolution variant (…-hd.gif), fetched only when opened
+  const hdUrl = resolve(src.replace(/\.gif$/, '-hd.gif'));
 
   useEffect(() => {
     if (!full) return;
@@ -58,7 +60,7 @@ export function DemoGif({ src, alt }: DemoGifProps) {
           className="fixed inset-0 z-50 flex cursor-zoom-out items-center justify-center bg-black/90 p-4 sm:p-10"
           onClick={() => setFull(false)}
         >
-          <img src={url} alt={alt} className="h-full w-full rounded-lg object-contain" />
+          <img src={hdUrl} alt={alt} className="h-full w-full rounded-lg object-contain" />
         </span>
       )}
     </>
