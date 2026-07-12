@@ -270,9 +270,9 @@ public sealed partial class DocumentView
                     }
                     if (msg.StartsWith("redline-save:", StringComparison.Ordinal))
                     {
-                        // drawing-session history lives next to the viewable in the cache entry
-                        try { File.WriteAllText(Path.Combine(entryDir, "redline-sessions.json"), msg["redline-save:".Length..]); }
-                        catch (Exception ex) { Serilog.Log.Warning("Couldn't save redline sessions in {Dir}: {Error}", entryDir, ex.Message); }
+                        // layer history lives next to the viewable in the cache entry
+                        try { File.WriteAllText(Path.Combine(entryDir, "redline-layers.json"), msg["redline-save:".Length..]); }
+                        catch (Exception ex) { Serilog.Log.Warning("Couldn't save redline layers in {Dir}: {Error}", entryDir, ex.Message); }
                         return;
                     }
                     if (msg.StartsWith("redline-shot:", StringComparison.Ordinal))

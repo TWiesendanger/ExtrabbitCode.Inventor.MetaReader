@@ -1,11 +1,12 @@
-// Extrabbit.Redline - draw markup over the model, organised into DRAWING SESSIONS.
+// Extrabbit.Redline - draw markup over the model, organised into LAYERS.
 //
-// A session owns its 2D shapes (freehand, rectangle, circle, arrow, text on an SVG overlay), its
-// 3D pen strokes (raycast onto the model surface, world-space lines that rotate with it) and the
-// camera perspective its 2D markup was drawn from - screen-space markup only makes sense from the
-// viewpoint it was made in, so activating a session restores its camera. Sessions can be shown or
-// hidden individually, persist into the model's cache entry (redline-sessions.json, via the host
-// bridge) and can be exported as a PNG screenshot (3D view + markup composited).
+// A layer owns its 2D shapes (freehand, rectangle, circle, arrow, text on an SVG overlay), its 3D
+// pen strokes (raycast onto the model surface, world-space lines that rotate with it) and a stored
+// camera perspective - screen-space markup only lines up from the viewpoint it was drawn in. The
+// layer browser (docked right) renames, deletes, shows/hides layers, restores a layer's stored
+// perspective and re-saves it from the current view. Layers persist into the model's cache entry
+// (redline-layers.json, via the host bridge) and the active layer can be exported as a PNG
+// screenshot (3D view + markup composited).
 //
 // One stroke at a time: tool and pointerId are LATCHED at pointerdown, so a mid-stroke tool switch
 // or a second finger can't corrupt the stroke state. Non-left buttons and the wheel are forwarded
@@ -34,18 +35,20 @@ class RedlineExtension extends Autodesk.Viewing.Extension {
     this._tool = "free";
     this._color = RL_COLORS[0];
     this._scene = "extrabbit-redline3d";
-    this._sessions = [];                               // {id,name,visible,camera,g,strokes3d,undo}
+    this._layers = [];                                 // {id,name,visible,camera,g,strokes3d,undo}
     this._activeId = null;
     this._ac = new AbortController();                  // one handle tears down every DOM listener
     this._svg = document.getElementById("redline2d");
     this._panel = document.getElementById("redlinePanel");
+    this._browser = document.getElementById("redlineLayers");
     this._input = document.getElementById("redlineText");
     // Re-parent into LMV's container (a stacking context capped at z-index 1): as body-level
     // siblings the overlay would paint above the WHOLE viewer UI and block the toolbar/viewcube
     // while drawing. Inside the context the z-indexes layer it under LMV's controls.
     const host = (this.viewer.canvas && this.viewer.canvas.closest(".adsk-viewing-viewer")) || document.body;
-    host.appendChild(this._svg); host.appendChild(this._panel); host.appendChild(this._input);
+    host.appendChild(this._svg); host.appendChild(this._panel); host.appendChild(this._browser); host.appendChild(this._input);
     this._buildPanel();
+    this._buildBrowser();
     this._bindDraw();
     this._bindText();
     window.addEventListener("keydown", (e) => {
@@ -70,10 +73,11 @@ class RedlineExtension extends Autodesk.Viewing.Extension {
     if (this._onGeo){ this.viewer.removeEventListener(Autodesk.Viewing.GEOMETRY_LOADED_EVENT, this._onGeo); }
     if (this._group && this.viewer.toolbar){ this.viewer.toolbar.removeControl(this._group); }
     this._group = this._button = null;
-    for (const s of this._sessions){ this._disposeSession(s); }
-    this._sessions = [];
+    for (const l of this._layers){ this._disposeLayer(l); }
+    this._layers = [];
     try { if (this.viewer.impl.removeOverlayScene){ this.viewer.impl.removeOverlayScene(this._scene); } } catch (e) { /* never created */ }
-    this._panel.replaceChildren();                     // a later load() rebuilds it fresh
+    this._panel.replaceChildren();                     // a later load() rebuilds them fresh
+    this._browser.replaceChildren();
     return true;
   }
   onToolbarCreated(toolbar){
@@ -89,10 +93,11 @@ class RedlineExtension extends Autodesk.Viewing.Extension {
   }
   setActive(on){
     this._active = on;
-    if (on){ this._ensureSession(); }
+    if (on){ this._ensureLayer(); }
     this._svg.style.pointerEvents = on ? "auto" : "none";
     this._svg.classList.toggle("drawing", on);
     this._panel.style.display = on ? "flex" : "none";
+    this._browser.style.display = on ? "block" : "none";
     if (!on){ this._finishStroke(); this._commitText(); }
     if (this._button){
       const S = Autodesk.Viewing.UI.Button.State;
@@ -100,79 +105,157 @@ class RedlineExtension extends Autodesk.Viewing.Extension {
     }
     report("redline " + (on ? "on" : "off"));
   }
-  // ---------- sessions ----------
-  _session(){ return this._sessions.find(s => s.id === this._activeId) || null; }
-  _ensureSession(){
-    if (!this._session()){ this._newSession(); }
-    return this._session();
+  // ---------- layers ----------
+  _layer(){ return this._layers.find(l => l.id === this._activeId) || null; }
+  _ensureLayer(){
+    if (!this._layer()){ this._newLayer(); }
+    return this._layer();
   }
-  _newSession(){
+  _newLayer(){
     this._finishStroke(); this._commitText();
-    const id = "s" + Date.now().toString(36) + Math.floor(Math.random() * 1e4).toString(36);
+    const id = "l" + Date.now().toString(36) + Math.floor(Math.random() * 1e4).toString(36);
     const g = document.createElementNS(RL_NS, "g");
     this._svg.appendChild(g);
-    const s = { id, name: "Session " + (this._sessions.length + 1), visible: true,
+    const n = this._layers.reduce((max, l) => { const m = /^Layer (\d+)$/.exec(l.name); return m ? Math.max(max, +m[1]) : max; }, 0);
+    const l = { id, name: "Layer " + (n + 1), visible: true,
                 camera: this._cameraState(), g, strokes3d: [], undo: [] };
-    this._sessions.push(s);
+    this._layers.push(l);
     this._activeId = id;
-    this._syncSessionUi();
+    this._syncBrowser();
     this._persist();
-    return s;
+    return l;
   }
-  _activateSession(id){
+  _activateLayer(id){
     this._finishStroke(); this._commitText();
-    const s = this._sessions.find(x => x.id === id);
-    if (!s){ return; }
+    const l = this._layers.find(x => x.id === id);
+    if (!l){ return; }
     this._activeId = id;
-    this._setVisible(s, true);
-    // 2D markup only lines up from the viewpoint it was drawn in
-    if (s.camera){ try { this.viewer.restoreState(s.camera, null, true); } catch (e) { report("camera restore: " + e); } }
-    this._syncSessionUi();
+    this._syncBrowser();
     this._persist();
   }
-  _setVisible(s, on){
-    s.visible = on;
-    s.g.style.display = on ? "" : "none";
-    for (const t of s.strokes3d){ if (t.obj){ t.obj.visible = on; } }
+  _deleteLayer(id){
+    const i = this._layers.findIndex(x => x.id === id);
+    if (i < 0){ return; }
+    this._finishStroke(); this._commitText();
+    this._disposeLayer(this._layers[i]);
+    this._layers.splice(i, 1);
+    if (this._activeId === id){
+      this._activeId = this._layers.length ? this._layers[this._layers.length - 1].id : null;
+    }
+    this.viewer.impl.invalidate(false, false, true);
+    this._syncBrowser();
+    this._persist();
+  }
+  _renameLayer(id, name){
+    const l = this._layers.find(x => x.id === id);
+    if (!l || !name.trim()){ return; }
+    l.name = name.trim();
+    this._syncBrowser();
+    this._persist();
+  }
+  _setVisible(l, on){
+    l.visible = on;
+    l.g.style.display = on ? "" : "none";
+    for (const t of l.strokes3d){ if (t.obj){ t.obj.visible = on; } }
     this.viewer.impl.invalidate(false, false, true);
   }
-  _disposeSession(s){
-    for (const t of s.strokes3d){
+  _restoreCamera(l){
+    if (!l.camera){ return; }
+    try { this.viewer.restoreState(l.camera, null, true); } catch (e) { report("camera restore: " + e); }
+  }
+  _resaveCamera(l){
+    l.camera = this._cameraState();
+    this._persist();
+  }
+  _disposeLayer(l){
+    for (const t of l.strokes3d){
       if (t.obj){
         this.viewer.impl.removeOverlay(this._scene, t.obj, true);
         t.obj.material.dispose();
       }
     }
-    s.strokes3d = [];
-    s.g.remove();
+    l.strokes3d = [];
+    l.g.remove();
   }
   _cameraState(){
     try { return this.viewer.getState({ viewport: true }); } catch (e) { return null; }
   }
-  _syncSessionUi(){
-    if (!this._sessionSel){ return; }
-    this._sessionSel.replaceChildren();
-    for (const s of this._sessions){
-      const o = document.createElement("option");
-      o.value = s.id;
-      o.textContent = s.name + (s.visible ? "" : " (hidden)");
-      this._sessionSel.appendChild(o);
-    }
-    if (this._activeId){ this._sessionSel.value = this._activeId; }
+  // ---------- layer browser (docked right) ----------
+  _buildBrowser(){
+    this._browser.replaceChildren();
+    const head = document.createElement("div");
+    head.className = "rl-layers-head";
+    const title = document.createElement("span");
+    title.textContent = "Layers";
+    const add = document.createElement("button");
+    add.className = "rl-tool"; add.title = "New layer"; add.textContent = "＋";
+    add.addEventListener("click", () => this._newLayer());
+    head.appendChild(title); head.appendChild(add);
+    this._browser.appendChild(head);
+    this._rows = document.createElement("div");
+    this._rows.className = "rl-layers-rows";
+    this._browser.appendChild(this._rows);
+    this._syncBrowser();
   }
-  // ---------- persistence (redline-sessions.json in the model's cache entry) ----------
+  _syncBrowser(){
+    if (!this._rows){ return; }
+    this._rows.replaceChildren();
+    for (const l of this._layers){
+      const row = document.createElement("div");
+      row.className = "rl-layer" + (l.id === this._activeId ? " sel" : "");
+      row.addEventListener("click", () => this._activateLayer(l.id));
+
+      const rowBtn = (title, label, onclick) => {
+        const b = document.createElement("button");
+        b.className = "rl-layer-btn"; b.title = title; b.textContent = label;
+        b.addEventListener("click", (e) => { e.stopPropagation(); onclick(); });
+        row.appendChild(b);
+        return b;
+      };
+
+      rowBtn(l.visible ? "Hide layer" : "Show layer", l.visible ? "\u{1F441}" : "\u{1F648}",
+        () => { this._setVisible(l, !l.visible); this._syncBrowser(); this._persist(); });
+
+      const name = document.createElement("span");
+      name.className = "rl-layer-name";
+      name.textContent = l.name;
+      name.title = "Double-click to rename";
+      name.addEventListener("dblclick", (e) => { e.stopPropagation(); this._beginRename(l, name); });
+      row.appendChild(name);
+
+      rowBtn("Restore this layer's camera perspective", "⌖", () => this._restoreCamera(l));
+      rowBtn("Re-save perspective from the current view", "\u{1F4CC}", () => { this._resaveCamera(l); });
+      rowBtn("Delete layer (and its markup)", "\u{1F5D1}", () => this._deleteLayer(l.id));
+
+      this._rows.appendChild(row);
+    }
+  }
+  _beginRename(l, nameEl){
+    const inp = document.createElement("input");
+    inp.type = "text"; inp.value = l.name; inp.className = "rl-layer-rename";
+    inp.addEventListener("click", (e) => e.stopPropagation());
+    inp.addEventListener("keydown", (e) => {
+      if (e.key === "Enter" && !e.isComposing){ inp.blur(); }
+      else if (e.key === "Escape"){ inp.value = l.name; inp.blur(); }
+      e.stopPropagation();
+    });
+    inp.addEventListener("blur", () => { this._renameLayer(l.id, inp.value); });
+    nameEl.replaceWith(inp);
+    inp.focus(); inp.select();
+  }
+  // ---------- persistence (redline-layers.json in the model's cache entry) ----------
   _loadFromDisk(){
-    fetch("./redline-sessions.json", { cache: "no-store" })
+    fetch("./redline-layers.json", { cache: "no-store" })
       .then(r => r.ok ? r.json() : null)
-      .then(d => { if (d && Array.isArray(d.sessions)){ this._restore(d); } })
-      .catch(() => { /* no saved sessions */ });
+      .then(d => { if (d && Array.isArray(d.layers)){ this._restore(d); } })
+      .catch(() => { /* no saved layers */ });
   }
   _restore(d){
-    for (const raw of d.sessions){
+    for (const raw of d.layers){
       const g = document.createElementNS(RL_NS, "g");
       g.innerHTML = raw.svg || "";
       this._svg.appendChild(g);
-      const s = { id: raw.id, name: raw.name, visible: raw.visible !== false,
+      const l = { id: raw.id, name: raw.name, visible: raw.visible !== false,
                   camera: raw.camera || null, g, strokes3d: [], undo: [] };
       for (const t of (raw.strokes3d || [])){
         if (!t.points || t.points.length < 2){ continue; }
@@ -180,27 +263,27 @@ class RedlineExtension extends Autodesk.Viewing.Extension {
         const obj = this._makeLine(pts, t.color);
         this._ensureScene();
         this.viewer.impl.addOverlay(this._scene, obj);
-        s.strokes3d.push({ color: t.color, points: t.points, obj });
+        l.strokes3d.push({ color: t.color, points: t.points, obj });
       }
-      this._setVisible(s, s.visible);                  // applies g display + 3D visibility
-      this._sessions.push(s);
+      this._setVisible(l, l.visible);                  // applies g display + 3D visibility
+      this._layers.push(l);
     }
-    this._activeId = d.active && this._sessions.some(s => s.id === d.active)
+    this._activeId = d.active && this._layers.some(l => l.id === d.active)
       ? d.active
-      : (this._sessions.length ? this._sessions[this._sessions.length - 1].id : null);
-    this._syncSessionUi();
-    report("redline: restored " + this._sessions.length + " session(s)");
+      : (this._layers.length ? this._layers[this._layers.length - 1].id : null);
+    this._syncBrowser();
+    report("redline: restored " + this._layers.length + " layer(s)");
   }
   _persist(){
     clearTimeout(this._saveT);
     this._saveT = setTimeout(() => {
       const data = {
-        version: 1,
+        version: 2,
         active: this._activeId,
-        sessions: this._sessions.map(s => ({
-          id: s.id, name: s.name, visible: s.visible, camera: s.camera,
-          svg: s.g.innerHTML,
-          strokes3d: s.strokes3d.map(t => ({ color: t.color, points: t.points })),
+        layers: this._layers.map(l => ({
+          id: l.id, name: l.name, visible: l.visible, camera: l.camera,
+          svg: l.g.innerHTML,
+          strokes3d: l.strokes3d.map(t => ({ color: t.color, points: t.points })),
         })),
       };
       try { window.chrome.webview.postMessage("redline-save:" + JSON.stringify(data)); }
@@ -209,8 +292,8 @@ class RedlineExtension extends Autodesk.Viewing.Extension {
   }
   // ---------- screenshot export ----------
   _exportShot(){
-    const s = this._session();
-    if (!s){ return; }
+    const l = this._layer();
+    if (!l){ return; }
     const vv = this.viewer;
     const w = vv.canvas.clientWidth, h = vv.canvas.clientHeight;
     vv.getScreenShot(w, h, (blobUrl) => {
@@ -221,7 +304,7 @@ class RedlineExtension extends Autodesk.Viewing.Extension {
         const ctx = cv.getContext("2d");
         ctx.drawImage(base, 0, 0, w, h);
         URL.revokeObjectURL(blobUrl);
-        // rasterise the SVG overlay on top; hidden sessions carry display:none and don't render
+        // rasterise the SVG overlay on top; hidden layers carry display:none and don't render
         const clone = this._svg.cloneNode(true);
         clone.setAttribute("width", w); clone.setAttribute("height", h);
         clone.setAttribute("viewBox", "0 0 " + w + " " + h);
@@ -230,7 +313,7 @@ class RedlineExtension extends Autodesk.Viewing.Extension {
           ctx.drawImage(svgImg, 0, 0);
           const dataUrl = cv.toDataURL("image/png");
           try {
-            window.chrome.webview.postMessage("redline-shot:" + JSON.stringify({ name: s.name, data: dataUrl }));
+            window.chrome.webview.postMessage("redline-shot:" + JSON.stringify({ name: l.name, data: dataUrl }));
             report("redline: screenshot posted (" + Math.round(dataUrl.length / 1024) + " KB)");
           } catch (e) { report("redline: screenshot export needs the app host"); }
         };
@@ -261,23 +344,12 @@ class RedlineExtension extends Autodesk.Viewing.Extension {
       return s;
     });
     sep();
-    this._sessionSel = document.createElement("select");
-    this._sessionSel.title = "Drawing session - activating restores its camera view";
-    this._sessionSel.addEventListener("change", () => this._activateSession(this._sessionSel.value));
-    this._panel.appendChild(this._sessionSel);
-    btn("New session", "＋", "rl-tool", () => this._newSession());
-    btn("Show/hide this session", "\u{1F441}", "rl-tool", () => {
-      const s = this._session();
-      if (s){ this._setVisible(s, !s.visible); this._syncSessionUi(); this._persist(); }
-    });
-    btn("Export session as PNG", "\u{1F4F7}", "rl-tool", () => this._exportShot());
-    sep();
+    btn("Export active layer as PNG", "\u{1F4F7}", "rl-tool", () => this._exportShot());
     btn("Undo (Ctrl+Z)", "↩", "rl-tool", () => this.undo());
-    btn("Clear this session", "\u{1F5D1}", "rl-tool", () => this.clear());
+    btn("Clear this layer", "\u{1F5D1}", "rl-tool", () => this.clear());
     btn("Close (Esc)", "✕", "rl-tool", () => this.setActive(false));
     this._selectTool("free");
     this._selectColor(RL_COLORS[0]);
-    this._syncSessionUi();
   }
   _selectTool(id){
     this._tool = id;
@@ -297,18 +369,18 @@ class RedlineExtension extends Autodesk.Viewing.Extension {
       if (e.button !== 0){ this._forwardNav(e); return; }
       if (this._start){ return; }                      // a second pointer doesn't start a stroke
       this._commitText();
-      const sess = this._ensureSession();
-      if (!sess.visible){ this._setVisible(sess, true); this._syncSessionUi(); }
+      const layer = this._ensureLayer();
+      if (!layer.visible){ this._setVisible(layer, true); this._syncBrowser(); }
       const p = pos(e);
       if (this._tool === "text"){ this._beginText(p); return; }
       try { svg.setPointerCapture(e.pointerId); } catch (err) { /* capture is best-effort */ }
       this._start = p;
       this._strokeTool = this._tool;
-      this._strokeSess = sess;
+      this._strokeLayer = layer;
       this._pointerId = e.pointerId;
       this._moved = false;
       if (this._strokeTool === "paint3d"){ this._pts3d = []; this._line3d = null; this._add3D(p); }
-      else { this._el = this._begin2D(p); sess.g.appendChild(this._el); }
+      else { this._el = this._begin2D(p); layer.g.appendChild(this._el); }
       e.preventDefault();
     }, sig);
     svg.addEventListener("pointermove", (e) => {
@@ -335,12 +407,11 @@ class RedlineExtension extends Autodesk.Viewing.Extension {
   }
   _finishStroke(){
     if (!this._start){ return; }
-    const sess = this._strokeSess;
+    const layer = this._strokeLayer;
     if (this._strokeTool === "paint3d"){ this._commit3D(); }
     else if (this._el){
-      if (this._moved && sess){
-        sess.undo.push({ kind: "2d", el: this._el });
-        sess.camera = this._cameraState();             // 2D markup anchors to the view it was drawn in
+      if (this._moved && layer){
+        layer.undo.push({ kind: "2d", el: this._el });
         this._persist();
       }
       else { this._el.remove(); }                      // a bare click draws nothing visible
@@ -348,7 +419,7 @@ class RedlineExtension extends Autodesk.Viewing.Extension {
     }
     this._start = null;
     this._pointerId = undefined;
-    this._strokeSess = null;
+    this._strokeLayer = null;
   }
   // Middle/right drags are navigation: replay the down on the LMV canvas and drop the overlay's
   // pointer-events until the drag ends, so the rest of the gesture reaches the viewer natively.
@@ -433,15 +504,14 @@ class RedlineExtension extends Autodesk.Viewing.Extension {
     const value = inp.value.trim();
     inp.style.display = "none";
     if (value){
-      const sess = this._ensureSession();
+      const layer = this._ensureLayer();
       const el = document.createElementNS(RL_NS, "text");
       el.setAttribute("x", this._textPos.x); el.setAttribute("y", this._textPos.y + 4);
       el.setAttribute("fill", this._color);
       el.setAttribute("style", 'font:18px "Segoe UI",system-ui,sans-serif;');
       el.textContent = value;
-      sess.g.appendChild(el);
-      sess.undo.push({ kind: "2d", el });
-      sess.camera = this._cameraState();
+      layer.g.appendChild(el);
+      layer.undo.push({ kind: "2d", el });
       this._persist();
     }
     this._textPos = null;
@@ -482,27 +552,27 @@ class RedlineExtension extends Autodesk.Viewing.Extension {
     impl.invalidate(false, false, true);
   }
   _commit3D(){
-    const sess = this._strokeSess;
-    if (this._line3d && sess){
+    const layer = this._strokeLayer;
+    if (this._line3d && layer){
       const stroke = { color: this._color, points: this._pts3d.map(q => [q.x, q.y, q.z]), obj: this._line3d };
-      sess.strokes3d.push(stroke);
-      sess.undo.push({ kind: "3d", stroke });
+      layer.strokes3d.push(stroke);
+      layer.undo.push({ kind: "3d", stroke });
       this._persist();
     }
     else if (this._line3d){ this.viewer.impl.removeOverlay(this._scene, this._line3d, true); this._line3d.material.dispose(); }
     else { report("3d stroke discarded (no surface under the cursor)"); }
     this._pts3d = null; this._line3d = null;
   }
-  // ---------- undo / clear (per active session) ----------
+  // ---------- undo / clear (per active layer) ----------
   undo(){
-    const sess = this._session();
-    if (!sess){ return; }
-    const item = sess.undo.pop();
+    const layer = this._layer();
+    if (!layer){ return; }
+    const item = layer.undo.pop();
     if (!item){ return; }
     if (item.kind === "2d"){ item.el.remove(); }
     else {
-      const i = sess.strokes3d.indexOf(item.stroke);
-      if (i >= 0){ sess.strokes3d.splice(i, 1); }
+      const i = layer.strokes3d.indexOf(item.stroke);
+      if (i >= 0){ layer.strokes3d.splice(i, 1); }
       this.viewer.impl.removeOverlay(this._scene, item.stroke.obj, true);   // true = dispose geometry
       item.stroke.obj.material.dispose();
       this.viewer.impl.invalidate(false, false, true);
@@ -510,9 +580,9 @@ class RedlineExtension extends Autodesk.Viewing.Extension {
     this._persist();
   }
   clear(){
-    const sess = this._session();
-    if (!sess){ return; }
-    while (sess.undo.length){ this.undo(); }
+    const layer = this._layer();
+    if (!layer){ return; }
+    while (layer.undo.length){ this.undo(); }
     this._persist();
   }
 }

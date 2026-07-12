@@ -34,3 +34,21 @@ html,body,#viewer{margin:0;height:100%;width:100%;overflow:hidden;background:#2b
   height:30px;max-width:150px;font:13px "Segoe UI",system-ui,sans-serif;}
 #redlineText{position:absolute;z-index:61;display:none;background:transparent;border:1px dashed;outline:none;
   font:18px "Segoe UI",system-ui,sans-serif;padding:2px 4px;min-width:80px;}
+
+/* layer browser, docked right while redline mode is active */
+#redlineLayers{position:absolute;top:48px;right:12px;z-index:60;display:none;width:240px;
+  background:rgba(28,28,28,.92);border-radius:8px;box-shadow:0 2px 10px rgba(0,0,0,.4);
+  font:13px "Segoe UI",system-ui,sans-serif;color:#eee;padding:8px;}
+#redlineLayers .rl-layers-head{display:flex;align-items:center;justify-content:space-between;
+  font-weight:600;padding:0 2px 6px 4px;border-bottom:1px solid rgba(255,255,255,.15);margin-bottom:6px;}
+#redlineLayers .rl-layers-rows{max-height:50vh;overflow-y:auto;display:flex;flex-direction:column;gap:2px;}
+#redlineLayers .rl-layer{display:flex;align-items:center;gap:4px;padding:3px 4px;border-radius:6px;
+  cursor:pointer;border:1px solid transparent;}
+#redlineLayers .rl-layer:hover{background:rgba(255,255,255,.08);}
+#redlineLayers .rl-layer.sel{border-color:#4da3ff;background:rgba(77,163,255,.16);}
+#redlineLayers .rl-layer-name{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+#redlineLayers .rl-layer-btn{width:24px;height:24px;border:none;border-radius:5px;background:transparent;
+  color:#eee;font-size:13px;cursor:pointer;display:flex;align-items:center;justify-content:center;flex:none;}
+#redlineLayers .rl-layer-btn:hover{background:rgba(255,255,255,.15);}
+#redlineLayers .rl-layer-rename{flex:1;min-width:0;background:#1c1c1c;color:#eee;
+  border:1px solid #4da3ff;border-radius:4px;font:13px "Segoe UI",system-ui,sans-serif;padding:1px 4px;}
