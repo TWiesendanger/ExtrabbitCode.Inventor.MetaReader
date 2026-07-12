@@ -3,10 +3,14 @@ title: Redlining
 description: Mark up the 3D model - draw, annotate and paint on the geometry, organized in layers that are saved with the viewable.
 ---
 
+import { ThemedImage } from '@/components/themed-image';
+
 Sometimes you don't just want to *look* at a model - you want to point at something. **Redlining**
 lets you draw directly over the 3D view: circle a problem area, add an arrow and a note, or paint
 right onto the geometry. Everything you draw lives on **layers** that are stored alongside the
 cached viewable, so your markup is still there the next time the model opens.
+
+<ThemedImage slug="app__redline" alt="Redlining on the fishing-reel sample: a circle, an arrow and a 3D paint stroke, with the layers panel open" />
 
 Click the **pencil** in the viewer toolbar (or press **E**) to start; press **Esc** or the **✕** in
 the palette to leave. Markup never changes the model - it's an overlay. Redlining is available on

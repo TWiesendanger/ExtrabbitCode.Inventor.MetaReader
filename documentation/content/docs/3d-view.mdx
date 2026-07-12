@@ -4,6 +4,7 @@ description: Spin the model in 3D - viewables are generated once with Inventor a
 ---
 
 import { PublicImage } from '@/components/public-image';
+import { ThemedImage } from '@/components/themed-image';
 
 MetaReader can show the **3D model**, not just its metadata. On a part or assembly, **click the
 preview thumbnail** (or the **3D** button next to the file icon, shown when the thumbnail is hidden)
@@ -13,7 +14,7 @@ fit; click outside the panel, press the **✕**, or hit **Esc** to close.
 Models open **shaded with edges** for an Inventor-like look. Toggle edges from the viewer's own
 **Settings (gear) → Appearance → Display edges**; your choice is remembered.
 
-<PublicImage src="/images/app/app__viewer3d.png" alt="A jet-engine assembly open in MetaReader's 3D viewer" className="rounded-lg border border-fd-border my-4 w-full" />
+<ThemedImage slug="app__viewer3d" alt="The bundled fishing-reel assembly open in MetaReader's 3D viewer" />
 
 In the viewer you can also give **every body its own colour** (see below), **measure** distances,
 section and explode the model - and **draw on it**: circle a problem, add text, even paint straight

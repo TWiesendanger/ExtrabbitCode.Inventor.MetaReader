@@ -71,4 +71,43 @@ public sealed partial class DocumentView
     {
         if (_graphWeb is not null) { Post(_graphWeb, "{\"cmd\":\"fit\"}"); }
     }
+
+    // ---- 3D viewer (snapshotter): the overlay opens only through private event handlers, so the
+    // shooter gets its own entry points. The WebView2 is captured like the graph's - via
+    // CapturePreviewAsync - because RenderTargetBitmap renders WebView2 content blank. ----
+
+    /// <summary>Opens the 3D viewer overlay (snapshotter). Poll the page via
+    /// <see cref="ShootViewer3DScriptAsync"/> to learn when the model is loaded.</summary>
+    internal void ShootOpen3D() => _ = OpenViewer3DAsync();
+
+    /// <summary>Closes the 3D viewer overlay if it is open (snapshotter).</summary>
+    internal void ShootClose3D() => _viewer3dClose?.Invoke();
+
+    /// <summary>Runs JavaScript in the open 3D viewer page; returns the JSON-encoded result, or
+    /// "null" when the viewer isn't open (snapshotter).</summary>
+    internal async Task<string> ShootViewer3DScriptAsync(string js)
+    {
+        if (_viewer3dWeb?.CoreWebView2 is null) { return "null"; }
+        try { return await _viewer3dWeb.CoreWebView2.ExecuteScriptAsync(js); }
+        catch (Exception) { return "null"; }
+    }
+
+    /// <summary>Captures the 3D viewer WebView2 as a PNG with its bounds inside
+    /// <paramref name="relativeTo"/>, so the shooter can paint it into the shot (snapshotter).</summary>
+    public async Task<(byte[] png, double x, double y, double width, double height)?> ShootViewer3DImageAsync(UIElement relativeTo)
+    {
+        if (_viewer3dWeb?.CoreWebView2 is null || _viewer3dWeb.ActualWidth <= 0 || _viewer3dWeb.ActualHeight <= 0)
+        {
+            return null;
+        }
+
+        InMemoryRandomAccessStream stream = new();
+        await _viewer3dWeb.CoreWebView2.CapturePreviewAsync(CoreWebView2CapturePreviewImageFormat.Png, stream);
+        stream.Seek(0);
+        using MemoryStream ms = new();
+        await stream.AsStreamForRead().CopyToAsync(ms);
+
+        Point topLeft = _viewer3dWeb.TransformToVisual(relativeTo).TransformPoint(new Point(0, 0));
+        return (ms.ToArray(), topLeft.X, topLeft.Y, _viewer3dWeb.ActualWidth, _viewer3dWeb.ActualHeight);
+    }
 }

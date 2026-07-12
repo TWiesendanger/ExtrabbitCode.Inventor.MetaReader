@@ -149,7 +149,47 @@ internal static class DocShooter
                     }
                 }
 
-                // 6. iParts: factory + members highlighted in the reference graph. Shot in a
+                // 6. The 3D viewer on the showcase assembly, then redlining markup drawn onto it.
+                // Loads the cached viewable (generating on a true miss can take a while, hence the
+                // long poll). Existing saved markup is cleared first so the shot is deterministic.
+                if (asm != null)
+                {
+                    try
+                    {
+                        SvfStore store = new(ViewerSettings.NetworkPath);
+                        string marks = Path.Combine(store.EntryDir(SvfStore.ComputeKey(asm)), "redline-layers.json");
+                        if (File.Exists(marks)) { File.Delete(marks); }
+                    }
+                    catch { /* no cache entry yet - nothing to clear */ }
+
+                    w.ShootCloseAllTabs();
+                    w.ShootOpen(asm);
+                    await Task.Delay(900);
+                    if (w.CurrentView is { } v3)
+                    {
+                        v3.ShootOpen3D();
+                        bool ready = false;
+                        for (int i = 0; i < 240 && !ready; i++)
+                        {
+                            await Task.Delay(500);
+                            ready = await v3.ShootViewer3DScriptAsync(
+                                "(function(){try{return (window.NOP_VIEWER && NOP_VIEWER.model && NOP_VIEWER.model.isLoadDone() && document.getElementById('extrabbit-group')) ? '1' : '0';}catch(e){return '0';}})()"
+                            ) == "\"1\"";
+                        }
+                        if (ready)
+                        {
+                            await Task.Delay(1500);                       // fit, edges and toolbar settle
+                            await CaptureWithViewer(w, v3, "app__viewer3d", theme, outDir);
+                            await v3.ShootViewer3DScriptAsync(RedlineDemoJs);
+                            await Task.Delay(1200);                       // strokes render + palette settles
+                            await CaptureWithViewer(w, v3, "app__redline", theme, outDir);
+                        }
+                        v3.ShootClose3D();
+                        await Task.Delay(400);
+                    }
+                }
+
+                // 7. iParts: factory + members highlighted in the reference graph. Shot in a
                 // taller window so the graph fits at a readable size, then restored.
                 if (ipartAsm != null)
                 {
@@ -179,6 +219,59 @@ internal static class DocShooter
         }
     }
 
+    /// <summary>Drives the redline extension in the viewer page for the markup shot: clears any
+    /// restored layers, names a fresh one, then draws a 3D paint stroke along the model surface
+    /// plus a circle and an arrow, using the same synthetic pointer events a user's mouse produces.</summary>
+    private const string RedlineDemoJs =
+        """
+        (function () {
+          try {
+            const vv = window.NOP_VIEWER;
+            const ext = vv.getExtension("Extrabbit.Redline");
+            if (!ext) { return "no-ext"; }
+            ext.setActive(true);
+            while (ext._layers.length) { ext._deleteLayer(ext._layers[0].id); }
+            const layer = ext._ensureLayer();
+            layer.name = "Review notes";
+            ext._syncBrowser();
+            const svg = document.getElementById("redline2d");
+            const W = vv.canvas.clientWidth, H = vv.canvas.clientHeight;
+            const fire = (t, x, y, e) => svg.dispatchEvent(new PointerEvent(t,
+              Object.assign({ clientX: x, clientY: y, button: 0, buttons: 1, pointerId: 1, bubbles: true }, e || {})));
+            const row = (yF) => {
+              const y = H * yF, xs = [];
+              for (let i = 0; i <= 80; i++) {
+                const x = W * 0.2 + i * (W * 0.6 / 80);
+                if (vv.impl.hitTest(x, y, false)) { xs.push(x); }
+              }
+              return { y, xs };
+            };
+            let r = row(0.52);
+            if (r.xs.length < 8) { r = row(0.6); }
+            if (r.xs.length >= 8) {
+              ext._width = 2;
+              ext._selectTool("paint3d");
+              fire("pointerdown", r.xs[0], r.y);
+              r.xs.forEach((x, i) => fire("pointermove", x, r.y + Math.sin(i / 3) * 10));
+              fire("pointerup", r.xs[r.xs.length - 1], r.y, { buttons: 0 });
+            }
+            const mid = row(0.4);
+            const cx = mid.xs.length ? mid.xs[Math.floor(mid.xs.length / 2)] : W * 0.55;
+            const cy = mid.y;
+            ext._selectTool("circle");
+            fire("pointerdown", cx - 45, cy - 32);
+            fire("pointermove", cx + 45, cy + 32);
+            fire("pointerup", cx + 45, cy + 32, { buttons: 0 });
+            ext._selectTool("arrow");
+            fire("pointerdown", Math.min(cx + 170, W - 30), cy - 110);
+            fire("pointermove", cx + 52, cy - 26);
+            fire("pointerup", cx + 52, cy - 26, { buttons: 0 });
+            ext._selectTool("free");
+            return "ok:" + ext._layer().strokes3d.length;
+          } catch (e) { return "err:" + e.message; }
+        })()
+        """;
+
     /// <summary>Captures the whole window.</summary>
     private static Task Capture(Window w, string slug, ElementTheme theme, string outDir) =>
         CaptureElement(w.Content, slug, theme, outDir);
@@ -194,9 +287,19 @@ internal static class DocShooter
         await WritePng(pixels, rtb.PixelWidth, rtb.PixelHeight, slug, theme, outDir);
     }
 
-    /// <summary>Captures the window and paints the reference-graph WebView2 into it: RenderTargetBitmap
+    /// <summary>Captures the window and paints the reference-graph WebView2 into it.</summary>
+    private static Task CaptureWithGraph(MainWindow w, DocumentView dv, string slug, ElementTheme theme, string outDir) =>
+        CaptureComposite(w, dv.ShootGraphImageAsync, slug, theme, outDir);
+
+    /// <summary>Captures the window and paints the 3D viewer's WebView2 into it.</summary>
+    private static Task CaptureWithViewer(MainWindow w, DocumentView dv, string slug, ElementTheme theme, string outDir) =>
+        CaptureComposite(w, dv.ShootViewer3DImageAsync, slug, theme, outDir);
+
+    /// <summary>Captures the window and paints a WebView2's pixels into it: RenderTargetBitmap
     /// can't see WebView2 content, so we grab it via CapturePreviewAsync and composite it at its bounds.</summary>
-    private static async Task CaptureWithGraph(MainWindow w, DocumentView dv, string slug, ElementTheme theme, string outDir)
+    private static async Task CaptureComposite(MainWindow w,
+        Func<UIElement, Task<(byte[] png, double x, double y, double width, double height)?>> grab,
+        string slug, ElementTheme theme, string outDir)
     {
         FrameworkElement content = (FrameworkElement)w.Content;
         RenderTargetBitmap rtb = new();
@@ -204,7 +307,7 @@ internal static class DocShooter
         int W = rtb.PixelWidth, H = rtb.PixelHeight;
         byte[] pixels = (await rtb.GetPixelsAsync()).ToArray();
 
-        if (content.ActualWidth > 0 && await dv.ShootGraphImageAsync(content) is { } graph)
+        if (content.ActualWidth > 0 && await grab(content) is { } graph)
         {
             double sx = W / content.ActualWidth, sy = H / content.ActualHeight;
             int dx = (int)Math.Round(graph.x * sx), dy = (int)Math.Round(graph.y * sy);

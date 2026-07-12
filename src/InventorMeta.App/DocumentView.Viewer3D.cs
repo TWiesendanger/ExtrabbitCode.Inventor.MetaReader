@@ -29,6 +29,10 @@ public sealed partial class DocumentView
     private const string LmvViewerVersion = "7.122";
 
     private bool _viewerOpen;
+    // the open 3D viewer's WebView2 and close action, exposed for the documentation snapshotter
+    // (RenderTargetBitmap renders WebView2 blank, so DocShooter captures it separately)
+    private WebView2? _viewer3dWeb;
+    private Action? _viewer3dClose;
 
     private void OnOpen3D(object sender, RoutedEventArgs e) => _ = OpenViewer3DAsync();
 
@@ -111,9 +115,13 @@ public sealed partial class DocumentView
         {
             if (!_viewerOpen) { return; }
             _viewerOpen = false;
+            _viewer3dWeb = null;
+            _viewer3dClose = null;
             try { web.Close(); } catch { /* disposing */ }
             win.HideOverlay();
         }
+        _viewer3dWeb = web;
+        _viewer3dClose = Close;
 
         root.Tapped += (_, _) => Close();
         close.Click += (_, _) => Close();
