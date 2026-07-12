@@ -53,6 +53,37 @@ internal static class WhatsNewDialog
     /// <summary>Builds and shows the overlay (also used by the footer's "What's new" button).</summary>
     public static void Show(MainWindow win)
     {
+        // the fullscreen layer sits INSIDE this overlay, above the card, so Esc and click-away
+        // close the layer first and the dialog second
+        Grid root = new() { Background = new SolidColorBrush(Microsoft.UI.Colors.Transparent) };
+        Grid? fullscreen = null;
+
+        void CloseFullscreen()
+        {
+            if (fullscreen != null) { root.Children.Remove(fullscreen); fullscreen = null; }
+        }
+
+        void OpenFullscreen(string asset)
+        {
+            CloseFullscreen();
+            BitmapImage big = new() { UriSource = new Uri($"ms-appx:///Assets/whatsnew/{asset}") };   // plays immediately
+            Image bigImg = new() { Source = big, Stretch = Stretch.Uniform, Margin = new Thickness(32, 44, 32, 44) };
+            Button exit = new()
+            {
+                Content = new FontIcon { Glyph = "\uE73F", FontSize = 13 },   // back-to-window
+                Width = 36, Height = 36, Padding = new Thickness(0), CornerRadius = new CornerRadius(18),
+                HorizontalAlignment = HorizontalAlignment.Right, VerticalAlignment = VerticalAlignment.Top,
+                Margin = new Thickness(0, 10, 10, 0)
+            };
+            ToolTipService.SetToolTip(exit, "Exit fullscreen (Esc)");
+            exit.Click += (_, e) => CloseFullscreen();
+            fullscreen = new Grid { Background = new SolidColorBrush(Windows.UI.Color.FromArgb(0xF4, 0x11, 0x11, 0x11)) };
+            fullscreen.Children.Add(bigImg);
+            fullscreen.Children.Add(exit);
+            fullscreen.Tapped += (_, e) => { e.Handled = true; CloseFullscreen(); };
+            root.Children.Add(fullscreen);
+        }
+
         StackPanel content = new() { Spacing = 18 };
         foreach (Section s in Sections)
         {
@@ -65,7 +96,7 @@ internal static class WhatsNewDialog
             {
                 Text = s.Blurb, Opacity = 0.8, FontSize = 13, TextWrapping = TextWrapping.Wrap
             });
-            if (s.GifAsset != null) { section.Children.Add(GifCard(s.GifAsset)); }
+            if (s.GifAsset != null) { section.Children.Add(GifCard(s.GifAsset, OpenFullscreen)); }
             content.Children.Add(section);
         }
 
@@ -117,14 +148,17 @@ internal static class WhatsNewDialog
         };
         card.Tapped += (_, e) => e.Handled = true;       // clicks inside don't dismiss
 
-        Grid root = new() { Background = new SolidColorBrush(Microsoft.UI.Colors.Transparent) };
         root.Children.Add(card);
 
         void Close() => win.HideOverlay();
         root.Tapped += (_, _) => Close();                // click-away dismisses
         close.Click += (_, _) => Close();
         KeyboardAccelerator esc = new() { Key = Windows.System.VirtualKey.Escape };
-        esc.Invoked += (_, e) => { e.Handled = true; Close(); };
+        esc.Invoked += (_, e) =>
+        {
+            e.Handled = true;
+            if (fullscreen != null) { CloseFullscreen(); } else { Close(); }
+        };
         close.KeyboardAccelerators.Add(esc);
 
         win.ShowOverlay(root, dimmed: true);
@@ -132,8 +166,9 @@ internal static class WhatsNewDialog
     }
 
     /// <summary>A demo GIF that sits on its first frame until clicked - click again to pause.
-    /// A play badge signals the interaction and hides while the animation runs.</summary>
-    private static UIElement GifCard(string asset)
+    /// A play badge signals the interaction and hides while the animation runs; a corner button
+    /// blows the animation up to a fullscreen layer.</summary>
+    private static UIElement GifCard(string asset, Action<string> openFullscreen)
     {
         BitmapImage bmp = new() { UriSource = new Uri($"ms-appx:///Assets/whatsnew/{asset}"), AutoPlay = false };
         Image img = new() { Source = bmp, Stretch = Stretch.Uniform };
@@ -154,9 +189,23 @@ internal static class WhatsNewDialog
             }
         };
 
+        Button fullscreenBtn = new()
+        {
+            Content = new FontIcon { Glyph = "\uE740", FontSize = 12 },   // fullscreen
+            Width = 32, Height = 32, Padding = new Thickness(0), CornerRadius = new CornerRadius(6),
+            Background = new SolidColorBrush(Windows.UI.Color.FromArgb(0xB0, 0x1B, 0x1B, 0x1B)),
+            Foreground = new SolidColorBrush(Microsoft.UI.Colors.White),
+            BorderThickness = new Thickness(0),
+            HorizontalAlignment = HorizontalAlignment.Right, VerticalAlignment = VerticalAlignment.Top,
+            Margin = new Thickness(0, 8, 8, 0)
+        };
+        ToolTipService.SetToolTip(fullscreenBtn, "Watch fullscreen");
+        fullscreenBtn.Click += (_, _) => openFullscreen(asset);
+
         Grid holder = new();
         holder.Children.Add(img);
         holder.Children.Add(badge);
+        holder.Children.Add(fullscreenBtn);
 
         Border frame = new()
         {
