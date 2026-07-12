@@ -29,7 +29,7 @@ internal static class SampleFiles
         new("iAssemblyFactory.iam", "iAssembly factory", "A table-driven family of assemblies.", InventorDocument.DocKind.Assembly),
         new("TubeAndPipe.ipt", "Tube & Pipe", "A routed part, categorised from its metadata.", InventorDocument.DocKind.Part),
         new("Line Guide Drive Shaft.ipt", "Real-world part", "A steel part with material, mass and volume, and version history reaching back to Inventor 11 (2006).", InventorDocument.DocKind.Part),
-        new("_Fishing Reel Assembly.iam", "Real-world assembly", "An Autodesk fishing-reel demo with nested subassemblies and 144 saved versions, from Inventor 11 (2006) to 2019.", InventorDocument.DocKind.Assembly),
+        new(@"Fishing Rod\Workspaces\_Fishing Reel Assembly.iam", "Real-world assembly", "An Autodesk fishing-reel demo with nested subassemblies and 144 saved versions, from Inventor 11 (2006) to 2019.", InventorDocument.DocKind.Assembly),
         new("Line Guide Drive Shaft_203.stp", "STEP (AP203)", "A neutral CAD part in the classic CONFIG_CONTROL_DESIGN schema, with a 3D view.", InventorDocument.DocKind.Step, StepFolder),
         new("Line Guide Drive Shaft_214.step", "STEP (AP214)", "The same part as AUTOMOTIVE_DESIGN (AP214), using the .step extension.", InventorDocument.DocKind.Step, StepFolder),
         new("Line Guide Drive Shaft_242.stp", "STEP (AP242)", "The same part again in the modern AP242 schema.", InventorDocument.DocKind.Step, StepFolder),

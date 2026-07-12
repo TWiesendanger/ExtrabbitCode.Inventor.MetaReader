@@ -92,11 +92,11 @@ internal static class DemoTour
             }
             w.ShootCloseAllTabs();
             w.SetStatus("Ready. Open or drop an Inventor file to begin.");
-            await Task.Delay(2400);
+            await Task.Delay(3200);
             if (w.ShootElement("RecentCard") is { } recents)     // linger on the recent files
             {
                 await cursor.MoveToElementAsync(recents, 700, yFraction: 0.3);
-                await Task.Delay(1400);
+                await Task.Delay(2200);
             }
             w.ShootCaption("Bundled samples: parts, assemblies, drawings and STEP");
             if (w.ShootElement("SamplesButton") is { } samplesBtn)
@@ -107,7 +107,7 @@ internal static class DemoTour
                 Microsoft.UI.Xaml.Controls.ContentDialog? gallery = null;
                 Task pendingGallery = SamplesGallery.ShowAsync(w.Content.XamlRoot, _ => { },
                     d => { gallery = d; d.RequestedTheme = ElementTheme.Light; });
-                await Task.Delay(3400);
+                await Task.Delay(4800);
                 gallery?.Hide();
                 try { await pendingGallery; } catch { /* dismissed */ }
                 await Task.Delay(400);
@@ -120,18 +120,18 @@ internal static class DemoTour
                 c0 = clock.ElapsedMilliseconds;
                 w.ShootCaption("Every iProperty, straight from the file");
                 w.ShootOpen(asm);
-                await Task.Delay(3200);
+                await Task.Delay(4200);
                 if (w.CurrentView is { } ov)
                 {
                     ov.ShootScrollPanel("PropsPanel", 700);      // stroll down the property sets
-                    await Task.Delay(2200);
+                    await Task.Delay(3000);
                     ov.ShootScrollPanel("PropsPanel", 0);
-                    await Task.Delay(1200);
+                    await Task.Delay(1600);
                     ov.ShootSetPropsExpanded(false);             // collapse them all...
-                    await Task.Delay(1400);
+                    await Task.Delay(2000);
                     if (ov.ShootPropGroupHeader(1) is { } group) { await cursor.MoveToElementAsync(group, 600); }
                     ov.ShootExpandPropGroup(1);                  // ...and open just one
-                    await Task.Delay(2200);
+                    await Task.Delay(3000);
                     ov.ShootSetPropsExpanded(true);
                     await Task.Delay(600);
                 }
@@ -146,23 +146,23 @@ internal static class DemoTour
                     await cursor.MoveToElementAsync(refsTab, 700);
                 }
                 dv?.ShootSelectTab("References");
-                await Task.Delay(3000);
+                await Task.Delay(3600);
                 dv?.ShootExpandGraph();
-                await Task.Delay(2400);
+                await Task.Delay(3000);
                 if (dv?.ShootGraphThumbsToggle() is { } thumbsToggle)   // every node with its preview
                 {
                     await cursor.MoveToElementAsync(thumbsToggle, 650);
                 }
                 dv?.ShootShowGraphThumbs();
-                await Task.Delay(2400);
+                await Task.Delay(3200);
                 dv?.ShootGraphShowcase();                 // camera ride into a few nodes and back
-                await Task.Delay(6000);
+                await Task.Delay(6800);
                 FrameworkElement? layoutPick = dv?.ShootGraphLayoutPick();
                 if (layoutPick != null) { await cursor.MoveToElementAsync(layoutPick, 650); }
                 dv?.ShootSetGraphLayout(GraphLayout.Network);
-                await Task.Delay(4200);
+                await Task.Delay(5200);
                 dv?.ShootFitGraph();
-                await Task.Delay(1800);
+                await Task.Delay(2600);
                 chapters.Add(new("references", t, c0, clock.ElapsedMilliseconds));
             }
 
@@ -179,18 +179,18 @@ internal static class DemoTour
                 {
                     if (w.ShootTab(tab) is { } header) { await cursor.MoveToElementAsync(header, 650); }
                     w.ShootSelectTabIndex(tab);
-                    await Task.Delay(1500);
+                    await Task.Delay(2200);
                 }
                 // the pipe's category badge: hover it so the legend with every category shows
                 w.ShootCaption("Categories recognized: Piping, Frame Generator, Sheet Metal and more");
                 if (w.CurrentView?.ShootElement("CategoryBadge") is { } badge)
                 {
                     await cursor.MoveToElementAsync(badge, 700);
-                    await Task.Delay(2800);               // the tooltip lists all categories
+                    await Task.Delay(3800);               // the tooltip lists all categories
                 }
                 if (w.ShootTab(2) is { } partHeader) { await cursor.MoveToElementAsync(partHeader, 650); }
                 w.ShootSelectTabIndex(2);
-                await Task.Delay(1200);
+                await Task.Delay(1800);
                 chapters.Add(new("tabs", t, c0, clock.ElapsedMilliseconds));
 
                 // -- model states side by side (the part tab is already selected) --------------
@@ -201,9 +201,9 @@ internal static class DemoTour
                     await cursor.MoveToElementAsync(statesTab, 700);
                 }
                 w.CurrentView?.ShootSelectTab("Model States");
-                await Task.Delay(2600);
+                await Task.Delay(3400);
                 w.CurrentView?.ShootScrollPanel("StatesPanel", 520);   // each state has its own thumbnail
-                await Task.Delay(2400);
+                await Task.Delay(3200);
                 w.CurrentView?.ShootScrollPanel("StatesPanel", 0);
                 await Task.Delay(1000);
                 chapters.Add(new("model-states", t, c0, clock.ElapsedMilliseconds));
@@ -222,9 +222,9 @@ internal static class DemoTour
                     && body.Children[^1] is Microsoft.UI.Xaml.Controls.Grid cards)
                 {
                     if (cards.Children[0] is FrameworkElement inv) { await cursor.MoveToElementAsync(inv, 800); }
-                    await Task.Delay(1900);
+                    await Task.Delay(2800);
                     if (cards.Children[1] is FrameworkElement loc) { await cursor.MoveToElementAsync(loc, 700); }
-                    await Task.Delay(1900);
+                    await Task.Delay(2800);
                 }
                 chooser?.Hide();
                 try { await pending; } catch { /* dismissed */ }
@@ -260,8 +260,8 @@ internal static class DemoTour
                         ViewerCursor vc = new(cursor, w, v3);
 
                         c0 = clock.ElapsedMilliseconds;
-                        await v3.ShootViewer3DScriptAsync(OrbitJs(5200));
-                        await Task.Delay(5600);
+                        await v3.ShootViewer3DScriptAsync(OrbitJs(7000));
+                        await Task.Delay(7500);
                         chapters.Add(new("viewer-orbit", t, c0, clock.ElapsedMilliseconds));
 
                         c0 = clock.ElapsedMilliseconds;
@@ -269,7 +269,7 @@ internal static class DemoTour
                         await vc.MoveToDomAsync("#extrabbit-coloring-btn", 700);
                         await v3.ShootViewer3DScriptAsync(
                             "NOP_VIEWER.getExtension('Extrabbit.Coloring').setEnabled(true)");
-                        await Task.Delay(3200);
+                        await Task.Delay(4200);
                         chapters.Add(new("coloring", t, c0, clock.ElapsedMilliseconds));
                         await v3.ShootViewer3DScriptAsync(
                             "NOP_VIEWER.getExtension('Extrabbit.Coloring').setEnabled(false)");
@@ -285,7 +285,7 @@ internal static class DemoTour
                         await vc.MoveToDomAsync("#extrabbit-hotkeys-btn", 700);
                         await v3.ShootViewer3DScriptAsync(
                             "NOP_VIEWER.getExtension('Extrabbit.Hotkeys')._toggle()");
-                        await Task.Delay(3400);
+                        await Task.Delay(4400);
                         await v3.ShootViewer3DScriptAsync(
                             "NOP_VIEWER.getExtension('Extrabbit.Hotkeys')._toggle()");
                         await Task.Delay(600);
@@ -302,11 +302,11 @@ internal static class DemoTour
                 c0 = clock.ElapsedMilliseconds;
                 w.ShootCaption("STEP import: full ISO-10303 header, geometry summary and 3D");
                 w.ShootOpen(step);
-                await Task.Delay(3200);
+                await Task.Delay(4000);
                 if (w.CurrentView is { } sv)
                 {
                     sv.ShootScrollPanel("PropsPanel", 400);
-                    await Task.Delay(2400);
+                    await Task.Delay(3400);
                 }
                 chapters.Add(new("step", t, c0, clock.ElapsedMilliseconds));
             }
@@ -356,7 +356,7 @@ internal static class DemoTour
             await vc.MoveToDomAsync("#redlinePanel .rl-tool[title^=\"Paint\"]", 650);
             await v3.ShootViewer3DScriptAsync("NOP_VIEWER.getExtension('Extrabbit.Redline')._selectTool('paint3d')");
             await Task.Delay(350);
-            await vc.TraceStrokeAsync(plan.Paint, stepMs: 36);
+            await vc.TraceStrokeAsync(plan.Paint, stepMs: 46);
         }
         await Task.Delay(600);
 
@@ -384,7 +384,7 @@ internal static class DemoTour
 
         // 4. a circle in the new colour and width
         await v3.ShootViewer3DScriptAsync("NOP_VIEWER.getExtension('Extrabbit.Redline')._selectTool('circle')");
-        await vc.TraceStrokeAsync(plan.Circle, stepMs: 42);
+        await vc.TraceStrokeAsync(plan.Circle, stepMs: 55);
         await Task.Delay(500);
 
         // 5. a text note next to it
@@ -399,7 +399,7 @@ internal static class DemoTour
             {
                 await v3.ShootViewer3DScriptAsync(
                     $"(function(){{const i=document.getElementById('redlineText');i.value+='{chunk}';return 'ok';}})()");
-                await Task.Delay(320);
+                await Task.Delay(480);
             }
             await Task.Delay(400);
             await v3.ShootViewer3DScriptAsync("NOP_VIEWER.getExtension('Extrabbit.Redline')._commitText()");
@@ -414,7 +414,7 @@ internal static class DemoTour
         if (plan.Paint.Count >= 12)
         {
             List<Point> swipe = plan.Paint.GetRange(plan.Paint.Count / 3, plan.Paint.Count / 3);
-            await vc.TraceStrokeAsync(swipe, stepMs: 30);
+            await vc.TraceStrokeAsync(swipe, stepMs: 40);
         }
         await Task.Delay(800);
 
@@ -557,7 +557,7 @@ internal static class DemoTour
               const dt = now - last; last = now;
               const pos = nav.getPosition(), tgt = nav.getTarget();
               const v = new THREE.Vector3(pos.x - tgt.x, pos.y - tgt.y, pos.z - tgt.z);
-              v.applyAxisAngle(axis, 0.00038 * dt);
+              v.applyAxisAngle(axis, 0.00030 * dt);
               nav.setPosition(new THREE.Vector3(tgt.x + v.x, tgt.y + v.y, tgt.z + v.z));
               requestAnimationFrame(step);
             })();

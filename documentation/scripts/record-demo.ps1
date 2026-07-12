@@ -11,7 +11,7 @@ $ErrorActionPreference = "Stop"
 $repo = Resolve-Path "$PSScriptRoot\..\.."
 $app = "$repo\src\InventorMeta.App\bin\Release\net10.0-windows10.0.19041.0\win-x64\InventorMeta.App.exe"
 $samples = "$repo\src\InventorMeta.App\Assets\SampleFiles"
-$model = "$samples\SampleBg\_Fishing Reel Assembly.iam"
+$model = "$samples\SampleBg\Fishing Rod\Workspaces\_Fishing Reel Assembly.iam"
 $out = "$repo\documentation\.demo"
 $gifDir = "$repo\documentation\public\images\app"
 
