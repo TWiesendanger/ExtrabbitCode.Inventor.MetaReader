@@ -3,6 +3,7 @@ using System.IO;
 using System.Runtime.InteropServices.WindowsRuntime;
 using System.Threading.Tasks;
 using Microsoft.UI.Xaml;
+using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Media;
 using Microsoft.UI.Xaml.Media.Imaging;
 using Windows.Foundation;
@@ -67,6 +68,70 @@ internal static class DocShooter
                 w.SetStatus("Ready. Open or drop an Inventor file to begin.");
                 await Task.Delay(400);
                 await Capture(w, "app__welcome", theme, outDir);
+
+                // 1b. The first-use engine chooser (Inventor vs built-in converter). A real
+                // ContentDialog renders in the popup layer where RenderTargetBitmap can't see it
+                // (and an isolated popup render mis-themes), so the same body is hosted in a
+                // dialog-styled card inside the window and cropped like the other region shots.
+                {
+                    // Brushes resolved through Application.Current.Resources follow the APP theme
+                    // (fixed at launch), not the per-shot window theme, so the card's surfaces are
+                    // set explicitly from the Fluent palette for the theme being shot.
+                    bool light = theme == ElementTheme.Light;
+                    Brush dlgBg = new SolidColorBrush(light ? Windows.UI.Color.FromArgb(0xFF, 0xF3, 0xF3, 0xF3) : Windows.UI.Color.FromArgb(0xFF, 0x20, 0x20, 0x20));
+                    Brush footBg = new SolidColorBrush(light ? Windows.UI.Color.FromArgb(0xFF, 0xEE, 0xEE, 0xEE) : Windows.UI.Color.FromArgb(0xFF, 0x1C, 0x1C, 0x1C));
+                    Brush stroke = new SolidColorBrush(light ? Windows.UI.Color.FromArgb(0xFF, 0xE0, 0xE0, 0xE0) : Windows.UI.Color.FromArgb(0xFF, 0x36, 0x36, 0x36));
+                    Brush cardBg = new SolidColorBrush(light ? Windows.UI.Color.FromArgb(0xB3, 0xFF, 0xFF, 0xFF) : Windows.UI.Color.FromArgb(0x14, 0xFF, 0xFF, 0xFF));
+
+                    StackPanel body = EngineDialogs.BuildChooserBody(_ => { });
+                    if (body.Children[^1] is Grid engineCards)
+                    {
+                        foreach (UIElement child in engineCards.Children)
+                        {
+                            if (child is Button b) { b.Background = cardBg; b.BorderBrush = stroke; }
+                        }
+                    }
+
+                    StackPanel top = new() { Padding = new Thickness(24), Spacing = 12 };
+                    top.Children.Add(new TextBlock
+                    {
+                        Text = "How should 3D views be generated?",
+                        FontSize = 20, FontWeight = Microsoft.UI.Text.FontWeights.SemiBold
+                    });
+                    top.Children.Add(body);
+
+                    Border footer = new()
+                    {
+                        Background = footBg,
+                        Padding = new Thickness(24, 16, 24, 16),
+                        Child = new Button { Content = "Not now", HorizontalAlignment = HorizontalAlignment.Stretch }
+                    };
+
+                    Grid layout = new();
+                    layout.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+                    layout.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+                    Grid.SetRow(top, 0); layout.Children.Add(top);
+                    Grid.SetRow(footer, 1); layout.Children.Add(footer);
+
+                    Border card = new()
+                    {
+                        Child = layout,
+                        CornerRadius = new CornerRadius(8),
+                        Background = dlgBg,
+                        BorderBrush = stroke,
+                        BorderThickness = new Thickness(1),
+                        HorizontalAlignment = HorizontalAlignment.Center,
+                        VerticalAlignment = VerticalAlignment.Center
+                    };
+                    Grid overlayRoot = new();
+                    overlayRoot.Children.Add(card);
+
+                    w.ShowOverlay(overlayRoot, dimmed: true);
+                    await Task.Delay(700);                              // layout + card icons load
+                    await CaptureRegion(w, card, "app__engine-chooser", theme, outDir);
+                    w.HideOverlay();
+                    await Task.Delay(200);
+                }
 
                 // 2. The reference model (the bundled assembly, or whatever --model gives): the overview
                 // and a close-up of just the sidebar card.

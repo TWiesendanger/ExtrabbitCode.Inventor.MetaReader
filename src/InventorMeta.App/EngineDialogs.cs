@@ -29,10 +29,6 @@ internal static class EngineDialogs
     {
         SvfEngine? picked = null;
 
-        Grid cards = new() { ColumnSpacing = 12 };
-        cards.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-        cards.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-
         ContentDialog dlg = new()
         {
             Title = "How should 3D views be generated?",
@@ -40,6 +36,20 @@ internal static class EngineDialogs
             DefaultButton = ContentDialogButton.None,
             XamlRoot = xamlRoot
         };
+        dlg.Content = BuildChooserBody(e => { picked = e; dlg.Hide(); });
+
+        await dlg.ShowAsync();
+        return picked;
+    }
+
+    /// <summary>The chooser's body - intro line plus the two engine cards. Also hosted by the
+    /// documentation snapshotter, which can't photograph a real ContentDialog (popups render in
+    /// their own layer, outside the window content that RenderTargetBitmap sees).</summary>
+    internal static StackPanel BuildChooserBody(Action<SvfEngine> onPick)
+    {
+        Grid cards = new() { ColumnSpacing = 12 };
+        cards.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        cards.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
 
         Button inventor = EngineCard(
             "ms-appx:///Assets/inventor.png", "Autodesk Inventor", "Exact translation",
@@ -50,8 +60,8 @@ internal static class EngineDialogs
             pros: ["No Inventor needed, fully offline", "Fast - reads the mesh cached in the file"],
             cons: ["Best effort: positions or rotations can be off", "Simplified materials"]);
 
-        inventor.Click += (_, _) => { picked = SvfEngine.Inventor; dlg.Hide(); };
-        local.Click += (_, _) => { picked = SvfEngine.Local; dlg.Hide(); };
+        inventor.Click += (_, _) => onPick(SvfEngine.Inventor);
+        local.Click += (_, _) => onPick(SvfEngine.Local);
 
         Grid.SetColumn(inventor, 0); cards.Children.Add(inventor);
         Grid.SetColumn(local, 1); cards.Children.Add(local);
@@ -63,10 +73,7 @@ internal static class EngineDialogs
             Opacity = 0.75, FontSize = 13, TextWrapping = TextWrapping.Wrap
         });
         body.Children.Add(cards);
-        dlg.Content = body;
-
-        await dlg.ShowAsync();
-        return picked;
+        return body;
     }
 
     /// <summary>One-time notice when no Inventor is installed: 3D views come from the built-in
