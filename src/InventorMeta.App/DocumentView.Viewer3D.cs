@@ -227,7 +227,13 @@ public sealed partial class DocumentView
                 ? Path.GetDirectoryName(Path.GetDirectoryName(localSvf!))!
                 : Path.GetDirectoryName(bubble!)!;
             web.CoreWebView2.SetVirtualHostNameToFolderMapping(ViewerHost, entryDir, CoreWebView2HostResourceAccessKind.Allow);
-            try { File.WriteAllText(Path.Combine(entryDir, "viewer.html"), ViewerHtml.Replace("{LMV_VERSION}", LmvViewerVersion)); } catch { /* read-only store */ }
+            try { File.WriteAllText(Path.Combine(entryDir, "viewer.html"), ViewerHtml.Replace("{LMV_VERSION}", LmvViewerVersion)); }
+            catch (Exception ex)
+            {
+                // A read-only shared store serves whatever viewer.html a previous writer left (or
+                // none) - the viewer may be stale or fail to load. Surface it instead of hiding it.
+                Serilog.Log.Warning("Couldn't refresh viewer.html in {Dir}: {Error}", entryDir, ex.Message);
+            }
 
             // diagnostics: log failed resource fetches and JS messages to %TEMP%\invmeta-viewer.log
             web.CoreWebView2.WebResourceResponseReceived += (_, a) =>
@@ -501,12 +507,38 @@ public sealed partial class DocumentView
     background:rgba(146,64,14,.92);color:#fff;font:12px/1.45 "Segoe UI",system-ui,sans-serif;
     padding:7px 11px;border-radius:6px;box-shadow:0 2px 10px rgba(0,0,0,.35);}
   #warn a{color:#fff;font-weight:600;}
+  /* redlining: pencil toolbar glyph, screen-space drawing surface, tool palette, text entry.
+     The three elements are re-parented into LMV's own container (a stacking context) at load, so
+     the z-indexes here are relative to LMV's UI: the drawing surface sits ABOVE the canvas but
+     BELOW the toolbar (50) and panels (20) - the viewer stays operable while marking up. The
+     palette (60) floats above everything of LMV's; top:48px keeps it clear of the best-effort
+     badge, which lives at body level and always paints above the container. */
+  /* \FE0F forces emoji presentation - the bare pencil is a text-style glyph and renders as a
+     near-invisible dash in the viewer's font stack */
+  #extrabbit-redline-btn .adsk-button-icon:before{content:"\270F\FE0F";font-size:18px;line-height:1;}
+  #redline2d{position:absolute;inset:0;z-index:10;pointer-events:none;touch-action:none;}
+  #redline2d.drawing{cursor:crosshair;}
+  #redlinePanel{position:absolute;top:48px;left:50%;transform:translateX(-50%);z-index:60;display:none;
+    gap:5px;align-items:center;background:rgba(28,28,28,.92);padding:6px 10px;border-radius:8px;
+    box-shadow:0 2px 10px rgba(0,0,0,.4);font:13px "Segoe UI",system-ui,sans-serif;color:#eee;}
+  #redlinePanel .rl-tool{width:30px;height:30px;border:1px solid transparent;border-radius:6px;background:transparent;
+    color:#eee;font-size:16px;cursor:pointer;display:flex;align-items:center;justify-content:center;}
+  #redlinePanel .rl-tool:hover{background:rgba(255,255,255,.12);}
+  #redlinePanel .rl-tool.sel{border-color:#4da3ff;background:rgba(77,163,255,.18);}
+  #redlinePanel .rl-swatch{width:18px;height:18px;border-radius:50%;border:2px solid transparent;cursor:pointer;padding:0;}
+  #redlinePanel .rl-swatch.sel{border-color:#fff;}
+  #redlinePanel .rl-sep{width:1px;height:22px;background:rgba(255,255,255,.25);}
+  #redlineText{position:absolute;z-index:61;display:none;background:transparent;border:1px dashed;outline:none;
+    font:18px "Segoe UI",system-ui,sans-serif;padding:2px 4px;min-width:80px;}
 </style>
 </head>
 <body>
 <div id="viewer"></div>
 <div id="warn">&#9888; Best-effort view &mdash; positions or rotations may be off.
   <a href="#" id="warnReport">Report this model</a></div>
+<svg id="redline2d" xmlns="http://www.w3.org/2000/svg" width="100%" height="100%"></svg>
+<div id="redlinePanel"></div>
+<input id="redlineText" type="text" spellcheck="false"/>
 <script>
   function report(m){ try{ window.chrome.webview.postMessage(String(m)); }catch(e){} console.log(m); }
   window.addEventListener("error", e => report("error: " + e.message));
@@ -640,6 +672,325 @@ public sealed partial class DocumentView
   }
   Autodesk.Viewing.theExtensionManager.registerExtension("Extrabbit.Coloring", ColoringExtension);
 
+  // --- Redlining: draw markup over the model. 2D tools (freehand, rectangle, circle, arrow, text)
+  // draw in screen space on an SVG overlay; the experimental 3D pen raycasts each sample onto the
+  // model surface and draws a world-space line in an LMV overlay scene, so it sticks to the model
+  // and rotates with it. Default colour red; markup is per-session (not persisted).
+  const RL_NS = "http://www.w3.org/2000/svg";
+  const RL_COLORS = ["#e53935", "#fb8c00", "#fdd835", "#43a047", "#1e88e5", "#ffffff", "#000000"];
+  const RL_TOOLS = [
+    ["free",    "✎",  "Freehand"],
+    ["rect",    "▭",  "Rectangle"],
+    ["circle",  "◯",  "Circle"],
+    ["arrow",   "↗",  "Arrow"],
+    ["text",    "T",       "Text"],
+    ["paint3d", "\u{1F58C}", "Paint on the model (experimental) - strokes stick to the surface"],
+  ];
+
+  class RedlineExtension extends Autodesk.Viewing.Extension {
+    load(){
+      this._active = false;
+      this._tool = "free";
+      this._color = RL_COLORS[0];
+      this._undo = [];                                   // drawn items, newest last
+      this._scene = "extrabbit-redline3d";
+      this._ac = new AbortController();                  // one handle tears down every DOM listener
+      this._svg = document.getElementById("redline2d");
+      this._panel = document.getElementById("redlinePanel");
+      this._input = document.getElementById("redlineText");
+      // Re-parent into LMV's container (a stacking context capped at z-index 1): as body-level
+      // siblings the overlay would paint above the WHOLE viewer UI and block the toolbar/viewcube
+      // while drawing. Inside the context the z-indexes above layer it under LMV's controls.
+      const host = (this.viewer.canvas && this.viewer.canvas.closest(".adsk-viewing-viewer")) || document.body;
+      host.appendChild(this._svg); host.appendChild(this._panel); host.appendChild(this._input);
+      this._buildPanel();
+      this._bindDraw();
+      this._bindText();
+      window.addEventListener("keydown", (e) => {
+        if (!this._active){ return; }
+        if (e.key === "Escape"){ this.setActive(false); }
+        else if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "z"){ e.preventDefault(); this.undo(); }
+      }, { signal: this._ac.signal });
+      if (this.viewer.toolbar){ this.onToolbarCreated(this.viewer.toolbar); }
+      else { this._onTb = () => this.onToolbarCreated(this.viewer.toolbar); this.viewer.addEventListener(Autodesk.Viewing.TOOLBAR_CREATED_EVENT, this._onTb); }
+      return true;
+    }
+    unload(){
+      this.setActive(false);                             // release the overlay + hide the palette
+      this._ac.abort();                                  // svg / input / window listeners
+      if (this._onTb){ this.viewer.removeEventListener(Autodesk.Viewing.TOOLBAR_CREATED_EVENT, this._onTb); }
+      if (this._group && this.viewer.toolbar){ this.viewer.toolbar.removeControl(this._group); }
+      this._group = this._button = null;
+      this.clear();
+      try { if (this.viewer.impl.removeOverlayScene){ this.viewer.impl.removeOverlayScene(this._scene); } } catch (e) { /* never created */ }
+      this._panel.replaceChildren();                     // a later load() rebuilds it fresh
+      return true;
+    }
+    onToolbarCreated(toolbar){
+      if (this._button){ return; }
+      this._button = new Autodesk.Viewing.UI.Button("extrabbit-redline-btn");
+      this._button.setToolTip("Redline — draw on the model");
+      this._button.onClick = () => this.setActive(!this._active);
+      this._group = new Autodesk.Viewing.UI.ControlGroup("extrabbit-redline-group");
+      this._group.addControl(this._button);
+      toolbar.addControl(this._group);
+    }
+    setActive(on){
+      this._active = on;
+      this._svg.style.pointerEvents = on ? "auto" : "none";
+      this._svg.classList.toggle("drawing", on);
+      this._panel.style.display = on ? "flex" : "none";
+      if (!on){ this._finishStroke(); this._commitText(); }
+      if (this._button){
+        const S = Autodesk.Viewing.UI.Button.State;
+        this._button.setState(on ? S.ACTIVE : S.INACTIVE);
+      }
+      report("redline " + (on ? "on" : "off"));
+    }
+    // ---------- palette ----------
+    _buildPanel(){
+      this._panel.replaceChildren();                     // idempotent across load cycles
+      const btn = (title, label, cls, onclick) => {
+        const b = document.createElement("button");
+        b.className = cls; b.title = title; b.textContent = label; b.addEventListener("click", onclick);
+        this._panel.appendChild(b);
+        return b;
+      };
+      this._toolBtns = {};
+      for (const [id, glyph, title] of RL_TOOLS){
+        this._toolBtns[id] = btn(title, glyph, "rl-tool", () => this._selectTool(id));
+      }
+      this._panel.appendChild(Object.assign(document.createElement("div"), { className: "rl-sep" }));
+      this._swatches = RL_COLORS.map(c => {
+        const s = btn("Colour " + c, "", "rl-swatch", () => this._selectColor(c));
+        s.style.background = c;
+        return s;
+      });
+      this._panel.appendChild(Object.assign(document.createElement("div"), { className: "rl-sep" }));
+      btn("Undo (Ctrl+Z)", "↩", "rl-tool", () => this.undo());
+      btn("Clear all markup", "\u{1F5D1}", "rl-tool", () => this.clear());
+      btn("Close (Esc)", "✕", "rl-tool", () => this.setActive(false));
+      this._selectTool("free");
+      this._selectColor(RL_COLORS[0]);
+    }
+    _selectTool(id){
+      this._tool = id;
+      for (const k in this._toolBtns){ this._toolBtns[k].classList.toggle("sel", k === id); }
+    }
+    _selectColor(c){
+      this._color = c;
+      this._swatches.forEach(s => s.classList.toggle("sel", s.style.background === c || rlHex(s.style.background) === c));
+    }
+    // ---------- drawing ----------
+    // One stroke at a time: tool and pointerId are LATCHED at pointerdown (this._strokeTool /
+    // this._pointerId), so a mid-stroke tool switch or a second finger can't corrupt the stroke
+    // state (orphaned SVG elements, TypeErrors in the 3D branch). Non-left buttons and the wheel
+    // are forwarded to the LMV canvas so the camera stays navigable while marking up.
+    _bindDraw(){
+      const svg = this._svg;
+      const sig = { signal: this._ac.signal };
+      const pos = (e) => { const r = svg.getBoundingClientRect(); return { x: e.clientX - r.left, y: e.clientY - r.top }; };
+      svg.addEventListener("pointerdown", (e) => {
+        if (!this._active){ return; }
+        if (e.button !== 0){ this._forwardNav(e); return; }
+        if (this._start){ return; }                      // a second pointer doesn't start a stroke
+        this._commitText();
+        const p = pos(e);
+        if (this._tool === "text"){ this._beginText(p); return; }
+        try { svg.setPointerCapture(e.pointerId); } catch (err) { /* capture is best-effort */ }
+        this._start = p;
+        this._strokeTool = this._tool;
+        this._pointerId = e.pointerId;
+        this._moved = false;
+        if (this._strokeTool === "paint3d"){ this._pts3d = []; this._line3d = null; this._add3D(p); }
+        else { this._el = this._begin2D(p); svg.appendChild(this._el); }
+        e.preventDefault();
+      }, sig);
+      svg.addEventListener("pointermove", (e) => {
+        if (!this._active || !this._start || e.pointerId !== this._pointerId){ return; }
+        if ((e.buttons & 1) === 0){ this._finishStroke(); return; }   // lost pointerup (focus steal etc.)
+        const p = pos(e);
+        if (Math.abs(p.x - this._start.x) > 2 || Math.abs(p.y - this._start.y) > 2){ this._moved = true; }
+        if (this._strokeTool === "paint3d"){ this._add3D(p); }
+        else if (this._el){ this._update2D(p); }
+      }, sig);
+      const finish = (e) => {
+        if (!this._start || (e && e.pointerId !== this._pointerId)){ return; }
+        this._finishStroke();
+      };
+      svg.addEventListener("pointerup", finish, sig);
+      svg.addEventListener("pointercancel", finish, sig);
+      // wheel-zoom keeps working over the drawing surface (LMV binds the legacy "mousewheel"
+      // event on its canvas, not the standard "wheel")
+      svg.addEventListener("wheel", (e) => {
+        if (!this._active){ return; }
+        e.preventDefault();
+        try { this.viewer.canvas.dispatchEvent(new WheelEvent("mousewheel", e)); } catch (err) { /* no canvas */ }
+      }, { passive: false, signal: this._ac.signal });
+    }
+    _finishStroke(){
+      if (!this._start){ return; }
+      if (this._strokeTool === "paint3d"){ this._commit3D(); }
+      else if (this._el){
+        if (this._moved){ this._undo.push({ kind: "2d", el: this._el }); }
+        else { this._el.remove(); }                      // a bare click draws nothing visible
+        this._el = null;
+      }
+      this._start = null;
+      this._pointerId = undefined;
+    }
+    // Middle/right drags are navigation: replay the down on the LMV canvas and drop the overlay's
+    // pointer-events until the drag ends, so the rest of the gesture reaches the viewer natively.
+    _forwardNav(e){
+      const svg = this._svg, canvas = this.viewer.canvas;
+      if (!canvas){ return; }
+      svg.style.pointerEvents = "none";
+      try {
+        canvas.dispatchEvent(new PointerEvent("pointerdown", e));
+        canvas.dispatchEvent(new MouseEvent("mousedown", e));
+      } catch (err) { /* forwarding is best-effort */ }
+      const restore = () => {
+        window.removeEventListener("pointerup", restore, true);
+        window.removeEventListener("pointercancel", restore, true);
+        if (this._active){ svg.style.pointerEvents = "auto"; }
+      };
+      window.addEventListener("pointerup", restore, { capture: true, signal: this._ac.signal });
+      window.addEventListener("pointercancel", restore, { capture: true, signal: this._ac.signal });
+    }
+    _shape(tag){
+      const el = document.createElementNS(RL_NS, tag);
+      el.setAttribute("stroke", this._color);
+      el.setAttribute("stroke-width", "3");
+      el.setAttribute("fill", "none");
+      el.setAttribute("stroke-linecap", "round");
+      el.setAttribute("stroke-linejoin", "round");
+      return el;
+    }
+    _begin2D(p){
+      const t = this._tool;
+      if (t === "rect"){ const el = this._shape("rect"); el.setAttribute("x", p.x); el.setAttribute("y", p.y); return el; }
+      if (t === "circle"){ const el = this._shape("ellipse"); el.setAttribute("cx", p.x); el.setAttribute("cy", p.y); return el; }
+      const el = this._shape("path");                    // freehand + arrow are paths
+      el.setAttribute("d", `M ${p.x} ${p.y}`);
+      return el;
+    }
+    _update2D(p){
+      const el = this._el, s = this._start, t = this._tool;
+      if (t === "free"){ el.setAttribute("d", el.getAttribute("d") + ` L ${p.x} ${p.y}`); }
+      else if (t === "rect"){
+        el.setAttribute("x", Math.min(s.x, p.x)); el.setAttribute("y", Math.min(s.y, p.y));
+        el.setAttribute("width", Math.abs(p.x - s.x)); el.setAttribute("height", Math.abs(p.y - s.y));
+      }
+      else if (t === "circle"){
+        el.setAttribute("cx", (s.x + p.x) / 2); el.setAttribute("cy", (s.y + p.y) / 2);
+        el.setAttribute("rx", Math.abs(p.x - s.x) / 2); el.setAttribute("ry", Math.abs(p.y - s.y) / 2);
+      }
+      else if (t === "arrow"){
+        const a = Math.atan2(p.y - s.y, p.x - s.x), h = 14;
+        const h1x = p.x - h * Math.cos(a - 0.45), h1y = p.y - h * Math.sin(a - 0.45);
+        const h2x = p.x - h * Math.cos(a + 0.45), h2y = p.y - h * Math.sin(a + 0.45);
+        el.setAttribute("d", `M ${s.x} ${s.y} L ${p.x} ${p.y} M ${h1x} ${h1y} L ${p.x} ${p.y} L ${h2x} ${h2y}`);
+      }
+    }
+    // ---------- text ----------
+    _bindText(){
+      const inp = this._input, sig = { signal: this._ac.signal };
+      inp.addEventListener("keydown", (e) => {
+        if (e.key === "Enter" && !e.isComposing){ this._commitText(); }   // IME Enter confirms the composition, not the annotation
+        else if (e.key === "Escape"){ this._cancelText(); }
+        e.stopPropagation();                             // typing must not trigger the mode's shortcuts
+      }, sig);
+      inp.addEventListener("blur", () => this._commitText(), sig);
+    }
+    _beginText(p){
+      const inp = this._input;
+      inp.style.display = "block";
+      inp.style.left = p.x + "px"; inp.style.top = (p.y - 14) + "px";
+      inp.style.color = this._color; inp.style.borderColor = this._color;
+      inp.value = "";
+      this._textPos = p;
+      setTimeout(() => inp.focus(), 0);
+    }
+    _cancelText(){
+      this._textPos = null;                              // discard: hide without committing
+      this._input.style.display = "none";
+      this._input.value = "";
+    }
+    _commitText(){
+      const inp = this._input;
+      if (inp.style.display === "none" || !this._textPos){ return; }
+      const value = inp.value.trim();
+      inp.style.display = "none";
+      if (value){
+        const el = document.createElementNS(RL_NS, "text");
+        el.setAttribute("x", this._textPos.x); el.setAttribute("y", this._textPos.y + 4);
+        el.setAttribute("fill", this._color);
+        el.setAttribute("style", 'font:18px "Segoe UI",system-ui,sans-serif;');
+        el.textContent = value;
+        this._svg.appendChild(el);
+        this._undo.push({ kind: "2d", el });
+      }
+      this._textPos = null;
+    }
+    // ---------- 3D pen (experimental) ----------
+    _add3D(p){
+      const hit = this.viewer.impl.hitTest(p.x, p.y, false);
+      if (!hit || !hit.intersectPoint){ return; }
+      // lift the point slightly toward the camera so the stroke doesn't z-fight the surface
+      const q = hit.intersectPoint.clone();
+      const toCam = this.viewer.impl.camera.position.clone().sub(q).normalize();
+      const size = this.viewer.model ? this.viewer.model.getBoundingBox().getSize(new THREE.Vector3()).length() : 100;
+      q.add(toCam.multiplyScalar(size * 0.004));
+      this._pts3d.push(q);
+      if (this._pts3d.length >= 2){ this._refresh3D(); }
+    }
+    _makeLine(points){
+      const arr = new Float32Array(points.length * 3);
+      points.forEach((q, i) => { arr[i * 3] = q.x; arr[i * 3 + 1] = q.y; arr[i * 3 + 2] = q.z; });
+      const geom = new THREE.BufferGeometry();
+      const attr = new THREE.BufferAttribute(arr, 3);
+      if (geom.setAttribute){ geom.setAttribute("position", attr); } else { geom.addAttribute("position", attr); }
+      const mat = new THREE.LineBasicMaterial({ color: new THREE.Color(this._color), depthTest: true, depthWrite: false });
+      return new THREE.Line(geom, mat);
+    }
+    _ensureScene(){
+      const impl = this.viewer.impl;
+      if (!impl.overlayScenes || !impl.overlayScenes[this._scene]){ impl.createOverlayScene(this._scene); }
+    }
+    _refresh3D(){
+      const impl = this.viewer.impl;
+      this._ensureScene();
+      // the true flag disposes the replaced geometry - LMV's GL buffers are pool-allocated and only
+      // freed via dispose(), so rebuilding per sample would otherwise leak GPU memory per move
+      if (this._line3d){ impl.removeOverlay(this._scene, this._line3d, true); this._line3d.material.dispose(); }
+      this._line3d = this._makeLine(this._pts3d);
+      impl.addOverlay(this._scene, this._line3d);
+      impl.invalidate(false, false, true);
+    }
+    _commit3D(){
+      if (this._line3d){ this._undo.push({ kind: "3d", obj: this._line3d }); }
+      else { report("3d stroke discarded (no surface under the cursor)"); }
+      this._pts3d = null; this._line3d = null;
+    }
+    // ---------- undo / clear ----------
+    undo(){
+      const item = this._undo.pop();
+      if (!item){ return; }
+      if (item.kind === "2d"){ item.el.remove(); }
+      else {
+        this.viewer.impl.removeOverlay(this._scene, item.obj, true);   // true = dispose geometry
+        item.obj.material.dispose();
+        this.viewer.impl.invalidate(false, false, true);
+      }
+    }
+    clear(){ while (this._undo.length){ this.undo(); } }
+  }
+  function rlHex(rgb){                                   // "rgb(r, g, b)" -> "#rrggbb" for swatch compare
+    const m = /rgb\((\d+),\s*(\d+),\s*(\d+)\)/.exec(rgb);
+    return m ? "#" + [m[1], m[2], m[3]].map(n => (+n).toString(16).padStart(2, "0")).join("") : rgb;
+  }
+  Autodesk.Viewing.theExtensionManager.registerExtension("Extrabbit.Redline", RedlineExtension);
+
   const params = new URLSearchParams(location.search);
   const wantMulticolor = params.get("coloring") === "multicolor";
   const srcSvf = params.get("src") === "svf";           // raw SVF from the built-in converter
@@ -670,6 +1021,9 @@ public sealed partial class DocumentView
     viewer.loadExtension("Extrabbit.Coloring", { initial: wantMulticolor, bakedPalette: srcSvf }).then(
       () => report("coloring extension loaded"),
       (err) => report("coloring extension failed: " + err));
+    viewer.loadExtension("Extrabbit.Redline").then(
+      () => report("redline extension loaded"),
+      (err) => report("redline extension failed: " + err));
     viewer.addEventListener(Autodesk.Viewing.GEOMETRY_LOADED_EVENT, () => {
       const m = viewer.model;
       const box = m && m.getBoundingBox && m.getBoundingBox();
