@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<link rel="stylesheet" href="https://developer.api.autodesk.com/modelderivative/v2/viewers/{LMV_VERSION}/style.min.css" type="text/css"/>
+<script src="https://developer.api.autodesk.com/modelderivative/v2/viewers/{LMV_VERSION}/viewer3D.min.js"></script>
+<link rel="stylesheet" href="{ASSETS}/viewer.css" type="text/css"/>
+</head>
+<body>
+<div id="viewer"></div>
+<div id="warn">&#9888; Best-effort view &mdash; positions or rotations may be off.
+  <a href="#" id="warnReport">Report this model</a></div>
+<svg id="redline2d" xmlns="http://www.w3.org/2000/svg" width="100%" height="100%"></svg>
+<div id="redlinePanel"></div>
+<input id="redlineText" type="text" spellcheck="false"/>
+<script>
+  // host bridge + page-level error reporting; loaded before the extension scripts so they can use it
+  function report(m){ try{ window.chrome.webview.postMessage(String(m)); }catch(e){} console.log(m); }
+  window.addEventListener("error", e => report("error: " + e.message));
+  window.addEventListener("unhandledrejection", e => report("reject: " + (e.reason && e.reason.message || e.reason)));
+</script>
+<script src="{ASSETS}/coloring.js"></script>
+<script src="{ASSETS}/redline.js"></script>
+<script>
+  const params = new URLSearchParams(location.search);
+  const wantMulticolor = params.get("coloring") === "multicolor";
+  const srcSvf = params.get("src") === "svf";           // raw SVF from the built-in converter
+  const bestEffort = params.get("engine") === "local";  // show the warning badge
+  if (bestEffort) {
+    document.getElementById("warn").style.display = "block";
+    document.getElementById("warnReport").addEventListener("click", (e) => {
+      e.preventDefault();
+      try { window.chrome.webview.postMessage("report-issue"); } catch (err) { /* no host */ }
+    });
+  }
+
+  const viewer = new Autodesk.Viewing.GuiViewer3D(document.getElementById("viewer"));
+  Autodesk.Viewing.Initializer({ env: "Local", useADP: false }, () => {
+    report("initialized");
+    viewer.start();
+    // No fullscreen button: the viewer already fills a window overlay, and browser fullscreen inside
+    // the WebView fights with the overlay's Esc-to-close. The button is core GuiViewer3D UI (not the
+    // FullScreen extension's), so remove the control - deferred with setTimeout, because touching the
+    // toolbar DURING the TOOLBAR_CREATED dispatch breaks the viewer's own follow-up setup (NavTools,
+    // measure/section/explode) and strips the whole toolbar.
+    viewer.addEventListener(Autodesk.Viewing.TOOLBAR_CREATED_EVENT, () => setTimeout(() => {
+      try {
+        const st = viewer.getToolbar() && viewer.getToolbar().getControl("settingsTools");
+        if (st && st.removeControl("toolbar-fullscreenTool")) { report("fullscreen button removed"); }
+      } catch (e) { report("fullscreen removal: " + e); }
+    }, 0));
+    viewer.loadExtension("Extrabbit.Coloring", { initial: wantMulticolor, bakedPalette: srcSvf }).then(
+      () => report("coloring extension loaded"),
+      (err) => report("coloring extension failed: " + err));
+    viewer.loadExtension("Extrabbit.Redline").then(
+      () => report("redline extension loaded"),
+      (err) => report("redline extension failed: " + err));
+    viewer.addEventListener(Autodesk.Viewing.GEOMETRY_LOADED_EVENT, () => {
+      const m = viewer.model;
+      const box = m && m.getBoundingBox && m.getBoundingBox();
+      if (box) {
+        viewer.navigation.fitBounds(true, box);   // immediate, non-animated fit
+        let c;
+        try { c = box.getCenter ? box.getCenter(new THREE.Vector3()) : box.center(); } catch (e) { report("center err: " + e); }
+        if (c) {
+          report("center " + c.x.toFixed(1) + "," + c.y.toFixed(1) + "," + c.z.toFixed(1));
+          try { viewer.navigation.setPivotPoint(c); } catch (e) { report("setPivotPoint: " + e); }  // orbit around the model, not origin
+        }
+      } else {
+        viewer.fitToView();
+      }
+      // lock the fitted view in as the home view (correct method lives on autocam)
+      try { viewer.autocam.setHomeViewFrom(viewer.getCamera()); report("home set"); }
+      catch (e) { report("autocam.setHomeViewFrom: " + e); }
+      // Edges on by default, HERE and not in the load callbacks: the viewer applies its persisted
+      // preference profile after the model root loads, so an earlier setDisplayEdges(true) gets
+      // overridden by a stored "off" - by GEOMETRY_LOADED the profile has been applied and this
+      // call has the last word. The user can still toggle edges off for the session.
+      try { viewer.setDisplayEdges(true); report("edges on"); }
+      catch (e) { report("setDisplayEdges: " + e); }
+      // Direct-SVF loads never get GuiViewer3D's default tools: its internal model-added UI
+      // bootstrap throws on manifest-less models (killing the loadModel success chain too), so
+      // NavTools/measure/explode/... stay unloaded. Bring the standard set up ourselves - HERE,
+      // because GEOMETRY_LOADED demonstrably still fires; loadExtension is idempotent.
+      if (srcSvf) {
+        ["Autodesk.DefaultTools.NavTools", "Autodesk.ViewCubeUi", "Autodesk.ModelStructure",
+         "Autodesk.PropertiesManager", "Autodesk.Measure", "Autodesk.Section", "Autodesk.Explode"]
+          .forEach(id => viewer.loadExtension(id, viewer.config)
+            .then(() => report(id + " loaded"), (e) => report(id + " failed: " + e)));
+      }
+    });
+    if (srcSvf) {
+      // A built-in-converter entry: no bubble manifest, load the raw SVF package directly.
+      viewer.loadModel("./output/0.svf", { createWireframe: true },
+        () => report("model loaded (raw svf)"),
+        (err) => report("loadModel failed: " + JSON.stringify(err)));
+    } else {
+      Autodesk.Viewing.Document.load(
+        "./bubble.json",
+        (doc) => {
+          report("bubble loaded");
+          const node = doc.getRoot().getDefaultGeometry();
+          report("geometry node: " + (node ? "found" : "MISSING"));
+          // createWireframe makes LMV derive edges client-side (mesh boundaries + hard angles) - our
+          // SVF has no edge data, so without it model.hasEdges stays false and LMV hides the "Display
+          // edges" setting, meaning it could never be turned on. With it, the setting appears in the
+          // viewer's Appearance settings and the chosen state persists in localStorage.
+          viewer.loadDocumentNode(doc, node, { createWireframe: true }).then(
+            () => report("model loaded"),
+            (err) => report("loadDocumentNode failed: " + JSON.stringify(err)));
+        },
+        (code, msg) => report("Document.load failed: code=" + code + " msg=" + msg));
+    }
+  });
+</script>
+</body>
+</html>

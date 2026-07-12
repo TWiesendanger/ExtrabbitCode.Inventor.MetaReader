@@ -48,6 +48,10 @@
     <Content Include="Assets\stepviewer\**\*">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </Content>
+    <!-- The LMV viewer page + its extensions (coloring, redlining), served over a virtual host -->
+    <Content Include="Assets\viewer\**\*">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
     <!-- Bundled sample assembly (+ all its parts) so the welcome tip can open a model to try out;
          skips Inventor's OldVersions backups and any stray STEP exports. -->
     <Content Include="Assets\SampleFiles\SampleBg\**\*.*"
