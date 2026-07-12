@@ -31,6 +31,23 @@ public sealed partial class DocumentView
     /// region (e.g. the sidebar card or a single detail panel).</summary>
     public FrameworkElement? ShootElement(string name) => FindName(name) as FrameworkElement;
 
+    /// <summary>The header element of a detail tab, so the demo tour can move the cursor onto it
+    /// before switching (snapshotter).</summary>
+    internal FrameworkElement? ShootTabHeader(string headerPrefix) =>
+        DetailTabs.TabItems.OfType<TabViewItem>().FirstOrDefault(t =>
+            t.Visibility == Visibility.Visible &&
+            t.Header is string h && h.StartsWith(headerPrefix, StringComparison.Ordinal));
+
+    /// <summary>The layout dropdown of the reference graph, as a cursor target (snapshotter).</summary>
+    internal FrameworkElement? ShootGraphLayoutPick() => _graphLayoutPick;
+
+    /// <summary>The 3D viewer WebView2's top-left corner relative to the window content, in DIPs -
+    /// the demo tour maps page coordinates to screen coordinates through this (snapshotter).</summary>
+    internal Point? ShootViewer3DOrigin(UIElement relativeTo) =>
+        _viewer3dWeb is { ActualWidth: > 0 }
+            ? _viewer3dWeb.TransformToVisual(relativeTo).TransformPoint(new Point(0, 0))
+            : null;
+
     /// <summary>Captures the reference-graph WebView2 (which RenderTargetBitmap renders blank) as a PNG,
     /// with its bounds inside <paramref name="relativeTo"/>, so the shooter can paint it into the shot.</summary>
     public async Task<(byte[] png, double x, double y, double width, double height)?> ShootGraphImageAsync(UIElement relativeTo)
@@ -76,6 +93,12 @@ public sealed partial class DocumentView
     public void ShootFitGraph()
     {
         if (_graphWeb is not null) { Post(_graphWeb, "{\"cmd\":\"fit\"}"); }
+    }
+
+    /// <summary>Rides the graph camera into a couple of nodes and back out (demo tour, ~5.5s).</summary>
+    internal void ShootGraphShowcase()
+    {
+        if (_graphWeb is not null) { Post(_graphWeb, "{\"cmd\":\"showcase\"}"); }
     }
 
     // ---- 3D viewer (snapshotter): the overlay opens only through private event handlers, so the

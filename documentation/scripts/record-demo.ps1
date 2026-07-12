@@ -60,12 +60,14 @@ function Gif($start, $dur, $name) {
 }
 $refs = Chapter "references" "light"; $orb = Chapter "viewer-orbit" "light"
 $col = Chapter "coloring" "light"; $red = Chapter "redlining" "light"
-Gif ($refs.startMs/1000 + 4.2) 10.5 "demo__references.gif"
+$tabs = Chapter "tabs" "light"
+Gif ($refs.startMs/1000 + 3.2) (($refs.endMs - $refs.startMs)/1000 - 3.6) "demo__references.gif"
+Gif ($tabs.startMs/1000 + 0.2) (($tabs.endMs - $tabs.startMs)/1000 - 0.4) "demo__tabs.gif"
 Gif ($orb.startMs/1000) (($col.endMs - $orb.startMs)/1000 - 0.3) "demo__viewer3d.gif"
 Gif ($red.startMs/1000 + 0.5) (($red.endMs - $red.startMs)/1000 - 1.0) "demo__redlining.gif"
 
-# 5. the full dark pass becomes the promo / Store video
-$dh = Chapter "home" "dark"; $do_ = Chapter "outro" "dark"
-& $ffmpeg -y -v error -ss ($dh.startMs/1000 + $off) -t (($do_.endMs - $dh.startMs)/1000) -i $rec `
+# 5. the full (light) pass becomes the promo / Store video
+$h = Chapter "home" "light"; $o = Chapter "outro" "light"
+& $ffmpeg -y -v error -ss ($h.startMs/1000 + $off) -t (($o.endMs - $h.startMs)/1000) -i $rec `
     -c:v libx264 -preset slow -crf 21 -pix_fmt yuv420p -movflags +faststart "$out\metareader-feature-tour.mp4"
 "video: $out\metareader-feature-tour.mp4"
