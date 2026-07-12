@@ -36,6 +36,9 @@ internal static class EngineDialogs
             DefaultButton = ContentDialogButton.None,
             XamlRoot = xamlRoot
         };
+        // the two cards need more room than ContentDialog's default 548px cap - without this the
+        // right card gets clipped
+        dlg.Resources["ContentDialogMaxWidth"] = 720d;
         dlg.Content = BuildChooserBody(e => { picked = e; dlg.Hide(); });
 
         await dlg.ShowAsync();

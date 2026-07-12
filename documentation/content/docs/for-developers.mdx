@@ -1,11 +1,11 @@
 ---
 title: For Developers
-description: Read Inventor metadata from your own .NET code with the zero-dependency InventorMeta library.
+description: Read Inventor and STEP metadata from your own .NET code with the zero-dependency InventorMeta library.
 ---
 
 The desktop app and the command line are both thin front-ends over a small core library,
 **InventorMeta**. It's a `net10.0` library with **zero external dependencies** - drop it into your
-own app, service or Inventor add-in and read Inventor files directly.
+own app, service or Inventor add-in and read Inventor and STEP files directly.
 
 The packaged viewer ships on the [Microsoft Store](/docs); to build any of the three
 projects yourself, read on.
@@ -84,6 +84,26 @@ if (doc.Thumbnail != null)
 
 string json = doc.ToJson();
 ```
+
+## STEP files
+
+STEP files (`.stp` / `.step`) go through the **same class** - the constructor sniffs the format, so
+you don't have to care which kind of file you were handed:
+
+```csharp
+var doc = new InventorDocument(@"C:\path\bracket.step");
+
+doc.IsStep;         // true
+doc.DocumentType;   // "STEP model (.stp/.step)"
+
+// the ISO-10303 header and a geometry summary arrive as regular property sets
+foreach (var p in doc.Properties)          // [STEP Header] Author = ..., [STEP Geometry Summary] ...
+    Console.WriteLine($"[{p.Set}] {p.Name} = {p.Display}");
+```
+
+For lower-level access, `StepFile.Read` returns the parsed header and per-entity counts directly,
+and `StepFile.LooksLikeStepFile(path)` is the cheap format check (also exposed as
+`InventorDocument.IsStepFile`).
 
 ## The raw container
 
