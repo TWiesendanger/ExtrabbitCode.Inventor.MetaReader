@@ -21,6 +21,7 @@
   window.addEventListener("error", e => report("error: " + e.message));
   window.addEventListener("unhandledrejection", e => report("reject: " + (e.reason && e.reason.message || e.reason)));
 </script>
+<script src="{ASSETS}/hotkeys.js"></script>
 <script src="{ASSETS}/coloring.js"></script>
 <script src="{ASSETS}/redline.js"></script>
 <script>
@@ -57,6 +58,22 @@
     viewer.loadExtension("Extrabbit.Redline").then(
       () => report("redline extension loaded"),
       (err) => report("redline extension failed: " + err));
+    viewer.loadExtension("Extrabbit.Hotkeys").then(
+      () => report("hotkeys extension loaded"),
+      (err) => report("hotkeys extension failed: " + err));
+    // mode hotkeys - bindings live in the Hotkeys registry (never while typing in an input)
+    window.addEventListener("keydown", (e) => {
+      if (e.ctrlKey || e.metaKey || e.altKey){ return; }
+      const t = e.target;
+      if (t && (t.tagName === "INPUT" || t.tagName === "TEXTAREA" || t.isContentEditable)){ return; }
+      if (Hotkeys.matches("coloring", e)){
+        const x = viewer.getExtension("Extrabbit.Coloring");
+        if (x){ x.setEnabled(!x._on); }
+      } else if (Hotkeys.matches("redline", e)){
+        const x = viewer.getExtension("Extrabbit.Redline");
+        if (x){ x.setActive(!x._active); }
+      }
+    });
     viewer.addEventListener(Autodesk.Viewing.GEOMETRY_LOADED_EVENT, () => {
       const m = viewer.model;
       const box = m && m.getBoundingBox && m.getBoundingBox();

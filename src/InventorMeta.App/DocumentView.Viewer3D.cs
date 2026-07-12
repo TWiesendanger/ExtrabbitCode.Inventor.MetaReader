@@ -1,6 +1,7 @@
 using System;
 using System.IO;
 using System.Linq;
+using System.Runtime.InteropServices.WindowsRuntime;
 using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.UI.Xaml;
@@ -285,7 +286,8 @@ public sealed partial class DocumentView
                 catch { /* ignore */ }
             };
             web.CoreWebView2.NavigationCompleted += (_, _) => statusHost.Visibility = Visibility.Collapsed;
-            string query = $"?coloring={coloring}" + (bestEffort ? "&src=svf&engine=local" : "");
+            string query = $"?coloring={coloring}&file={Uri.EscapeDataString(Document?.FileName ?? "")}"
+                + (bestEffort ? "&src=svf&engine=local" : "");
             web.CoreWebView2.Navigate($"https://{ViewerHost}/viewer.html{query}");
         }
         catch (Exception ex)
@@ -439,19 +441,33 @@ public sealed partial class DocumentView
         }
     }
 
-    /// <summary>Saves a redline-session screenshot posted by the viewer page: payload is JSON
-    /// {"name": session name, "data": PNG data URL}. Shows a save dialog owned by the viewer's
-    /// window; cancelling is fine.</summary>
+    /// <summary>Handles a redline-layer screenshot posted by the viewer page: payload is JSON
+    /// {"name": layer name, "mode": "save"|"copy", "data": PNG data URL}. Save shows a file dialog
+    /// owned by the viewer's window (cancelling is fine); copy puts the PNG on the clipboard.</summary>
     private async Task SaveRedlineShotAsync(MainWindow win, string payload)
     {
         try
         {
             using var doc = System.Text.Json.JsonDocument.Parse(payload);
-            string name = doc.RootElement.GetProperty("name").GetString() ?? "Session";
+            string name = doc.RootElement.GetProperty("name").GetString() ?? "Layer";
+            string mode = doc.RootElement.TryGetProperty("mode", out var m) ? m.GetString() ?? "save" : "save";
             string dataUrl = doc.RootElement.GetProperty("data").GetString() ?? "";
             const string prefix = "data:image/png;base64,";
             if (!dataUrl.StartsWith(prefix, StringComparison.Ordinal)) { return; }
             byte[] png = Convert.FromBase64String(dataUrl[prefix.Length..]);
+
+            if (mode == "copy")
+            {
+                var stream = new Windows.Storage.Streams.InMemoryRandomAccessStream();
+                await stream.WriteAsync(png.AsBuffer());
+                stream.Seek(0);
+                var package = new Windows.ApplicationModel.DataTransfer.DataPackage();
+                package.SetBitmap(Windows.Storage.Streams.RandomAccessStreamReference.CreateFromStream(stream));
+                Windows.ApplicationModel.DataTransfer.Clipboard.SetContent(package);
+                win.ShowToast($"Screenshot of “{name}” copied to the clipboard");
+                Serilog.Log.Information("Redline screenshot copied to clipboard ({Layer})", name);
+                return;
+            }
 
             var picker = new Windows.Storage.Pickers.FileSavePicker
             {
@@ -462,11 +478,12 @@ public sealed partial class DocumentView
             Windows.Storage.StorageFile? file = await picker.PickSaveFileAsync();
             if (file == null) { return; }
             await Windows.Storage.FileIO.WriteBytesAsync(file, png);
+            win.ShowToast($"Screenshot saved: {file.Name}");
             Serilog.Log.Information("Redline screenshot saved to {File}", file.Path);
         }
         catch (Exception ex)
         {
-            Serilog.Log.Warning("Redline screenshot save failed: {Error}", ex.Message);
+            Serilog.Log.Warning("Redline screenshot export failed: {Error}", ex.Message);
         }
     }
 

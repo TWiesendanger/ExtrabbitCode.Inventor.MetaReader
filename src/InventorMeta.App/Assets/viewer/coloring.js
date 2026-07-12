@@ -50,18 +50,24 @@ class ColoringExtension extends Autodesk.Viewing.Extension {
       this.viewer.removeEventListener(Autodesk.Viewing.OBJECT_TREE_CREATED_EVENT, this._refresh);
     }
     if (this._onTb){ this.viewer.removeEventListener(Autodesk.Viewing.TOOLBAR_CREATED_EVENT, this._onTb); }
-    if (this._group && this.viewer.toolbar){ this.viewer.toolbar.removeControl(this._group); }
-    this._group = this._button = null;
+    if (this._onHk){ document.removeEventListener("hotkeys-changed", this._onHk); }
+    extrabbitToolbarRemove(this.viewer.toolbar, this._button);
+    this._button = null;
     return true;
   }
+  _tooltip(){
+    let key = "C";
+    try { key = window.Hotkeys.get("coloring").toUpperCase(); } catch (e) { /* registry not loaded */ }
+    return "Body coloring — give every body its own colour (" + key + ")";
+  }
   onToolbarCreated(toolbar){
-    if (this._group) { return; }                              // guard against a double call
+    if (this._button) { return; }                             // guard against a double call
     this._button = new Autodesk.Viewing.UI.Button("extrabbit-coloring-btn");
-    this._button.setToolTip("Body coloring — give every body its own colour");
+    this._button.setToolTip(this._tooltip());
+    this._onHk = () => { if (this._button){ this._button.setToolTip(this._tooltip()); } };
+    document.addEventListener("hotkeys-changed", this._onHk);
     this._button.onClick = () => this.setEnabled(!this._on);
-    this._group = new Autodesk.Viewing.UI.ControlGroup("extrabbit-coloring-group");
-    this._group.addControl(this._button);
-    toolbar.addControl(this._group);
+    extrabbitToolbarGroup(toolbar).addControl(this._button);  // shared Extrabbit button group
     this._sync();
     this._maybeInitial();
   }
