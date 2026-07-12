@@ -4,6 +4,7 @@ description: Mark up the 3D model - draw, annotate and paint on the geometry, or
 ---
 
 import { ThemedImage } from '@/components/themed-image';
+import { DemoGif } from '@/components/demo-gif';
 
 Sometimes you don't just want to *look* at a model - you want to point at something. **Redlining**
 lets you draw directly over the 3D view: circle a problem area, add an arrow and a note, or paint
@@ -46,7 +47,7 @@ Because 3D paint lives on the model, it reads well from any camera angle. The 2D
 shapes, text) draw in screen space instead - they line up with the model only from the camera pose
 they were drawn in, which is exactly what layers store.
 
-<img src="/images/app/demo__redlining.gif" alt="Drawing on the model: a 3D paint stroke along the surface, then a circle and an arrow" className="rounded-lg border border-fd-border my-4 w-full" />
+<DemoGif src="images/app/demo__redlining.gif" alt="Drawing on the model: a 3D paint stroke along the surface, then a circle and an arrow" />
 
 ## Layers
 
