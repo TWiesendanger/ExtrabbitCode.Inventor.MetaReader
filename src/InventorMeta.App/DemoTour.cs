@@ -264,6 +264,13 @@ internal static class DemoTour
                         await Task.Delay(7500);
                         chapters.Add(new("viewer-orbit", t, c0, clock.ElapsedMilliseconds));
 
+                        // back to the fitted view (goHome restores LMV's default home, which is
+                        // framed differently): the redline stroke plan hit-tests the current
+                        // framing, so it needs the same deterministic camera every run
+                        await v3.ShootViewer3DScriptAsync(
+                            "NOP_VIEWER.navigation.fitBounds(false, NOP_VIEWER.model.getBoundingBox())");
+                        await Task.Delay(1800);
+
                         c0 = clock.ElapsedMilliseconds;
                         w.ShootCaption("One click gives every body its own colour");
                         await vc.MoveToDomAsync("#extrabbit-coloring-btn", 700);
@@ -296,7 +303,7 @@ internal static class DemoTour
                 }
             }
 
-            // -- STEP import: neutral CAD files open like any other -----------------------------
+            // -- STEP import: neutral CAD files open like any other, 3D included ----------------
             if (Sample(samplesDir, "SampleSteps", "Line Guide Drive Shaft_242.stp") is { } step)
             {
                 c0 = clock.ElapsedMilliseconds;
@@ -307,6 +314,23 @@ internal static class DemoTour
                 {
                     sv.ShootScrollPanel("PropsPanel", 400);
                     await Task.Delay(3400);
+
+                    // into the 3D view via its preview, like a click on the thumbnail
+                    if (sv.ShootElement("SidebarCard") is { } stepCard)
+                    {
+                        await cursor.MoveToElementAsync(stepCard, 700, yFraction: 0.18);
+                    }
+                    sv.ShootOpen3D();
+                    bool stepReady = false;
+                    for (int i = 0; i < 90 && !stepReady; i++)   // occt converts in the page
+                    {
+                        await Task.Delay(500);
+                        stepReady = await sv.ShootViewer3DScriptAsync(
+                            "(function(){try{return (window.NOP_VIEWER && NOP_VIEWER.model) ? '1' : '0';}catch(e){return '0';}})()") == "\"1\"";
+                    }
+                    if (stepReady) { await Task.Delay(4200); }   // let the shaft sink in
+                    sv.ShootClose3D();
+                    await Task.Delay(500);
                 }
                 chapters.Add(new("step", t, c0, clock.ElapsedMilliseconds));
             }
@@ -341,9 +365,13 @@ internal static class DemoTour
     /// toggle - each pointer event fired in the page while the real cursor sits on that spot.</summary>
     private static async Task RunRedlineAsync(DocumentView v3, ViewerCursor vc, MainWindow w)
     {
+        // deterministic framing for the plan, whatever the previous chapters did to the camera
+        await v3.ShootViewer3DScriptAsync(
+            "NOP_VIEWER.navigation.fitBounds(false, NOP_VIEWER.model.getBoundingBox())");
+        await Task.Delay(900);
         await vc.MoveToDomAsync("#extrabbit-redline-btn", 700);
         await v3.ShootViewer3DScriptAsync(RedlinePrepJs);
-        await Task.Delay(900);
+        await Task.Delay(1200);
 
         // the page plans the stroke paths (hit-testing needs the live model); C# walks them
         string planJson = await v3.ShootViewer3DScriptAsync(RedlinePlanJs);
@@ -477,13 +505,16 @@ internal static class DemoTour
     private const string ViewerReadyJs =
         "(function(){try{return (window.NOP_VIEWER && NOP_VIEWER.model && NOP_VIEWER.model.isLoadDone() && document.getElementById('extrabbit-group')) ? '1' : '0';}catch(e){return '0';}})()";
 
-    /// <summary>Installs a tiny page-global so per-step pointer events are cheap to fire.</summary>
+    /// <summary>Installs a tiny page-global so per-step pointer events are cheap to fire.
+    /// pointerId 7777, NOT 1: the real mouse (which the cursor choreography moves via SendInput)
+    /// is pointerId 1 in Chromium, and its button-less moves would otherwise pass the stroke's
+    /// same-pointer check and end it as a lost pointerup after the first point.</summary>
     private const string DefineFireJs =
         """
         (function () {
           const svg = document.getElementById("redline2d");
           window.__demoFire = (t, x, y, up) => svg.dispatchEvent(new PointerEvent(t,
-            { clientX: x, clientY: y, button: 0, buttons: up ? 0 : 1, pointerId: 1, bubbles: true }));
+            { clientX: x, clientY: y, button: 0, buttons: up ? 0 : 1, pointerId: 7777, bubbles: true }));
           return "ok";
         })()
         """;
@@ -514,18 +545,23 @@ internal static class DemoTour
             const W = vv.canvas.clientWidth, H = vv.canvas.clientHeight;
             const row = (yF) => {
               const y = H * yF, xs = [];
-              for (let i = 0; i <= 60; i++) {
-                const x = W * 0.2 + i * (W * 0.6 / 60);
+              for (let i = 0; i <= 80; i++) {
+                const x = W * 0.2 + i * (W * 0.6 / 80);
                 if (vv.impl.hitTest(x, y, false)) { xs.push(x); }
               }
               return { y, xs };
             };
-            let r = row(0.52);
-            if (r.xs.length < 8) { r = row(0.6); }
+            // camera-independent: probe several heights and paint along the widest run of surface
+            let r = { y: H * 0.5, xs: [] };
+            let mid = r;
+            for (const yF of [0.4, 0.45, 0.5, 0.55, 0.6, 0.65]) {
+              const cand = row(yF);
+              if (cand.xs.length > r.xs.length) { mid = r.xs.length ? r : cand; r = cand; }
+              else if (cand.xs.length > mid.xs.length) { mid = cand; }
+            }
             const paint = r.xs.map((x, i) => [x, r.y + Math.sin(i / 3) * 10]);
-            const mid = row(0.4);
             const cx = mid.xs.length ? mid.xs[Math.floor(mid.xs.length / 2)] : W * 0.55;
-            const cy = mid.y;
+            const cy = mid.xs.length ? mid.y : H * 0.42;
             const circle = [];
             for (let i = 0; i <= 14; i++) {
               circle.push([cx - 45 + i * (90 / 14), cy - 32 + i * (64 / 14)]);

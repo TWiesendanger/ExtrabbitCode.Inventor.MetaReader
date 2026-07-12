@@ -363,9 +363,13 @@ public sealed partial class DocumentView
         {
             if (!_viewerOpen) { return; }
             _viewerOpen = false;
+            _viewer3dWeb = null;
+            _viewer3dClose = null;
             try { web.Close(); } catch { /* disposing */ }
             win.HideOverlay();
         }
+        _viewer3dWeb = web;
+        _viewer3dClose = Close;
 
         root.Tapped += (_, _) => Close();
         close.Click += (_, _) => Close();
