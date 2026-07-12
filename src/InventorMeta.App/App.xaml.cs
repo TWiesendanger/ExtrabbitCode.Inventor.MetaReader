@@ -58,6 +58,24 @@ public partial class App
             return;
         }
 
+        // Demo tour: "--demo-tour <outDir> [--samples <dir>] [--model <assembly.iam>]" opens the
+        // window VISIBLY at a fixed position and walks the features at a human pace for an external
+        // screen recorder (promo videos and documentation GIFs), then exits.
+        int tourIndex = Array.IndexOf(cli, "--demo-tour");
+        if (tourIndex >= 0 && tourIndex + 1 < cli.Length)
+        {
+            ShootMode = true;
+            AppSettings.Ephemeral = true;
+            int tourSamplesIndex = Array.IndexOf(cli, "--samples");
+            string? tourSamples = tourSamplesIndex >= 0 && tourSamplesIndex + 1 < cli.Length
+                ? cli[tourSamplesIndex + 1] : null;
+            int tourModelIndex = Array.IndexOf(cli, "--model");
+            string? tourModel = tourModelIndex >= 0 && tourModelIndex + 1 < cli.Length
+                ? cli[tourModelIndex + 1] : null;
+            _ = DemoTour.RunAsync(cli[tourIndex + 1], tourSamples, tourModel);
+            return;
+        }
+
         // Headless 3D test: "--gen-svf <file> [--inv-year N]" detects Inventor, computes the cache
         // key, generates the SVF into the store, prints the result to the console, and exits.
         if (Array.IndexOf(cli, "--gen-svf") >= 0)

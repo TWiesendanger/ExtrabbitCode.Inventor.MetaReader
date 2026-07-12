@@ -50,10 +50,16 @@ public sealed partial class DocumentView
         return (ms.ToArray(), topLeft.X, topLeft.Y, _graphWeb.ActualWidth, _graphWeb.ActualHeight);
     }
 
-    /// <summary>Switches the reference graph to the given layout (snapshotter).</summary>
+    /// <summary>Switches the reference graph to the given layout (snapshotter). Goes through the
+    /// layout dropdown when it exists, so the visible label changes along with the layout.</summary>
     internal void ShootSetGraphLayout(GraphLayout layout)
     {
         if (_graphWeb is null || _graphRoot is null) { return; }
+        if (_graphLayoutPick is { } pick && pick.SelectedIndex != (int)layout)
+        {
+            pick.SelectedIndex = (int)layout;   // SelectionChanged applies the layout and resends the graph
+            return;
+        }
         _graphLayout = layout;
         SendGraph(_graphWeb, _graphRoot);
     }

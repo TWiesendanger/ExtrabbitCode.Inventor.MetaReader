@@ -28,6 +28,7 @@ public sealed partial class DocumentView
 
     // The live graph, kept so we can re-theme it when the app switches light/dark.
     private WebView2? _graphWeb;
+    private ComboBox? _graphLayoutPick;   // the layout dropdown; the snapshotter drives it so the label stays in sync
     private RefNode? _graphRoot;
     private Border? _graphChrome;
 
@@ -104,6 +105,7 @@ public sealed partial class DocumentView
             Items = { "Left → Right", "Top → Bottom", "Network" }, SelectedIndex = (int)_graphLayout
         };
         ToolTipService.SetToolTip(layoutPick, "Graph layout");
+        _graphLayoutPick = layoutPick;
         layoutPick.SelectionChanged += (_, _) =>
         {
             _graphLayout = (GraphLayout)Math.Max(0, layoutPick.SelectedIndex);

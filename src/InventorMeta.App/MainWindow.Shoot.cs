@@ -22,6 +22,25 @@ public sealed partial class MainWindow
     public void ShootResize(int width, int height) =>
         _appWindow?.Resize(new SizeInt32(width, height));
 
+    /// <summary>Moves the window to a fixed position (the demo-tour recorder captures a fixed
+    /// screen region, so the window must sit at known physical coordinates).</summary>
+    public void ShootMove(int x, int y) =>
+        _appWindow?.Move(new PointInt32(x, y));
+
+    /// <summary>The window's position and size in physical pixels, for the recorder's crop.</summary>
+    public (int X, int Y, int W, int H)? ShootWindowRect() =>
+        _appWindow is { } a ? (a.Position.X, a.Position.Y, a.Size.Width, a.Size.Height) : null;
+
+    /// <summary>Keeps the window above everything else - the demo-tour recorder captures a screen
+    /// region, so another window drifting over the app would end up in the video.</summary>
+    public void ShootTopmost()
+    {
+        if (_appWindow?.Presenter is Microsoft.UI.Windowing.OverlappedPresenter p)
+        {
+            p.IsAlwaysOnTop = true;
+        }
+    }
+
     /// <summary>Closes the document tabs and shows the Home tab (snapshotter reset).</summary>
     public void ShootCloseAllTabs()
     {

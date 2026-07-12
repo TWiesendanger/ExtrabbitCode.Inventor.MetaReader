@@ -66,3 +66,5 @@ src/InventorMeta.App/Assets/SampleFiles/Jet_Engine_Model/
 **/OldVersions/
 
 .vscode/settings.json
+
+documentation/.demo/
