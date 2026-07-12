@@ -14,7 +14,8 @@ namespace ExtrabbitCode.Inventor.MetaReader.App;
 /// <summary>
 /// Headless documentation snapshotter. Run with
 /// <c>InventorMeta.App.exe --shoot-docs &lt;outDir&gt; --samples &lt;sampleFilesDir&gt; [--model &lt;assembly.iam&gt;]</c>:
-/// <c>--model</c> picks the assembly shown in the reference-graph shots (defaults to the bundled SampleBg).
+/// <c>--model</c> picks the showcase assembly - overview, sidebar, file structure, the recent list
+/// and the reference-graph shots (defaults to the bundled SampleBg).
 /// it opens a curated set of sample files, walks the tabs, and writes one PNG per view in
 /// light and dark themes (<c>&lt;slug&gt;-light.png</c> / <c>&lt;slug&gt;-dark.png</c>) so each
 /// screenshot can sit next to its section in the docs. Generated locally; the PNGs are committed.
@@ -58,7 +59,7 @@ internal static class DocShooter
                 // 1. The Home screen: welcome card + a seeded recent list, so it shows the same in
                 // both themes (otherwise it's empty in the first theme and populated in the second).
                 RecentFiles.Clear();
-                foreach (string? recent in new[] { tnp, sampleAsm, part })
+                foreach (string? recent in new[] { tnp, asm, part })
                 {
                     if (recent != null) { RecentFiles.Add(recent); }
                 }
@@ -80,10 +81,17 @@ internal static class DocShooter
                     {
                         await CaptureRegion(w, sidebar, "app__sidebar", theme, outDir);
                     }
+
+                    // the raw file structure, shot on the same assembly (any document has one)
+                    adv?.ShootSelectTab("File Structure");
+                    await Task.Delay(600);
+                    if (adv?.ShootElement("DetailTabs") is { } structurePanel)
+                    {
+                        await CaptureRegion(w, structurePanel, "app__file-structure-panel", theme, outDir);
+                    }
                 }
 
-                // 3-4. A part with model states: the model-states diff and the raw file structure,
-                // each as just the detail-tabs panel (right side).
+                // 3. A part with model states: the states diff as just the detail-tabs panel.
                 if (part != null)
                 {
                     w.ShootCloseAllTabs();
@@ -96,13 +104,6 @@ internal static class DocShooter
                     if (dv?.ShootElement("DetailTabs") is { } statesPanel)
                     {
                         await CaptureRegion(w, statesPanel, "app__model-states-panel", theme, outDir);
-                    }
-
-                    dv?.ShootSelectTab("File Structure");
-                    await Task.Delay(600);
-                    if (dv?.ShootElement("DetailTabs") is { } structurePanel)
-                    {
-                        await CaptureRegion(w, structurePanel, "app__file-structure-panel", theme, outDir);
                     }
                 }
 
