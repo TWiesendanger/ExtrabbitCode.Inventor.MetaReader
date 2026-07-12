@@ -58,7 +58,7 @@ export function DemoGif({ src, alt }: DemoGifProps) {
           className="fixed inset-0 z-50 flex cursor-zoom-out items-center justify-center bg-black/90 p-4 sm:p-10"
           onClick={() => setFull(false)}
         >
-          <img src={url} alt={alt} className="max-h-full max-w-full rounded-lg" />
+          <img src={url} alt={alt} className="h-full w-full rounded-lg object-contain" />
         </span>
       )}
     </>
