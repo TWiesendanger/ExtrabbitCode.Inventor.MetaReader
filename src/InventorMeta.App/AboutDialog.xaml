@@ -88,7 +88,8 @@
                                                  NavigateUri="https://github.com/Open-Cascade-SAS/OCCT"/>
                                 <HyperlinkButton x:Name="LgplButton" Content="LGPL-2.1 license text" FontSize="12" Padding="2"
                                                  Click="OnShowLgplLicense"/>
-                                <HyperlinkButton x:Name="NoticesButton" Content="All notices" FontSize="12" Padding="2"/>
+                                <HyperlinkButton Content="All notices" FontSize="12" Padding="2"
+                                                 Click="OnShowNotices"/>
                             </StackPanel>
                         </StackPanel>
                     </Border>
