@@ -62,21 +62,32 @@ window.extrabbitToolbarRemove = function(toolbar, button){
   g.removeControl(button);
   if (g.getNumberOfControls() === 0){ toolbar.removeControl(g); }
 };
+// Wire an extension's toolbar button robustly, once for all three Extrabbit extensions. onCreated
+// (toolbar) runs immediately if the toolbar exists, on TOOLBAR_CREATED otherwise, and AGAIN on
+// GEOMETRY_LOADED as a fallback - an exception in an earlier TOOLBAR_CREATED listener can abort the
+// dispatch before later extensions are wired, and by GEOMETRY_LOADED the toolbar reliably exists.
+// onCreated may therefore be called more than once, so it must guard against a repeat (each
+// extension's onToolbarCreated already returns early once its button exists). Returns a dispose
+// function for unload() to call.
+window.extrabbitWireToolbar = function(viewer, onCreated){
+  const wire = () => { if (viewer.toolbar){ onCreated(viewer.toolbar); } };
+  if (viewer.toolbar){ onCreated(viewer.toolbar); }
+  else { viewer.addEventListener(Autodesk.Viewing.TOOLBAR_CREATED_EVENT, wire); }
+  viewer.addEventListener(Autodesk.Viewing.GEOMETRY_LOADED_EVENT, wire);
+  return () => {
+    viewer.removeEventListener(Autodesk.Viewing.TOOLBAR_CREATED_EVENT, wire);
+    viewer.removeEventListener(Autodesk.Viewing.GEOMETRY_LOADED_EVENT, wire);
+  };
+};
 
 class HotkeysExtension extends Autodesk.Viewing.Extension {
   load(){
     this._dlg = null;
-    if (this.viewer.toolbar){ this.onToolbarCreated(this.viewer.toolbar); }
-    else { this._onTb = () => this.onToolbarCreated(this.viewer.toolbar); this.viewer.addEventListener(Autodesk.Viewing.TOOLBAR_CREATED_EVENT, this._onTb); }
-    // same fallback as the redline extension: TOOLBAR_CREATED dispatch can be aborted by an
-    // exception in an earlier listener, but by GEOMETRY_LOADED the toolbar reliably exists
-    this._onGeo = () => { if (!this._button && this.viewer.toolbar){ this.onToolbarCreated(this.viewer.toolbar); } };
-    this.viewer.addEventListener(Autodesk.Viewing.GEOMETRY_LOADED_EVENT, this._onGeo);
+    this._disposeWire = extrabbitWireToolbar(this.viewer, (tb) => this.onToolbarCreated(tb));
     return true;
   }
   unload(){
-    if (this._onTb){ this.viewer.removeEventListener(Autodesk.Viewing.TOOLBAR_CREATED_EVENT, this._onTb); }
-    if (this._onGeo){ this.viewer.removeEventListener(Autodesk.Viewing.GEOMETRY_LOADED_EVENT, this._onGeo); }
+    if (this._disposeWire){ this._disposeWire(); }
     extrabbitToolbarRemove(this.viewer.toolbar, this._button);
     this._endRebind();
     if (this._dlg){ this._dlg.remove(); this._dlg = null; }

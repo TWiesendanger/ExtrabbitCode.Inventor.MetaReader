@@ -172,13 +172,7 @@ class RedlineExtension extends Autodesk.Viewing.Extension {
       else if (Hotkeys.matches("orbit", e)){ this._selectTool("nav"); }   // hand input to the viewer's own tools
     }, { signal: this._ac.signal });
     document.addEventListener("hotkeys-changed", () => this._refreshHotkeyTitles(), { signal: this._ac.signal });
-    if (this.viewer.toolbar){ this.onToolbarCreated(this.viewer.toolbar); }
-    else { this._onTb = () => this.onToolbarCreated(this.viewer.toolbar); this.viewer.addEventListener(Autodesk.Viewing.TOOLBAR_CREATED_EVENT, this._onTb); }
-    // Fallback wiring: TOOLBAR_CREATED dispatch is fragile - an exception in ANY earlier listener
-    // aborts the rest, and this extension registers late. By GEOMETRY_LOADED the toolbar exists,
-    // so wire up then if the event never reached us.
-    this._onGeo = () => { if (!this._button && this.viewer.toolbar){ this.onToolbarCreated(this.viewer.toolbar); } };
-    this.viewer.addEventListener(Autodesk.Viewing.GEOMETRY_LOADED_EVENT, this._onGeo);
+    this._disposeWire = extrabbitWireToolbar(this.viewer, (tb) => this.onToolbarCreated(tb));
     // Picking a navigation tool from the LMV toolbar while redlining switches us to nav mode, so
     // the orbit/pan drags actually reach the canvas instead of drawing strokes.
     this._onToolChange = (e) => {
@@ -193,8 +187,7 @@ class RedlineExtension extends Autodesk.Viewing.Extension {
   unload(){
     this.setActive(false);                             // release the overlay + hide the palette
     this._ac.abort();                                  // svg / input / window listeners
-    if (this._onTb){ this.viewer.removeEventListener(Autodesk.Viewing.TOOLBAR_CREATED_EVENT, this._onTb); }
-    if (this._onGeo){ this.viewer.removeEventListener(Autodesk.Viewing.GEOMETRY_LOADED_EVENT, this._onGeo); }
+    if (this._disposeWire){ this._disposeWire(); }
     if (this._onToolChange){ this.viewer.removeEventListener(Autodesk.Viewing.TOOL_CHANGE_EVENT, this._onToolChange); }
     extrabbitToolbarRemove(this.viewer.toolbar, this._button);
     this._button = null;
