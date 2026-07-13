@@ -38,7 +38,13 @@ public sealed class SvfStore
         return Convert.ToHexString(SHA256.HashData(fs)).ToLowerInvariant();
     }
 
+    /// <summary>Redline markup for a viewable is persisted next to it in the cache entry.</summary>
+    public const string RedlineLayersFile = "redline-layers.json";
+
     public string EntryDir(string key) => Path.Combine(PrimaryRoot, key);
+
+    /// <summary>Path to the redline markup file for a cache entry.</summary>
+    public string RedlineLayersPath(string key) => Path.Combine(EntryDir(key), RedlineLayersFile);
 
     /// <summary>The output folder a generator should write into for <paramref name="key"/>.</summary>
     public string OutputDir(string key) => Path.Combine(EntryDir(key), "output");

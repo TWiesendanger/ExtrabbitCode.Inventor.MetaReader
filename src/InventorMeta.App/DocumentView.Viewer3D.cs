@@ -301,7 +301,7 @@ public sealed partial class DocumentView
                     if (msg.StartsWith("redline-save:", StringComparison.Ordinal))
                     {
                         // layer history lives next to the viewable in the cache entry
-                        try { File.WriteAllText(Path.Combine(entryDir, "redline-layers.json"), msg["redline-save:".Length..]); }
+                        try { File.WriteAllText(Path.Combine(entryDir, SvfStore.RedlineLayersFile), msg["redline-save:".Length..]); }
                         catch (Exception ex) { Serilog.Log.Warning("Couldn't save redline layers in {Dir}: {Error}", entryDir, ex.Message); }
                         return;
                     }
