@@ -230,6 +230,7 @@ class RedlineExtension extends Autodesk.Viewing.Extension {
     if (!on){
       this._finishStroke(); this._commitText();
       this._closeMenus();
+      this._flushPersist();   // leaving the mode is the last chance before the viewer may close
     }
     if (this._button){
       const S = Autodesk.Viewing.UI.Button.State;
@@ -442,9 +443,13 @@ class RedlineExtension extends Autodesk.Viewing.Extension {
     this._syncBrowser();
     report("redline: restored " + this._layers.length + " layer(s)");
   }
-  _persist(){
+  // Debounced by default so a burst of edits becomes one write; immediate=true flushes a pending
+  // save right now - called when redline mode deactivates, so closing the viewer straight after an
+  // edit can't lose it (the host disposes the page without waiting for timers).
+  _persist(immediate){
     clearTimeout(this._saveT);
-    this._saveT = setTimeout(() => {
+    const save = () => {
+      this._saveT = null;
       const data = {
         version: 2,
         active: this._activeId,
@@ -456,7 +461,13 @@ class RedlineExtension extends Autodesk.Viewing.Extension {
       };
       try { window.chrome.webview.postMessage("redline-save:" + JSON.stringify(data)); }
       catch (e) { /* no host bridge (dev page) */ }
-    }, 600);
+    };
+    if (immediate){ save(); }
+    else { this._saveT = setTimeout(save, 250); }
+  }
+  /// flush a PENDING save immediately; a no-op when nothing changed since the last write
+  _flushPersist(){
+    if (this._saveT){ this._persist(true); }
   }
   // ---------- screenshot export ----------
   /// mode: "save" opens the host's save dialog, "copy" puts the PNG on the clipboard.
