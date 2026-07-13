@@ -60,10 +60,13 @@
         <!-- version history -->
         <StackPanel Grid.Row="2" Spacing="8">
             <TextBlock Text="Version History" FontWeight="SemiBold" FontSize="15"/>
-            <Border CornerRadius="6" Padding="14" MinHeight="120"
+            <Border CornerRadius="6" Padding="14,14,6,14" MinHeight="120"
                     Background="{ThemeResource CardBackgroundFillColorSecondaryBrush}"
                     BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" BorderThickness="1">
-                <StackPanel x:Name="HistoryPanel" Spacing="10"/>
+                <ScrollViewer MaxHeight="320" VerticalScrollBarVisibility="Auto"
+                              HorizontalScrollMode="Disabled" Padding="0,0,8,0">
+                    <StackPanel x:Name="HistoryPanel" Spacing="10"/>
+                </ScrollViewer>
             </Border>
         </StackPanel>
 
