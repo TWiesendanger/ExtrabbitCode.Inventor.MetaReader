@@ -4,8 +4,8 @@ description: Read Inventor files, compare model states and export JSON from a te
 ---
 
 Prefer the terminal, or need to process many files unattended? `invmeta` is a small command-line
-tool that reads the same metadata as the desktop app. It's cross-platform (Windows, macOS, Linux)
-and, like the app, needs no Autodesk Inventor.
+tool that reads the same metadata as the desktop app - Inventor files and STEP files alike. It's
+cross-platform (Windows, macOS, Linux) and, like the app, needs no Autodesk Inventor.
 
 The desktop viewer is on the [Microsoft Store](/docs); the command-line tool is for
 developers and automation, so you build it from source.
@@ -28,11 +28,17 @@ invmeta info    <file>              friendly report (type, iProperties, refs, ve
 invmeta states  <file>              per-model-state iProperties (parts/assemblies)
 invmeta json    <file>              full metadata as JSON
 invmeta props   <file>              every property in every set
+invmeta graph   <file>              recursive reference tree
 invmeta tree    <file>              raw file structure
 invmeta thumb   <file> [outBase]    extract the embedded preview image
 invmeta extract <file> <outDir>     dump every stream to disk
 invmeta cat     <file> <streamPath> hex+ascii dump of one stream
 ```
+
+**STEP files** (`.stp` / `.step`) work with `info`, `states`, `json`, `props` and `graph` - you get
+the ISO-10303 header (description, authors, organizations, schema), entity counts, products and
+solid bodies. The remaining commands (`tree`, `thumb`, `extract`, `cat`) read Inventor's OLE
+container structure, which STEP files don't have.
 
 ## Everyday use
 

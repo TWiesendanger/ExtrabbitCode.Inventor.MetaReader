@@ -15,14 +15,20 @@ namespace ExtrabbitCode.Inventor.MetaReader;
 /// </summary>
 public sealed class InventorDocument
 {
-    public enum DocKind { Unknown, Part, Assembly, Drawing, Presentation }
+    public enum DocKind { Unknown, Part, Assembly, Drawing, Presentation, Step }
 
     public string FilePath { get; }
     public string FileName => Path.GetFileName(FilePath);
     public Guid   RootClsid { get; private set; }
-    public string DocumentType { get; private set; }
+    public string DocumentType { get; private set; } = "";
     public DocKind Kind { get; private set; }
-    public string CfbVersionInfo { get; private set; }
+    public string CfbVersionInfo { get; private set; } = "";
+    public bool IsStep => Kind == DocKind.Step;
+    public string StructureText { get; private set; } = "";
+
+    /// <summary>True when <paramref name="path"/> is a STEP file the constructor reads directly
+    /// (plain ISO-10303-21 text, no CFB container).</summary>
+    public static bool IsStepFile(string path) => StepFile.LooksLikeStepFile(path);
 
     public sealed class PropEntry
     {
@@ -58,6 +64,8 @@ public sealed class InventorDocument
         public bool   IsActive;           // true if this state's stored properties match the active document
         public List<PropEntry> Properties = [];
         public Dictionary<string, string> Summary = new();
+        public byte[]? Thumbnail;         // this state's own cached preview (PNG/BMP), or null
+        public string  ThumbnailExt = "";
     }
 
     public List<PropEntry> Properties { get; } = [];
@@ -129,7 +137,7 @@ public sealed class InventorDocument
     /// More specific roles win over the generic Content Center membership.</summary>
     public enum DocCategory
     {
-        General, ContentCenter, FrameGenerator, DesignAccelerator, Weldment, SheetMetal, Piping,
+        General, NeutralCad, ContentCenter, FrameGenerator, DesignAccelerator, Weldment, SheetMetal, Piping,
         iPartFactory, iPartMember, iAssemblyFactory, iAssemblyMember
     }
 
@@ -147,7 +155,8 @@ public sealed class InventorDocument
     /// the iPart/iAssembly factory/member role, then plain Content Center membership; everything else
     /// is <see cref="DocCategory.General"/>.</summary>
     public DocCategory PrimaryCategory =>
-        HasSubsystem("TubeAndPipe")               ? DocCategory.Piping
+        Kind == DocKind.Step                      ? DocCategory.NeutralCad
+      : HasSubsystem("TubeAndPipe")               ? DocCategory.Piping
       : HasSubsystem("FrameGenerator")            ? DocCategory.FrameGenerator
       : HasSubsystem("DesignAccelerator")         ? DocCategory.DesignAccelerator
       : IsWeldment                                ? DocCategory.Weldment
@@ -187,6 +196,9 @@ public sealed class InventorDocument
     public bool IsIPart { get; private set; }
 
     private static readonly byte[] IPartMarker = Encoding.ASCII.GetBytes("MemberDesel");
+    private static readonly Guid StepHeaderSet = new("4b682c8a-0b22-4e4f-bd9a-e6b7fd37e001");
+    private static readonly Guid StepGeometrySet = new("4b682c8a-0b22-4e4f-bd9a-e6b7fd37e002");
+    private static readonly Guid StepSourceSet = new("4b682c8a-0b22-4e4f-bd9a-e6b7fd37e003");
 
     private static bool ContainsBytes(byte[] data, byte[] pattern)
     {
@@ -207,6 +219,12 @@ public sealed class InventorDocument
     {
         FilePath = path;
         Encoding.RegisterProvider(CodePagesEncodingProvider.Instance);
+        if (StepFile.LooksLikeStepFile(path))
+        {
+            LoadStep(StepFile.Read(path));
+            return;
+        }
+
         using CompoundFile cf = new(path);
         RootClsid = cf.Directory[0].Clsid;
         DocumentType = InventorProps.DocClass.TryGetValue(RootClsid, out string? dt) ? dt : $"Unknown ({RootClsid})";
@@ -257,7 +275,12 @@ public sealed class InventorDocument
             // ----- primary (active) document property sets -----
             if (PropertySet.IsPropertySet(data))
             {
-                ParsePropertySetInto(data, Properties, allowThumbnail: true);
+                byte[]? thumbData = ParsePropertySetInto(data, Properties, captureThumbnail: Thumbnail == null);
+                if (thumbData != null && Thumbnail == null)
+                {
+                    (byte[]? t, string ext) = DecodeThumbnail(thumbData);
+                    if (t != null) { Thumbnail = t; ThumbnailExt = ext; }
+                }
                 continue;
             }
 
@@ -281,7 +304,12 @@ public sealed class InventorDocument
             };
             foreach (byte[] data in kv.Value)
             {
-                ParsePropertySetInto(data, ms.Properties, allowThumbnail: false);
+                byte[]? thumbData = ParsePropertySetInto(data, ms.Properties, captureThumbnail: ms.Thumbnail == null);
+                if (thumbData != null && ms.Thumbnail == null)
+                {
+                    (byte[]? t, string ext) = DecodeThumbnail(thumbData);
+                    if (t != null) { ms.Thumbnail = t; ms.ThumbnailExt = ext; }
+                }
             }
 
             BuildSummaryInto(ms.Properties, ms.Summary);
@@ -296,8 +324,96 @@ public sealed class InventorDocument
             ModelStateDetails.Insert(0, new ModelState
             {
                 Name = _primaryName, StorageName = "(active document)", IsActive = true,
-                Properties = Properties, Summary = Summary
+                Properties = Properties, Summary = Summary,
+                Thumbnail = Thumbnail, ThumbnailExt = ThumbnailExt
             });
+        }
+    }
+
+    private void LoadStep(StepFileInfo step)
+    {
+        RootClsid = Guid.Empty;
+        Kind = DocKind.Step;
+        DocumentType = "STEP model (.stp/.step)";
+        CfbVersionInfo = "STEP ISO-10303-21" + (step.Schemas.Count > 0 ? " - " + string.Join(", ", step.Schemas) : "");
+        StructureText = step.StructureText;
+
+        AddStepProp(StepHeaderSet, "STEP Header", 2, "Name", "String", step.Name);
+        AddStepProp(StepHeaderSet, "STEP Header", 3, "Created", "String", step.TimeStamp);
+        AddStepProp(StepHeaderSet, "STEP Header", 4, "Author", "String[]", step.Authors);
+        AddStepProp(StepHeaderSet, "STEP Header", 5, "Organization", "String[]", step.Organizations);
+        AddStepProp(StepHeaderSet, "STEP Header", 6, "Preprocessor", "String", step.PreprocessorVersion);
+        AddStepProp(StepHeaderSet, "STEP Header", 7, "Originating System", "String", step.OriginatingSystem);
+        AddStepProp(StepHeaderSet, "STEP Header", 8, "Authorisation", "String", step.Authorisation);
+        AddStepProp(StepHeaderSet, "STEP Header", 9, "Schema", "String[]", step.Schemas);
+        AddStepProp(StepHeaderSet, "STEP Header", 10, "Description", "String", step.Description);
+        AddStepProp(StepHeaderSet, "STEP Header", 11, "Implementation Level", "String", step.ImplementationLevel);
+
+        int Count(params string[] names) => names.Sum(n => step.EntityCounts.TryGetValue(n, out int c) ? c : 0);
+        int surfaceCount = step.EntityCounts.Where(kv => kv.Key.EndsWith("_SURFACE", StringComparison.OrdinalIgnoreCase)).Sum(kv => kv.Value);
+        int curveCount = step.EntityCounts.Where(kv => kv.Key.EndsWith("_CURVE", StringComparison.OrdinalIgnoreCase)
+                                                       || kv.Key is "CIRCLE" or "LINE" or "ELLIPSE").Sum(kv => kv.Value);
+        int totalEntities = step.EntityCounts.Values.Sum();
+
+        AddStepProp(StepGeometrySet, "STEP Geometry Summary", 1, "Solid Bodies", "String[]", step.SolidBodies);
+        AddStepProp(StepGeometrySet, "STEP Geometry Summary", 2, "Products", "String[]", step.Products);
+        AddStepProp(StepGeometrySet, "STEP Geometry Summary", 3, "Advanced B-Rep Representations", "Int32", Count("ADVANCED_BREP_SHAPE_REPRESENTATION"));
+        AddStepProp(StepGeometrySet, "STEP Geometry Summary", 4, "Manifold Solid B-Reps", "Int32", Count("MANIFOLD_SOLID_BREP"));
+        AddStepProp(StepGeometrySet, "STEP Geometry Summary", 5, "Closed Shells", "Int32", Count("CLOSED_SHELL"));
+        AddStepProp(StepGeometrySet, "STEP Geometry Summary", 6, "Faces", "Int32", Count("ADVANCED_FACE", "FACE_SURFACE"));
+        AddStepProp(StepGeometrySet, "STEP Geometry Summary", 7, "Edges", "Int32", Count("EDGE_CURVE", "ORIENTED_EDGE"));
+        AddStepProp(StepGeometrySet, "STEP Geometry Summary", 8, "Vertices", "Int32", Count("VERTEX_POINT"));
+        AddStepProp(StepGeometrySet, "STEP Geometry Summary", 9, "Surfaces", "Int32", surfaceCount);
+        AddStepProp(StepGeometrySet, "STEP Geometry Summary", 10, "Curves", "Int32", curveCount);
+        AddStepProp(StepGeometrySet, "STEP Geometry Summary", 11, "Styled Items", "Int32", Count("STYLED_ITEM"));
+
+        AddStepProp(StepSourceSet, "STEP Source", 1, "File Size", "Int64", step.FileSizeBytes);
+        AddStepProp(StepSourceSet, "STEP Source", 2, "Line Count", "Int32", step.LineCount);
+        AddStepProp(StepSourceSet, "STEP Source", 3, "DATA Entities", "Int32", totalEntities);
+        AddStepProp(StepSourceSet, "STEP Source", 4, "Distinct Entity Types", "Int32", step.EntityCounts.Count);
+
+        PutSummary("Name", step.Name.Length > 0 ? step.Name : FileName);
+        PutSummary("Schema", string.Join(", ", step.Schemas));
+        PutSummary("Originating System", step.OriginatingSystem);
+        PutSummary("Author", string.Join(", ", step.Authors));
+        PutSummary("Created", step.TimeStamp);
+        PutSummary("Solid Bodies", step.SolidBodies.Count.ToString());
+        PutSummary("DATA Entities", totalEntities.ToString("N0"));
+
+        PutVersion("Schema", string.Join(", ", step.Schemas));
+        PutVersion("Originating System", step.OriginatingSystem);
+        PutVersion("Preprocessor", step.PreprocessorVersion);
+        PutVersion("Created", step.TimeStamp);
+        PutVersion("Author", string.Join(", ", step.Authors));
+    }
+
+    private void AddStepProp(Guid setId, string set, uint pid, string name, string type, object? value)
+    {
+        if (value is string s && s.Length == 0)
+        {
+            return;
+        }
+        if (value is System.Collections.ICollection { Count: 0 })
+        {
+            return;
+        }
+
+        Properties.Add(new PropEntry { Set = set, SetId = setId, Pid = pid, Name = name, Type = type, Value = value });
+    }
+
+    private void PutSummary(string key, string value)
+    {
+        if (!string.IsNullOrWhiteSpace(value))
+        {
+            Summary[key] = value;
+        }
+    }
+
+    private void PutVersion(string key, string value)
+    {
+        if (!string.IsNullOrWhiteSpace(value))
+        {
+            VersionInfo[key] = value;
         }
     }
 
@@ -324,9 +440,11 @@ public sealed class InventorDocument
         Add("Last saved by", DesignTrackingControlFmt, 16);
     }
 
-    /// <summary>Parse one OLE property set, appending entries to <paramref name="into"/>.</summary>
-    private void ParsePropertySetInto(byte[] data, List<PropEntry> into, bool allowThumbnail)
+    /// <summary>Parse one OLE property set, appending entries to <paramref name="into"/>. Returns the
+    /// first clipboard-format (thumbnail) blob found, when <paramref name="captureThumbnail"/> is set.</summary>
+    private byte[]? ParsePropertySetInto(byte[] data, List<PropEntry> into, bool captureThumbnail)
     {
+        byte[]? thumbBlob = null;
         PropertySet.ParsedSet set = PropertySet.Parse(data);
         foreach (PropertySet.Section sec in set.Sections)
         {
@@ -358,15 +476,17 @@ public sealed class InventorDocument
                     Name = name, Type = pr.TypeName, Value = val
                 });
 
-                if (allowThumbnail && pr.Value is PropertySet.Blob { Kind: "CF" } cf2 && Thumbnail == null)
+                if (captureThumbnail && thumbBlob == null && pr.Value is PropertySet.Blob { Kind: "CF" } cf2)
                 {
-                    ExtractThumbnail(cf2.Data);
+                    thumbBlob = cf2.Data;
                 }
             }
         }
+        return thumbBlob;
     }
 
-    private void ExtractThumbnail(byte[] img)
+    /// <summary>Decode a clipboard-format thumbnail blob to PNG/BMP bytes (null if it isn't an image).</summary>
+    private (byte[]? Data, string Ext) DecodeThumbnail(byte[] img)
     {
         int skip = -1;
         for (int off = 0; off < Math.Min(64, img.Length - 4); off++)
@@ -376,13 +496,13 @@ public sealed class InventorDocument
         }
         if (skip < 0)
         {
-            return;
+            return (null, "");
         }
 
         byte[] body = img[skip..];
-        if (Eq(body, 0, 0x89,0x50)) { Thumbnail = body; ThumbnailExt = "png"; }
-        else if (Eq(body, 0, 0x42,0x4D)) { Thumbnail = body; ThumbnailExt = "bmp"; }
-        else { Thumbnail = WrapDib(body); ThumbnailExt = "bmp"; }
+        if (Eq(body, 0, 0x89,0x50)) { return (body, "png"); }
+        if (Eq(body, 0, 0x42,0x4D)) { return (body, "bmp"); }
+        return (WrapDib(body), "bmp");
     }
 
     // UFRxDoc is proprietary; we robustly scrape UTF-16 strings for the useful bits.
@@ -553,6 +673,7 @@ public sealed class InventorDocument
             versionInfo = VersionInfo,
             modelStates = ModelStateDetails.Select(s => new {
                 name = s.Name, storage = s.StorageName, isActive = s.IsActive,
+                hasThumbnail = s.Thumbnail != null,
                 summary = s.Summary,
                 properties = s.Properties.GroupBy(p => p.Set).ToDictionary(
                     g => g.Key, g => g.Select(p => new { pid = p.Pid, name = p.Name, type = p.Type, value = p.Display }).ToArray())

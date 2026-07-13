@@ -98,8 +98,15 @@ public sealed partial class MainWindow
 
         await AnalyticsConsentDialog.MaybeAskAsync(Content.XamlRoot, _theme);
         Analytics.Capture("app_opened");
-        MaybeShowWelcomeTip();
+        // first launch of a new version: present the release highlights; the welcome tip waits
+        // for a quieter start so the two never stack
+        if (!WhatsNewDialog.MaybeShow(this))
+        {
+            MaybeShowWelcomeTip();
+        }
     }
+
+    private void OnWhatsNewClick(object sender, RoutedEventArgs e) => WhatsNewDialog.Show(this);
 
     private Microsoft.UI.Xaml.Controls.TeachingTip? _welcomeTip;
 
@@ -250,7 +257,7 @@ public sealed partial class MainWindow
         FileOpenPicker picker = new();
         IntPtr hwnd = WinRT.Interop.WindowNative.GetWindowHandle(this);
         WinRT.Interop.InitializeWithWindow.Initialize(picker, hwnd);
-        foreach (string ext in new[] { ".ipt", ".iam", ".idw", ".ipn", "*" })
+        foreach (string ext in new[] { ".ipt", ".iam", ".idw", ".ipn", ".stp", ".step", "*" })
         {
             picker.FileTypeFilter.Add(ext);
         }
@@ -263,6 +270,13 @@ public sealed partial class MainWindow
     }
 
     private void OnAddTab(TabView sender, object args) => OnOpenClick(sender, null!);
+
+    /// <summary>Home "Try a sample": a gallery of bundled files, each showing off a capability.</summary>
+    private async void OnTrySamplesClick(object sender, RoutedEventArgs e)
+    {
+        Analytics.Capture("samples_gallery_opened");
+        await SamplesGallery.ShowAsync(Content.XamlRoot, OpenFile);
+    }
 
     /// <summary>Opens a document in a tab (used by the reference graph's click-to-open).</summary>
     public void OpenDocument(string path) => OpenFile(path);
@@ -509,6 +523,7 @@ public sealed partial class MainWindow
         ".idw" => InventorDocument.DocKind.Drawing,
         ".ipn" => InventorDocument.DocKind.Presentation,
         ".ipt" => InventorDocument.DocKind.Part,
+        ".stp" or ".step" => InventorDocument.DocKind.Step,
         _ => InventorDocument.DocKind.Unknown,
     };
 
@@ -546,7 +561,10 @@ public sealed partial class MainWindow
                 Text = "Open in new window",
                 Icon = new FontIcon { Glyph = ((char)0xE78B).ToString() }
             };
-            newWin.Click += (_, _) => host.OpenInNewWindow(tab);
+            // Defer the reparent to the next tick: doing it synchronously in the flyout's Click handler
+            // moves the tab between windows' visual trees while the (tab-anchored) context menu is still
+            // dismissing - which the VS XAML diagnostics tap access-violates on. Let the flyout close first.
+            newWin.Click += (_, _) => host.DispatcherQueue.TryEnqueue(() => host.OpenInNewWindow(tab));
             menu.Items.Add(newWin);
 
             if (!host._isPrimary)
@@ -556,7 +574,7 @@ public sealed partial class MainWindow
                     Text = "Move to main window",
                     Icon = new FontIcon { Glyph = ((char)0xE8A7).ToString() }
                 };
-                toMain.Click += (_, _) => host.MoveToMain(tab);
+                toMain.Click += (_, _) => host.DispatcherQueue.TryEnqueue(() => host.MoveToMain(tab));
                 menu.Items.Add(toMain);
             }
 

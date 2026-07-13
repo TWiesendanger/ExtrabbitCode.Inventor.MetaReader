@@ -7,10 +7,10 @@ namespace ExtrabbitCode.Inventor.MetaReader.App;
 internal static class AppInfo
 {
     public const string Name = "ExtrabbitCode.Inventor.MetaReader";
-    public const string Tagline = "Read .ipt / .iam / .idw /.ipn metadata without Autodesk Inventor";
+    public const string Tagline = "Read .ipt / .iam / .idw / .ipn / .stp metadata without Autodesk Inventor";
     public const string Description =
-        "Inspect Autodesk Inventor part, assembly and drawing metadata - iProperties, " +
-        "references, thumbnails and per-model-state values - straight from the file, " +
+        "Inspect Autodesk Inventor and STEP metadata - iProperties, " +
+        "references, thumbnails, per-model-state values and neutral CAD headers - straight from the file, " +
         "without Autodesk Inventor installed.";
 
     public const string ExtrabbitUrl = "https://extrabbitcode.com";
@@ -30,6 +30,15 @@ internal static class AppInfo
     /// <summary>Newest first.</summary>
     public static readonly (string Version, string[] Notes)[] History =
     [
+        ("1.2.0.0", [
+            "STEP file support (.stp/.step) - header metadata and the 3D model, in the app and the CLI.",
+            "Redlining: draw on the 3D model - freehand, shapes, text and an eraser, organized in layers with per-layer camera poses, saved with the cached viewable.",
+            "3D paint: strokes that stick to the model surface and stay put while you orbit.",
+            "Built-in 3D engine: best-effort viewables for parts and assemblies without Inventor installed.",
+            "Body coloring in the 3D viewer - a colour per body, one click (or key) to toggle.",
+            "Rebindable keyboard shortcuts with a viewer shortcuts window.",
+            "A richer sample gallery on the start page, including STEP samples."
+        ]),
         ("1.1.0.0", [
             "Interactive reference graph with three layouts (Left-Right, Top-Bottom and an organic Network), node thumbnails, expand/collapse, fit and fullscreen.",
             "Home tab with a recent-files list, always one click away.",

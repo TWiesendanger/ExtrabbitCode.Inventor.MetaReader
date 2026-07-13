@@ -129,9 +129,10 @@ public sealed partial class DocumentView
 
     private void ApplyTabVisibility()
     {
+        bool isStep = Document?.IsStep == true;
         PropsTab.Visibility = TabVis("All Properties", true);
         StatesTab.Visibility = TabVis("Model States", Document?.HasModelStates == true);
-        RefsTab.Visibility = TabVis("References", true);
+        RefsTab.Visibility = TabVis("References", !isStep);
         StructureTab.Visibility = TabVis("File Structure", true);
 
         if (DetailTabs.SelectedItem is TabViewItem sel && sel.Visibility == Visibility.Collapsed)
@@ -205,7 +206,7 @@ public sealed partial class DocumentView
         }
         Tab("All Properties", true);
         Tab("Model States", Document.HasModelStates);
-        Tab("References", true);
+        Tab("References", !Document.IsStep);
         Tab("File Structure", true);
 
         foreach (string set in Document.Properties.Select(p => p.Set).Distinct())
@@ -242,15 +243,12 @@ public sealed partial class DocumentView
         _shown3DTip = false;
         try
         {
-            if (!CompoundFile.LooksLikeCompoundFile(path))
-            {
-                StatusSink?.Invoke($"{Path.GetFileName(path)} is not an Inventor / OLE compound file.");
-                return false;
-            }
             Document = new InventorDocument(path);
             Populate(Document);
-            StatusSink?.Invoke($"Loaded {Document.FileName} - {Document.Properties.Count} properties, " +
-                                  $"{Document.References.Count} reference(s).");
+            string counts = Document.IsStep
+                ? $"{Document.Properties.Count} STEP metadata field(s)."
+                : $"{Document.Properties.Count} properties, {Document.References.Count} reference(s).";
+            StatusSink?.Invoke($"Loaded {Document.FileName} - {counts}");
             Analytics.Capture("document_opened", new Dictionary<string, object?>
             {
                 ["doc_kind"]         = Document.Kind.ToString(),
@@ -331,6 +329,10 @@ public sealed partial class DocumentView
         FileNameText.Text = doc.FileName;
         DocTypeText.Text  = doc.DocumentType;
         TypeIcon.Source   = AppIcons.Bitmap(doc.Kind);
+        PropsTab.Header = "All Properties";
+        StatesTab.Header = "Model States";
+        RefsTab.Header = "References";
+        StructureTab.Header = doc.IsStep ? "STEP Source" : "File Structure";
 
         if (doc.Thumbnail != null)
         {
@@ -368,17 +370,24 @@ public sealed partial class DocumentView
 
         PopulateReferences(doc);
 
-        using CompoundFile cf = new(doc.FilePath);
-        StringBuilder sb = new();
-        sb.AppendLine($"Root CLSID  {cf.Directory[0].Clsid}");
-        sb.AppendLine($"Container   {doc.CfbVersionInfo}\n");
-        foreach (CompoundFile.DirEntry en in cf.Directory.Where(d => d.Type is 1 or 2 or 5)
-                     .OrderBy(d => d.Path, StringComparer.OrdinalIgnoreCase))
+        if (doc.IsStep)
         {
-            string size = en.Type == 2 ? en.Size.ToString("N0") : "";
-            sb.AppendLine($"{en.Path,-46}{en.TypeName,-8}{size,12}");
+            TreeText.Text = doc.StructureText;
         }
-        TreeText.Text = sb.ToString();
+        else
+        {
+            using CompoundFile cf = new(doc.FilePath);
+            StringBuilder sb = new();
+            sb.AppendLine($"Root CLSID  {cf.Directory[0].Clsid}");
+            sb.AppendLine($"Container   {doc.CfbVersionInfo}\n");
+            foreach (CompoundFile.DirEntry en in cf.Directory.Where(d => d.Type is 1 or 2 or 5)
+                         .OrderBy(d => d.Path, StringComparer.OrdinalIgnoreCase))
+            {
+                string size = en.Type == 2 ? en.Size.ToString("N0") : "";
+                sb.AppendLine($"{en.Path,-46}{en.TypeName,-8}{size,12}");
+            }
+            TreeText.Text = sb.ToString();
+        }
 
         ApplyTabVisibility();
         RefreshHiddenUi();
@@ -460,6 +469,25 @@ public sealed partial class DocumentView
         foreach (InventorDocument.ModelState s in states)
         {
             StackPanel body = new();
+
+            // Each state caches its own preview (its geometry can differ) - show it, click to enlarge.
+            if (s.Thumbnail is { Length: > 0 } thumb)
+            {
+                Image img = new()
+                {
+                    Source = ThumbSource(thumb), Width = 104, Height = 104,
+                    Stretch = Stretch.Uniform, HorizontalAlignment = HorizontalAlignment.Left
+                };
+                ToolTipService.SetToolTip(img, "Click to enlarge");
+                img.Tapped += (_, _) => ShowThumbZoom(thumb, s.Name);
+                body.Children.Add(new Border
+                {
+                    Child = img, CornerRadius = new CornerRadius(8), Margin = new Thickness(14, 12, 14, 6),
+                    BorderThickness = new Thickness(1), HorizontalAlignment = HorizontalAlignment.Left,
+                    BorderBrush = (Brush)Application.Current.Resources["CardStrokeColorDefaultBrush"]
+                });
+            }
+
             if (s.Summary.Count > 0)
             {
                 body.Children.Add(KvList(s.Summary.Select(kv => (kv.Key, kv.Value)).ToList(), 150));
@@ -471,6 +499,45 @@ public sealed partial class DocumentView
                 TextWrapping = TextWrapping.Wrap, Margin = new Thickness(14, 8, 14, 12) });
             StatesPanel.Children.Add(Card(s.Name, null, body));
         }
+    }
+
+    private static BitmapImage ThumbSource(byte[] bytes)
+    {
+        BitmapImage bmp = new();
+        using MemoryStream ms = new(bytes);
+        bmp.SetSource(ms.AsRandomAccessStream());
+        return bmp;
+    }
+
+    /// <summary>Show a model-state thumbnail enlarged on a dimmed overlay; click anywhere to close.</summary>
+    private void ShowThumbZoom(byte[] bytes, string title)
+    {
+        if (HostWindow is not MainWindow win) { return; }
+
+        StackPanel centered = new()
+        {
+            Spacing = 10, HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center
+        };
+        centered.Children.Add(new TextBlock
+        {
+            Text = title, FontSize = 16, FontWeight = Microsoft.UI.Text.FontWeights.SemiBold,
+            Foreground = new SolidColorBrush(Microsoft.UI.Colors.White), HorizontalAlignment = HorizontalAlignment.Center
+        });
+        centered.Children.Add(new Border
+        {
+            CornerRadius = new CornerRadius(12),
+            Child = new Image { Source = ThumbSource(bytes), MaxWidth = 720, MaxHeight = 720, Stretch = Stretch.Uniform }
+        });
+        centered.Children.Add(new TextBlock
+        {
+            Text = "Click anywhere to close", FontSize = 12, Opacity = 0.7,
+            Foreground = new SolidColorBrush(Microsoft.UI.Colors.White), HorizontalAlignment = HorizontalAlignment.Center
+        });
+
+        Grid root = new();
+        root.Children.Add(centered);
+        root.Tapped += (_, _) => win.HideOverlay();
+        win.ShowOverlay(root, dimmed: true);
     }
 
     // sort order for property-set cards: key sets first, internal sets last
@@ -807,25 +874,28 @@ public sealed partial class DocumentView
             return;
         }
 
-        bool showThumb = SidebarConfig.ShowThumbnail;
+        bool showThumb = SidebarConfig.ShowThumbnail && !Document.IsStep;
         ThumbHost.Visibility = showThumb ? Visibility.Visible : Visibility.Collapsed;
         ThumbDivider.Visibility = showThumb ? Visibility.Visible : Visibility.Collapsed;
 
         // 3D triggers (parts/assemblies): the thumbnail is the primary trigger when shown; the
         // command-bar icon is the fallback only when the thumbnail is off.
-        bool is3D = Document.Kind is InventorDocument.DocKind.Part or InventorDocument.DocKind.Assembly;
+        bool is3D = Document.Kind is InventorDocument.DocKind.Part or InventorDocument.DocKind.Assembly or InventorDocument.DocKind.Step;
         View3DButton.Visibility = is3D && !showThumb ? Visibility.Visible : Visibility.Collapsed;
         ThreeDHint.Visibility = is3D && showThumb ? Visibility.Visible : Visibility.Collapsed;
 
-        // Discoverability tip (once per loaded doc): point at the 3D trigger when Inventor is installed.
-        if (is3D && !_shown3DTip && InventorInstalls.Detect().Count > 0)
+        // Discoverability tip (once per loaded doc): STEP uses the bundled OCCT converter; Inventor
+        // documents still need Inventor to generate a viewable on a cache miss.
+        if (is3D && !_shown3DTip && (Document.IsStep || InventorInstalls.Detect().Count > 0))
         {
             _shown3DTip = true;
             TipService.Show((Panel)Content, showThumb ? ThumbHost : View3DButton, new Tip
             {
                 Id = "view.3d",
                 Title = "See it in 3D",
-                Message = showThumb
+                Message = Document.IsStep
+                    ? "Convert this STEP file locally and open it in the Autodesk viewer."
+                    : showThumb
                     ? "Click the preview to open this model in the interactive 3D viewer."
                     : "Open this model in the interactive 3D viewer.",
                 Glyph = 0xF158,                       // 3D cube glyph
@@ -1612,6 +1682,7 @@ public sealed partial class DocumentView
         InventorDocument.DocKind.Assembly => "Assembly",
         InventorDocument.DocKind.Drawing => "Drawing",
         InventorDocument.DocKind.Presentation => "Presentation",
+        InventorDocument.DocKind.Step => "STEP",
         _ => "Document"
     };
 }

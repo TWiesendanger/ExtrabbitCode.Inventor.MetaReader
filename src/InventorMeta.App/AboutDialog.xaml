@@ -56,14 +56,45 @@
             </HyperlinkButton>
         </StackPanel>
 
-        <!-- version history -->
-        <StackPanel Grid.Row="2" Spacing="8">
-            <TextBlock Text="Version History" FontWeight="SemiBold" FontSize="15"/>
-            <Border CornerRadius="6" Padding="14" MinHeight="120"
-                    Background="{ThemeResource CardBackgroundFillColorSecondaryBrush}"
-                    BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" BorderThickness="1">
-                <StackPanel x:Name="HistoryPanel" Spacing="10"/>
-            </Border>
-        </StackPanel>
+        <!-- version history + open-source notices scroll together below the pinned header -->
+        <ScrollViewer Grid.Row="2" MaxHeight="460" VerticalScrollBarVisibility="Auto"
+                      HorizontalScrollMode="Disabled" Padding="0,0,8,0">
+            <StackPanel Spacing="18">
+                <!-- version history -->
+                <StackPanel Spacing="8">
+                    <TextBlock Text="Version History" FontWeight="SemiBold" FontSize="15"/>
+                    <Border CornerRadius="6" Padding="14" MinHeight="120"
+                            Background="{ThemeResource CardBackgroundFillColorSecondaryBrush}"
+                            BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" BorderThickness="1">
+                        <StackPanel x:Name="HistoryPanel" Spacing="10"/>
+                    </Border>
+                </StackPanel>
+
+                <!-- open-source notices (LGPL attribution for the STEP importer, and friends) -->
+                <StackPanel Spacing="8">
+                    <TextBlock Text="Open-Source Notices" FontWeight="SemiBold" FontSize="15"/>
+                    <Border CornerRadius="6" Padding="14"
+                            Background="{ThemeResource CardBackgroundFillColorSecondaryBrush}"
+                            BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" BorderThickness="1">
+                        <StackPanel Spacing="6">
+                            <TextBlock TextWrapping="Wrap" Opacity="0.85" FontSize="12"
+                                       Text="STEP viewing is powered by occt-import-js 0.0.23 and Open CASCADE Technology (OCCT), used unmodified under the GNU LGPL v2.1. They ship as separate, user-replaceable WebAssembly module files in Assets\stepviewer\vendor."/>
+                            <TextBlock TextWrapping="Wrap" Opacity="0.7" FontSize="12"
+                                       Text="The reference graph uses vis-network 9.1.9 (MIT / Apache-2.0). The 3D view loads the Autodesk Viewer from Autodesk's CDN under Autodesk's terms of service."/>
+                            <StackPanel Orientation="Horizontal" Spacing="12">
+                                <HyperlinkButton Content="occt-import-js source" FontSize="12" Padding="2"
+                                                 NavigateUri="https://github.com/kovacsv/occt-import-js"/>
+                                <HyperlinkButton Content="OCCT source" FontSize="12" Padding="2"
+                                                 NavigateUri="https://github.com/Open-Cascade-SAS/OCCT"/>
+                                <HyperlinkButton x:Name="LgplButton" Content="LGPL-2.1 license text" FontSize="12" Padding="2"
+                                                 Click="OnShowLgplLicense"/>
+                                <HyperlinkButton Content="All notices" FontSize="12" Padding="2"
+                                                 Click="OnShowNotices"/>
+                            </StackPanel>
+                        </StackPanel>
+                    </Border>
+                </StackPanel>
+            </StackPanel>
+        </ScrollViewer>
     </Grid>
 </ContentDialog>

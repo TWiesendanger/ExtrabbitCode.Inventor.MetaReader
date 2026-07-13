@@ -58,8 +58,25 @@ internal static class SettingsDialog
         ToggleSwitch hideInventor = new() { IsOn = ViewerSettings.HideInventor };
         ToggleSwitch silentInventor = new() { IsOn = ViewerSettings.SilentInventor };
 
+        ComboBox coloring = new()
+        {
+            HorizontalAlignment = HorizontalAlignment.Stretch,
+            Items = { "Default (original materials)", "Multicolor (a colour per body)" },
+            SelectedIndex = (int)ViewerSettings.ColoringMode
+        };
+
+        ComboBox engine = new()
+        {
+            HorizontalAlignment = HorizontalAlignment.Stretch,
+            Items = { "Ask on first use", "Autodesk Inventor (exact)", "Built-in converter (best effort)" },
+            SelectedIndex = (int)ViewerSettings.Engine
+        };
+
         StackPanel body = new() { Spacing = 10, Width = 460 };
         body.Children.Add(SectionHeader("3D Viewer"));
+        body.Children.Add(Row("Generation engine",
+            "What turns a model into a 3D view. Inventor translates exactly but must be installed; the built-in converter needs nothing but is best effort - positions or rotations can be off.",
+            engine));
         body.Children.Add(Row("Inventor version", "Which installed Inventor generates the 3D viewable.", version));
         body.Children.Add(Row("Hide Inventor",
             "When MetaReader starts Inventor to generate a 3D view, keep its window hidden. An Inventor you already have open is never touched.",
@@ -68,6 +85,9 @@ internal static class SettingsDialog
             "Suppress Inventor's dialog prompts while generating. Turn off only to debug a failed generation.",
             silentInventor));
         body.Children.Add(Row("Shared cache folder", "A network path so viewables are reused across users. Leave empty for local only.", network));
+        body.Children.Add(Row("Body coloring",
+            "How the 3D viewer paints bodies. Multicolor gives every body its own colour so you can tell them apart; you can also toggle it from the viewer's toolbar.",
+            coloring));
         body.Children.Add(Row("Cached viewables", "SVF files generated on this PC.", cacheCtl));
 
         Button openLog = new() { Content = "Open log" };
@@ -121,6 +141,8 @@ internal static class SettingsDialog
         TipSettings.Enabled = tips.IsOn;
         ViewerSettings.HideInventor = hideInventor.IsOn;
         ViewerSettings.SilentInventor = silentInventor.IsOn;
+        ViewerSettings.ColoringMode = (ColoringMode)Math.Max(0, coloring.SelectedIndex);
+        ViewerSettings.Engine = (SvfEngine)Math.Max(0, engine.SelectedIndex);
         AnalyticsConsent.Enabled = analytics.IsOn;
     }
 

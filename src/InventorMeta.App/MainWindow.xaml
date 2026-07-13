@@ -40,7 +40,7 @@
                         <TextBlock Text="Inventor MetaReader" FontSize="13" FontWeight="SemiBold"/>
                         <TextBlock x:Name="VersionText" FontSize="11" Opacity="0.5" VerticalAlignment="Center"/>
                     </StackPanel>
-                    <TextBlock Text="Read .ipt / .iam / .idw / .ipn without Autodesk Inventor"
+                    <TextBlock Text="Read .ipt / .iam / .idw / .ipn / .stp without Autodesk Inventor"
                                FontSize="11" Opacity="0.6" Margin="0,-2,0,0"/>
                 </StackPanel>
             </Grid>
@@ -160,23 +160,40 @@
                                 <TextBlock Text="Presentation" FontSize="12" Opacity="0.75" HorizontalAlignment="Center"/>
                                 <TextBlock Text=".ipn" FontFamily="Consolas" FontSize="11" Opacity="0.45" HorizontalAlignment="Center"/>
                             </StackPanel>
+                            <StackPanel Spacing="6" Width="74">
+                                <Border CornerRadius="14" Padding="14" HorizontalAlignment="Center"
+                                        Background="{ThemeResource SmokeFillColorDefaultBrush}">
+                                    <Image Source="ms-appx:///Assets/step.png" Width="40" Height="40"/>
+                                </Border>
+                                <TextBlock Text="STEP" FontSize="12" Opacity="0.75" HorizontalAlignment="Center"/>
+                                <TextBlock Text=".stp" FontFamily="Consolas" FontSize="11" Opacity="0.45" HorizontalAlignment="Center"/>
+                            </StackPanel>
                         </StackPanel>
 
                         <StackPanel Spacing="6" Margin="0,8,0,0">
-                            <TextBlock Text="Drag &amp; drop Inventor files here"
+                            <TextBlock Text="Drag &amp; drop Inventor or STEP files here"
                                        FontSize="22" FontWeight="SemiBold" HorizontalAlignment="Center"/>
-                            <TextBlock Text="Drop several at once - each opens in its own tab. No Autodesk Inventor required."
+                            <TextBlock Text="Drop several at once - each opens in its own tab."
                                        FontSize="13" Opacity="0.7" HorizontalAlignment="Center"
                                        TextWrapping="Wrap" TextAlignment="Center" MaxWidth="440"/>
                         </StackPanel>
 
-                        <Button x:Name="BrowseButton" Click="OnOpenClick" HorizontalAlignment="Center"
-                                Style="{ThemeResource AccentButtonStyle}" Padding="20,8">
-                            <StackPanel Orientation="Horizontal" Spacing="8">
-                                <FontIcon Glyph="&#xE8E5;" FontSize="14"/>
-                                <TextBlock Text="Browse files…"/>
-                            </StackPanel>
-                        </Button>
+                        <StackPanel Orientation="Horizontal" Spacing="10" HorizontalAlignment="Center">
+                            <Button x:Name="BrowseButton" Click="OnOpenClick"
+                                    Style="{ThemeResource AccentButtonStyle}" Padding="20,8">
+                                <StackPanel Orientation="Horizontal" Spacing="8">
+                                    <FontIcon Glyph="&#xE8E5;" FontSize="14"/>
+                                    <TextBlock Text="Browse files…"/>
+                                </StackPanel>
+                            </Button>
+                            <Button x:Name="SamplesButton" Click="OnTrySamplesClick" Padding="20,8"
+                                    ToolTipService.ToolTip="Open a bundled sample that shows off what MetaReader can read">
+                                <StackPanel Orientation="Horizontal" Spacing="8">
+                                    <FontIcon Glyph="&#xE8F1;" FontSize="14"/>
+                                    <TextBlock Text="Try a sample"/>
+                                </StackPanel>
+                            </Button>
+                        </StackPanel>
                     </StackPanel>
                 </Border>
 
@@ -200,8 +217,14 @@
                 <ColumnDefinition Width="Auto"/>
             </Grid.ColumnDefinitions>
             <TextBlock x:Name="StatusText" Grid.Column="0" VerticalAlignment="Center" Opacity="0.7"
-                       FontSize="12" Text="Ready. Open or drop an Inventor file to begin."/>
+                       FontSize="12" Text="Ready. Open or drop an Inventor or STEP file to begin."/>
             <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+                <Button Click="OnWhatsNewClick" ToolTipService.ToolTip="What's new in this version">
+                    <StackPanel Orientation="Horizontal" Spacing="8">
+                        <FontIcon Glyph="&#xE789;" FontSize="14"/>
+                        <TextBlock Text="What's new"/>
+                    </StackPanel>
+                </Button>
                 <Button Click="OnSettingsClick" ToolTipService.ToolTip="Settings">
                     <StackPanel Orientation="Horizontal" Spacing="8">
                         <FontIcon Glyph="&#xE713;" FontSize="14"/>

@@ -13,6 +13,7 @@ internal static class AppIcons
         InventorDocument.DocKind.Assembly     => "assembly.png",
         InventorDocument.DocKind.Drawing      => "drawing.png",
         InventorDocument.DocKind.Presentation => "presentation.png",
+        InventorDocument.DocKind.Step         => "step.png",
         _                                     => "other.png",
     };
 

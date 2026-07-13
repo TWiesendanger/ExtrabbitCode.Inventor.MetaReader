@@ -38,7 +38,13 @@ public sealed class SvfStore
         return Convert.ToHexString(SHA256.HashData(fs)).ToLowerInvariant();
     }
 
+    /// <summary>Redline markup for a viewable is persisted next to it in the cache entry.</summary>
+    public const string RedlineLayersFile = "redline-layers.json";
+
     public string EntryDir(string key) => Path.Combine(PrimaryRoot, key);
+
+    /// <summary>Path to the redline markup file for a cache entry.</summary>
+    public string RedlineLayersPath(string key) => Path.Combine(EntryDir(key), RedlineLayersFile);
 
     /// <summary>The output folder a generator should write into for <paramref name="key"/>.</summary>
     public string OutputDir(string key) => Path.Combine(EntryDir(key), "output");
@@ -56,7 +62,20 @@ public sealed class SvfStore
         return null;
     }
 
-    public bool Has(string key) => FindBubble(key) != null;
+    /// <summary>The raw SVF the built-in (best effort) converter writes for a key - such entries have
+    /// output\0.svf but no bubble.json manifest; null if not cached anywhere.</summary>
+    public string? FindLocalSvf(string key)
+    {
+        foreach (string root in Roots())
+        {
+            string svf = Path.Combine(root, key, "output", "0.svf");
+            if (File.Exists(svf)) { return svf; }
+        }
+
+        return null;
+    }
+
+    public bool Has(string key) => FindBubble(key) != null || FindLocalSvf(key) != null;
 
     /// <summary>Deletes the LOCAL cache only - never the shared network store (that would affect
     /// every user). Returns the number of bytes freed.</summary>
