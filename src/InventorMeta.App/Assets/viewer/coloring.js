@@ -40,8 +40,7 @@ class ColoringExtension extends Autodesk.Viewing.Extension {
     };
     this.viewer.addEventListener(Autodesk.Viewing.GEOMETRY_LOADED_EVENT, this._refresh);
     this.viewer.addEventListener(Autodesk.Viewing.OBJECT_TREE_CREATED_EVENT, this._refresh);
-    if (this.viewer.toolbar){ this.onToolbarCreated(this.viewer.toolbar); }
-    else { this._onTb = () => this.onToolbarCreated(this.viewer.toolbar); this.viewer.addEventListener(Autodesk.Viewing.TOOLBAR_CREATED_EVENT, this._onTb); }
+    this._disposeWire = extrabbitWireToolbar(this.viewer, (tb) => this.onToolbarCreated(tb));
     return true;
   }
   unload(){
@@ -49,7 +48,7 @@ class ColoringExtension extends Autodesk.Viewing.Extension {
       this.viewer.removeEventListener(Autodesk.Viewing.GEOMETRY_LOADED_EVENT, this._refresh);
       this.viewer.removeEventListener(Autodesk.Viewing.OBJECT_TREE_CREATED_EVENT, this._refresh);
     }
-    if (this._onTb){ this.viewer.removeEventListener(Autodesk.Viewing.TOOLBAR_CREATED_EVENT, this._onTb); }
+    if (this._disposeWire){ this._disposeWire(); }
     if (this._onHk){ document.removeEventListener("hotkeys-changed", this._onHk); }
     extrabbitToolbarRemove(this.viewer.toolbar, this._button);
     this._button = null;
