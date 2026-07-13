@@ -68,3 +68,8 @@ src/InventorMeta.App/Assets/SampleFiles/Jet_Engine_Model/
 .vscode/settings.json
 
 documentation/.demo/
+
+# Inventor Content Center lock artifacts - never commit these with sample files
+lockfile.lck
+
+documentation/.vscode/settings.json
