@@ -7,8 +7,10 @@
 
 <img src="src/InventorMeta.App/Assets/inventor-meta-1024.png" alt="ExtrabbitCode.Inventor.MetaReader" width="120" align="right" />
 
-Reads metadata out of Autodesk Inventor `.ipt` / `.iam` / `.idw` / `.ipn` files
-directly from their bytes - **no Autodesk Inventor installation required**.
+Reads metadata out of Autodesk Inventor `.ipt` / `.iam` / `.idw` / `.ipn` files - and neutral
+**STEP** (`.stp` / `.step`) files - directly from their bytes, **no Autodesk Inventor installation
+required**. The Windows viewer also shows the model in interactive **3D**, generated with Inventor
+or with a built-in converter that needs no Inventor at all.
 
 The Windows desktop viewer ships on the Microsoft Store - it installs, updates and
 code-signs itself, with nothing else to set up:
@@ -25,6 +27,11 @@ with its thumbnail, key iProperties and every property grouped by set:
 ![The MetaReader Home screen in dark theme](documentation/public/images/app/app__welcome-dark.png)
 
 ![A document open in MetaReader, showing its thumbnail and iProperties](documentation/public/images/app/app__overview-dark.png)
+
+And the **3D viewer** - spin the model, give every body its own colour, and mark it up, all
+generated without Inventor installed:
+
+![Redlining on a model in MetaReader's 3D viewer](documentation/public/images/app/app__redline-dark.png)
 
 It exploits the fact that Inventor files are standard **OLE Compound File Binary**
 containers and that all iProperties live in standard **OLE Property Sets**. See
@@ -46,7 +53,23 @@ reverse-engineering write-up.
   once that state has been recomputed in Inventor; until then the tool shows `(not cached)`
   instead of guessing.)*
 - **Model States** and the originating template / version provenance
+- **STEP files** (`.stp` / `.step`) - the ISO-10303 header (author, organization, schema), entity
+  counts, products and solid bodies
 - The raw CFB storage/stream tree, and any individual stream
+
+## In the 3D viewer
+
+The Windows app turns any part or assembly into an interactive **3D view** - generated once with
+Inventor's own translator, or with a **built-in converter** that reads the mesh cached in the file
+and needs no Inventor at all. On top of that:
+
+- **Body coloring** - give every part its own colour with one click
+- **Redlining** - draw, add text, or paint straight onto the model surface; markup lives on layers
+  saved with the cached viewable
+- An interactive **reference graph** with three layouts and node thumbnails
+- **STEP** models in 3D, converted in-app with Open CASCADE
+
+See the [documentation site](https://metareader.extrabbitcode.com) for the full tour.
 
 ## Projects
 
