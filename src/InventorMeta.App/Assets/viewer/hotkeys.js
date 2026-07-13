@@ -78,6 +78,7 @@ class HotkeysExtension extends Autodesk.Viewing.Extension {
     if (this._onTb){ this.viewer.removeEventListener(Autodesk.Viewing.TOOLBAR_CREATED_EVENT, this._onTb); }
     if (this._onGeo){ this.viewer.removeEventListener(Autodesk.Viewing.GEOMETRY_LOADED_EVENT, this._onGeo); }
     extrabbitToolbarRemove(this.viewer.toolbar, this._button);
+    this._endRebind();
     if (this._dlg){ this._dlg.remove(); this._dlg = null; }
     this._button = null;
     return true;
@@ -94,7 +95,7 @@ class HotkeysExtension extends Autodesk.Viewing.Extension {
   _toggle(){
     if (!this._dlg){ this._build(); }
     const open = this._dlg.style.display !== "block";
-    if (open){ this._render(); }
+    if (open){ this._render(); } else { this._endRebind(); }
     this._dlg.style.display = open ? "block" : "none";
   }
   _build(){
@@ -107,11 +108,12 @@ class HotkeysExtension extends Autodesk.Viewing.Extension {
   }
   _render(){
     const dlg = this._dlg;
+    this._endRebind();   // a re-render (or reopen) replaces the chips out from under any capture
     dlg.replaceChildren();
     const head = Object.assign(document.createElement("div"), { className: "hk-head" });
     head.appendChild(Object.assign(document.createElement("span"), { textContent: "Keyboard shortcuts" }));
     const close = Object.assign(document.createElement("button"), { className: "hk-x", textContent: "✕", title: "Close" });
-    close.addEventListener("click", () => { dlg.style.display = "none"; });
+    close.addEventListener("click", () => { this._endRebind(); dlg.style.display = "none"; });
     head.appendChild(close);
     dlg.appendChild(head);
     for (const a of HK_ACTIONS){
@@ -147,13 +149,18 @@ class HotkeysExtension extends Autodesk.Viewing.Extension {
     chip.classList.add("hk-listen");
     const done = () => {
       this._capturing = false;
+      this._cancelRebind = null;
       chip.classList.remove("hk-listen");
       window.removeEventListener("keydown", onKey, true);
     };
+    // dismissing the dialog mid-capture (the ✕, the toolbar toggle, a re-render, unload) must
+    // detach this listener - otherwise it keeps swallowing every keypress and the next key rebinds
+    // the chip invisibly. _endRebind() invokes this to restore the chip and clean up.
+    this._cancelRebind = () => { chip.textContent = old; done(); };
     const onKey = (e) => {
       // swallow the press completely so the current bindings don't fire mid-rebind
       e.preventDefault(); e.stopImmediatePropagation();
-      if (e.key === "Escape"){ chip.textContent = old; done(); return; }
+      if (e.key === "Escape"){ this._cancelRebind(); return; }
       const k = (e.key || "").toLowerCase();
       if (!/^[a-z0-9]$/.test(k)){ return; }                      // wait for a usable key
       const clash = HK_ACTIONS.some(a => a.id !== id && Hotkeys.get(a.id) === k);
@@ -167,6 +174,7 @@ class HotkeysExtension extends Autodesk.Viewing.Extension {
     };
     window.addEventListener("keydown", onKey, true);
   }
+  _endRebind(){ if (this._cancelRebind){ this._cancelRebind(); } }
 }
 
 Autodesk.Viewing.theExtensionManager.registerExtension("Extrabbit.Hotkeys", HotkeysExtension);
