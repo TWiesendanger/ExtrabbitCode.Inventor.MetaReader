@@ -74,6 +74,19 @@
         if (x){ x.setActive(!x._active); }
       }
     });
+    // Esc closes the 3D viewer overlay. The host's XAML accelerator only fires while XAML holds
+    // focus; once the user clicks into the WebView2 to orbit, keys go to Chromium and the DOM is
+    // the only place that still sees them - so post a close request from here. Capture phase runs
+    // before redline's own (bubble-phase) Esc handler, so we read redline's active state BEFORE it
+    // flips: while redlining, let that Esc exit the mode; the next Esc reaches here and closes.
+    window.addEventListener("keydown", (e) => {
+      if (e.key !== "Escape"){ return; }
+      const rl = viewer.getExtension("Extrabbit.Redline");
+      if (rl && rl._active){ return; }                       // this Esc exits redline mode first
+      const hk = document.getElementById("hotkeysDlg");
+      if (hk && hk.style.display === "block"){ return; }      // let the shortcuts dialog keep its Esc
+      try { window.chrome.webview.postMessage("viewer-close"); } catch (err) { /* no host */ }
+    }, true);
     viewer.addEventListener(Autodesk.Viewing.GEOMETRY_LOADED_EVENT, () => {
       const m = viewer.model;
       const box = m && m.getBoundingBox && m.getBoundingBox();

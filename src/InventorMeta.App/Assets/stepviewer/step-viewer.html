@@ -35,6 +35,12 @@
     post("error:" + reason);
   });
 
+  // Esc closes the viewer overlay. The host's XAML accelerator stops working once the WebView2
+  // takes keyboard focus (the model has been clicked), so the DOM posts the close request instead.
+  window.addEventListener("keydown", (event) => {
+    if (event.key === "Escape") { post("viewer-close"); }
+  });
+
   async function readStepWithOcct() {
     if (!modelUrl) {
       throw new Error("No STEP file URL was provided.");
