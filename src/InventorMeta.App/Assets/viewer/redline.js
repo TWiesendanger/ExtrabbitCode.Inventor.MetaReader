@@ -805,7 +805,10 @@ class RedlineExtension extends Autodesk.Viewing.Extension {
     const restore = () => {
       window.removeEventListener("pointerup", restore, true);
       window.removeEventListener("pointercancel", restore, true);
-      if (this._active){ svg.style.pointerEvents = "auto"; }
+      // through _updateOverlay, not a raw "auto": the drag may have switched the tool to nav (orbit
+      // hotkey, or clicking an LMV nav tool while held), and re-enabling the overlay in nav mode
+      // would swallow the next drag as a stroke instead of letting it navigate.
+      this._updateOverlay();
     };
     window.addEventListener("pointerup", restore, { capture: true, signal: this._ac.signal });
     window.addEventListener("pointercancel", restore, { capture: true, signal: this._ac.signal });
