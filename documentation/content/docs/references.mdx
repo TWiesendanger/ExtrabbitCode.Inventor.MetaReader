@@ -4,6 +4,7 @@ description: See the files a document depends on - an assembly's parts, a drawin
 ---
 
 import { ThemedImage } from '@/components/themed-image';
+import { DemoGif } from '@/components/demo-gif';
 
 Inventor documents point at other files: an assembly references its parts and sub-assemblies, a
 drawing references the model it documents. The **References** tab draws those relationships as a
@@ -43,6 +44,10 @@ layout**:
 
 In Network mode the graph keeps your current view as you expand and collapse (it only re-frames on the
 first open and when you switch layout) - press **Fit** any time to re-center everything.
+
+All three, live - expanding the graph and switching layouts:
+
+<DemoGif src="images/app/demo__references.gif" alt="Expanding the reference graph and switching between the three layouts" />
 
 The same assembly in **Top → Bottom** and **Network**:
 

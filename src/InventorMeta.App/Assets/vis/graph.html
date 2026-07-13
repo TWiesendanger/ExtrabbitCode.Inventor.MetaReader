@@ -364,10 +364,22 @@
     if (Object.keys(appear).length) { animateAppear(); }
   }
 
+  // Demo-tour camera ride: glide into a couple of nodes, then back out to the full graph.
+  function showcase() {
+    if (!network) { return; }
+    const ids = network.body.data.nodes.getIds();
+    if (ids.length < 4) { return; }
+    const ease = { duration: 1200, easingFunction: 'easeInOutQuad' };
+    network.focus(ids[Math.min(3, ids.length - 1)], { scale: 1.4, animation: ease });
+    setTimeout(() => network.focus(ids[Math.min(9, ids.length - 1)], { scale: 1.25, animation: ease }), 2100);
+    setTimeout(() => network.fit({ animation: { duration: 1100, easingFunction: 'easeInOutQuad' } }), 4200);
+  }
+
   window.chrome.webview.addEventListener('message', e => {
     const m = e.data;
     if (m.cmd === 'build') { build(m); }
     else if (m.cmd === 'fit' && network) { network.fit({ animation: true }); }
+    else if (m.cmd === 'showcase') { showcase(); }
     else if (m.cmd === 'toggleSettings') { toggleSettings(); }
   });
 

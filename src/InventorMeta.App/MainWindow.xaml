@@ -219,6 +219,12 @@
             <TextBlock x:Name="StatusText" Grid.Column="0" VerticalAlignment="Center" Opacity="0.7"
                        FontSize="12" Text="Ready. Open or drop an Inventor or STEP file to begin."/>
             <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+                <Button Click="OnWhatsNewClick" ToolTipService.ToolTip="What's new in this version">
+                    <StackPanel Orientation="Horizontal" Spacing="8">
+                        <FontIcon Glyph="&#xE789;" FontSize="14"/>
+                        <TextBlock Text="What's new"/>
+                    </StackPanel>
+                </Button>
                 <Button Click="OnSettingsClick" ToolTipService.ToolTip="Settings">
                     <StackPanel Orientation="Horizontal" Spacing="8">
                         <FontIcon Glyph="&#xE713;" FontSize="14"/>

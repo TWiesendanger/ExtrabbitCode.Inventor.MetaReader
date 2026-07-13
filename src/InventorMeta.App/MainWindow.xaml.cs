@@ -98,8 +98,15 @@ public sealed partial class MainWindow
 
         await AnalyticsConsentDialog.MaybeAskAsync(Content.XamlRoot, _theme);
         Analytics.Capture("app_opened");
-        MaybeShowWelcomeTip();
+        // first launch of a new version: present the release highlights; the welcome tip waits
+        // for a quieter start so the two never stack
+        if (!WhatsNewDialog.MaybeShow(this))
+        {
+            MaybeShowWelcomeTip();
+        }
     }
+
+    private void OnWhatsNewClick(object sender, RoutedEventArgs e) => WhatsNewDialog.Show(this);
 
     private Microsoft.UI.Xaml.Controls.TeachingTip? _welcomeTip;
 

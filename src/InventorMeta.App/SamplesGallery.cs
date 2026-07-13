@@ -15,7 +15,7 @@ namespace ExtrabbitCode.Inventor.MetaReader.App;
 /// from the window.</summary>
 internal static class SamplesGallery
 {
-    public static async Task ShowAsync(XamlRoot xamlRoot, Action<string> open)
+    public static async Task ShowAsync(XamlRoot xamlRoot, Action<string> open, Action<ContentDialog>? built = null)
     {
         var samples = SampleFiles.AvailableSamples().ToList();
 
@@ -53,6 +53,7 @@ internal static class SamplesGallery
 
         dlg.Content = new ScrollViewer { Content = body, MaxHeight = 520, HorizontalScrollMode = ScrollMode.Disabled };
 
+        built?.Invoke(dlg);
         if (await dlg.ShowAsync() == ContentDialogResult.Primary)
         {
             foreach ((_, string path) in samples) { open(path); }

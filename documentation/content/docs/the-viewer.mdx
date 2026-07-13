@@ -4,6 +4,7 @@ description: A tour of the MetaReader window - the preview, the key-property sid
 ---
 
 import { ThemedImage } from '@/components/themed-image';
+import { DemoGif } from '@/components/demo-gif';
 
 The app opens on a pinned **Home** tab: the drop zone for opening files and a **Recent files** list of
 what you opened before. Home stays at the far left, so the welcome screen and your recents are always
@@ -13,6 +14,11 @@ Once a file is open, it gets its own tab, with two halves: a **summary card** on
 **detail tabs** on the right.
 
 <ThemedImage slug="app__overview" alt="The MetaReader viewer with an assembly open" />
+
+Open as many files as you like - each gets its own tab, so hopping between documents is one click
+(and a tab can be dragged out into its own window to compare two side by side):
+
+<DemoGif src="images/app/demo__tabs.gif" alt="Three documents open in tabs, switching between them" />
 
 ## The summary card (left)
 

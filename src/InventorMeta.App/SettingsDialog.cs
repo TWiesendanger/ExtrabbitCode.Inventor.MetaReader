@@ -65,8 +65,18 @@ internal static class SettingsDialog
             SelectedIndex = (int)ViewerSettings.ColoringMode
         };
 
+        ComboBox engine = new()
+        {
+            HorizontalAlignment = HorizontalAlignment.Stretch,
+            Items = { "Ask on first use", "Autodesk Inventor (exact)", "Built-in converter (best effort)" },
+            SelectedIndex = (int)ViewerSettings.Engine
+        };
+
         StackPanel body = new() { Spacing = 10, Width = 460 };
         body.Children.Add(SectionHeader("3D Viewer"));
+        body.Children.Add(Row("Generation engine",
+            "What turns a model into a 3D view. Inventor translates exactly but must be installed; the built-in converter needs nothing but is best effort - positions or rotations can be off.",
+            engine));
         body.Children.Add(Row("Inventor version", "Which installed Inventor generates the 3D viewable.", version));
         body.Children.Add(Row("Hide Inventor",
             "When MetaReader starts Inventor to generate a 3D view, keep its window hidden. An Inventor you already have open is never touched.",
@@ -132,6 +142,7 @@ internal static class SettingsDialog
         ViewerSettings.HideInventor = hideInventor.IsOn;
         ViewerSettings.SilentInventor = silentInventor.IsOn;
         ViewerSettings.ColoringMode = (ColoringMode)Math.Max(0, coloring.SelectedIndex);
+        ViewerSettings.Engine = (SvfEngine)Math.Max(0, engine.SelectedIndex);
         AnalyticsConsent.Enabled = analytics.IsOn;
     }
 

@@ -109,7 +109,7 @@ public class InventorDocumentTests
 
         Assert.True(doc.HasModelStates);
         Assert.Equal(
-            ["[Primary]", "Model State1", "Model State2"],
+            ["[Primary]", "Chamfered", "Sloted"],
             doc.ModelStateDetails.Select(s => s.Name));
 
         InventorDocument.ModelState primary = doc.ModelStateDetails[0];
@@ -127,8 +127,8 @@ public class InventorDocumentTests
             doc.ModelStateDetails.Single(s => s.Name == state).Summary["Project"];
 
         Assert.Equal("Proj1", ProjectOf("[Primary]"));
-        Assert.Equal("Proj2", ProjectOf("Model State1"));
-        Assert.Equal("Proj3", ProjectOf("Model State2"));
+        Assert.Equal("Proj2", ProjectOf("Chamfered"));
+        Assert.Equal("Proj3", ProjectOf("Sloted"));
     }
 
     [Fact]

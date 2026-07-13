@@ -18,13 +18,15 @@
     <SelfContained>true</SelfContained>
     <RuntimeIdentifier>win-x64</RuntimeIdentifier>
     <PublishReadyToRun>false</PublishReadyToRun>
-    <Version>1.1.0.0</Version>
+    <Version>1.2.0.0</Version>
     <ApplicationIcon>Assets\appicon.ico</ApplicationIcon>
   </PropertyGroup>
   <ItemGroup>
     <PackageReference Include="Microsoft.WindowsAppSDK" Version="2.2.0" />
     <PackageReference Include="Microsoft.Windows.SDK.BuildTools" Version="10.0.26100.4654" />
     <PackageReference Include="CommunityToolkit.Mvvm" Version="8.4.0" />
+    <!-- Reverse-engineered IPT/IAM -> SVF converter: the no-Inventor "best effort" 3D engine -->
+    <PackageReference Include="ExtrabbitCode.Inventor.SvfConverter" Version="1.0.2" />
     <PackageReference Include="Serilog" Version="4.3.1" />
     <PackageReference Include="Serilog.Sinks.File" Version="7.0.0" />
   </ItemGroup>
@@ -44,6 +46,14 @@
     </Content>
     <!-- Bundled STEP viewer assets: OCCT WASM importer, license files, and the GLB bridge page. -->
     <Content Include="Assets\stepviewer\**\*">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+    <!-- The LMV viewer page + its extensions (coloring, redlining), served over a virtual host -->
+    <Content Include="Assets\viewer\**\*">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+    <!-- Demo GIFs for the "What's new" dialog -->
+    <Content Include="Assets\whatsnew\**\*">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </Content>
     <!-- Bundled sample assembly (+ all its parts) so the welcome tip can open a model to try out;

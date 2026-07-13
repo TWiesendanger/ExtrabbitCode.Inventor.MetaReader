@@ -1,6 +1,7 @@
 using System;
 using System.IO;
 using System.Linq;
+using System.Runtime.InteropServices.WindowsRuntime;
 using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.UI.Xaml;
@@ -19,6 +20,7 @@ namespace ExtrabbitCode.Inventor.MetaReader.App;
 public sealed partial class DocumentView
 {
     private const string ViewerHost = "inventormeta.viewer";
+    private const string ViewerAssetsHost = "inventormeta.viewerassets";
     private const string StepViewerHost = "inventormeta.stepviewer";
     private const string StepModelHost = "inventormeta.stepmodel";
 
@@ -27,6 +29,10 @@ public sealed partial class DocumentView
     private const string LmvViewerVersion = "7.122";
 
     private bool _viewerOpen;
+    // the open 3D viewer's WebView2 and close action, exposed for the documentation snapshotter
+    // (RenderTargetBitmap renders WebView2 blank, so DocShooter captures it separately)
+    private WebView2? _viewer3dWeb;
+    private Action? _viewer3dClose;
 
     private void OnOpen3D(object sender, RoutedEventArgs e) => _ = OpenViewer3DAsync();
 
@@ -109,9 +115,13 @@ public sealed partial class DocumentView
         {
             if (!_viewerOpen) { return; }
             _viewerOpen = false;
+            _viewer3dWeb = null;
+            _viewer3dClose = null;
             try { web.Close(); } catch { /* disposing */ }
             win.HideOverlay();
         }
+        _viewer3dWeb = web;
+        _viewer3dClose = Close;
 
         root.Tapped += (_, _) => Close();
         close.Click += (_, _) => Close();
@@ -133,36 +143,85 @@ public sealed partial class DocumentView
 
             if (!cached)
             {
-                InventorInstall? inv = await ResolveInventorAsync(win);
-                if (inv == null)
+                SvfEngine? engine = await ResolveEngineAsync(win);
+                if (engine == null)
                 {
-                    ring.IsActive = false;
-                    statusText.Text = InventorInstalls.Detect().Count == 0
-                        ? "Inventor isn't installed, so a 3D viewable can't be generated.\nOpen this model on a machine with Inventor, or point at a shared store that already has it."
-                        : "No Inventor version selected.";
+                    Close();   // backed out of the chooser - nothing to show, don't strand the user in an empty overlay
                     return;
                 }
 
-                statusText.Text = $"Generating the 3D view with {inv.DisplayName}…\nThis opens the model in Inventor and can take a while.";
-                Serilog.Log.Information("Generating SVF with {Version} for {File}", inv.DisplayName, Path.GetFileName(FilePath));
-                SvfGenerator.Result res = await GenerateOnStaThread(inv, FilePath, store.EntryDir(key));
-                if (!res.Ok)
+                string engineInfo;
+                if (engine == SvfEngine.Local)
                 {
-                    Serilog.Log.Error("SVF generation failed for {File}: {Error}", FilePath, res.Error);
-                    ring.IsActive = false;
-                    statusText.Text = "Couldn't generate the 3D view:\n" + res.Error;
-                    return;
+                    string converterVersion =
+                        typeof(ExtrabbitCode.Inventor.SvfConverter.InventorSvfConverter)
+                            .Assembly.GetName().Version?.ToString(3) ?? "unknown";
+                    engineInfo = $"Built-in converter (ExtrabbitCode.Inventor.SvfConverter {converterVersion}, best effort)";
+
+                    statusText.Text = "Converting with the built-in engine (best effort)…";
+                    Serilog.Log.Information("Converting SVF locally (best effort) for {File}", Path.GetFileName(FilePath));
+                    string file = FilePath;
+                    string outDir = store.OutputDir(key);
+                    string status = await Task.Run(() =>
+                        ExtrabbitCode.Inventor.SvfConverter.InventorSvfConverter.ConvertFile(file, outDir));
+                    Serilog.Log.Information("Local SVF conversion for {File}: {Status}", Path.GetFileName(FilePath), status);
+                    if (status.Contains("0v/0t"))
+                    {
+                        ring.IsActive = false;
+                        statusText.Text = "The built-in converter found no displayable geometry cached in this file.\nSave the model once in Inventor (to refresh its cached mesh) and try again.";
+                        return;
+                    }
                 }
-                Serilog.Log.Information("SVF generated for {File}", Path.GetFileName(FilePath));
+                else
+                {
+                    InventorInstall? inv = await ResolveInventorAsync(win);
+                    if (inv == null)
+                    {
+                        ring.IsActive = false;
+                        statusText.Text = "No Inventor version selected.";
+                        return;
+                    }
+                    engineInfo = $"{inv.DisplayName} (SVF translator add-in, exact)";
+
+                    statusText.Text = $"Generating the 3D view with {inv.DisplayName}…\nThis opens the model in Inventor and can take a while.";
+                    Serilog.Log.Information("Generating SVF with {Version} for {File}", inv.DisplayName, Path.GetFileName(FilePath));
+                    SvfGenerator.Result res = await GenerateOnStaThread(inv, FilePath, store.EntryDir(key));
+                    if (!res.Ok)
+                    {
+                        Serilog.Log.Error("SVF generation failed for {File}: {Error}", FilePath, res.Error);
+                        ring.IsActive = false;
+                        statusText.Text = "Couldn't generate the 3D view:\n" + res.Error;
+                        return;
+                    }
+                    Serilog.Log.Information("SVF generated for {File}", Path.GetFileName(FilePath));
+                }
+
+                // Provenance marker: which model this entry came from and which engine made it -
+                // makes cache entries (SHA-named folders) identifiable when browsing the store.
+                try
+                {
+                    File.WriteAllText(Path.Combine(store.EntryDir(key), "source.txt"),
+                        $"Source:    {Path.GetFileName(FilePath)}{Environment.NewLine}" +
+                        $"Path:      {FilePath}{Environment.NewLine}" +
+                        $"Engine:    {engineInfo}{Environment.NewLine}" +
+                        $"Generated: {DateTime.Now:yyyy-MM-dd HH:mm:ss}{Environment.NewLine}" +
+                        $"App:       Inventor MetaReader {AppInfo.Version}{Environment.NewLine}");
+                }
+                catch { /* best effort */ }
             }
 
+            // An Inventor-generated entry has a bubble.json manifest at its root; a built-in-converter
+            // entry has the raw SVF at output\0.svf. The layout doubles as the "which engine made
+            // this?" marker, so cached best-effort entries keep their warning badge.
             string? bubble = store.FindBubble(key);
-            if (bubble == null)
+            string? localSvf = bubble == null ? store.FindLocalSvf(key) : null;
+            if (bubble == null && localSvf == null)
             {
                 ring.IsActive = false;
                 statusText.Text = "The 3D view was generated but its manifest is missing.";
                 return;
             }
+            bool bestEffort = bubble == null;
 
             statusText.Text = "Loading viewer…";
             await web.EnsureCoreWebView2Async();
@@ -171,10 +230,31 @@ public sealed partial class DocumentView
             // bubble = <entry>\bubble.json (copied to the root by the generator). Map the host to
             // <entry> and serve the page from the host ROOT, loading "./bubble.json" - so the LMV
             // viewer sets $file$ = <entry> and "$file$/output/..." resolves to <entry>\output\...
-            // (same-origin too, so no CORS on the SVF/worker fetches).
-            string entryDir = Path.GetDirectoryName(bubble)!;
+            // (same-origin too, so no CORS on the SVF/worker fetches). For a best-effort entry the
+            // page loads the raw SVF from ./output/0.svf instead.
+            string entryDir = bestEffort
+                ? Path.GetDirectoryName(Path.GetDirectoryName(localSvf!))!
+                : Path.GetDirectoryName(bubble!)!;
             web.CoreWebView2.SetVirtualHostNameToFolderMapping(ViewerHost, entryDir, CoreWebView2HostResourceAccessKind.Allow);
-            try { File.WriteAllText(Path.Combine(entryDir, "viewer.html"), ViewerHtml.Replace("{LMV_VERSION}", LmvViewerVersion)); } catch { /* read-only store */ }
+            // The page's scripts/styles are served straight from the install's Assets\viewer folder
+            // over a second host, so they are always current; only the small entry page itself is
+            // written into the cache entry (the page origin must match the model data for LMV's
+            // same-origin fetches of bubble.json / SVF resources).
+            string assetsDir = Path.Combine(AppContext.BaseDirectory, "Assets", "viewer");
+            web.CoreWebView2.SetVirtualHostNameToFolderMapping(ViewerAssetsHost, assetsDir, CoreWebView2HostResourceAccessKind.Allow);
+            try
+            {
+                string page = File.ReadAllText(Path.Combine(assetsDir, "viewer.html"))
+                    .Replace("{LMV_VERSION}", LmvViewerVersion)
+                    .Replace("{ASSETS}", $"https://{ViewerAssetsHost}");
+                File.WriteAllText(Path.Combine(entryDir, "viewer.html"), page);
+            }
+            catch (Exception ex)
+            {
+                // A read-only shared store serves whatever viewer.html a previous writer left (or
+                // none) - the viewer may be stale or fail to load. Surface it instead of hiding it.
+                Serilog.Log.Warning("Couldn't refresh viewer.html in {Dir}: {Error}", entryDir, ex.Message);
+            }
 
             // diagnostics: log failed resource fetches and JS messages to %TEMP%\invmeta-viewer.log
             web.CoreWebView2.WebResourceResponseReceived += (_, a) =>
@@ -182,12 +262,40 @@ public sealed partial class DocumentView
                 try { int s = a.Response.StatusCode; if (s is 0 or >= 400) { ViewerLog.Write($"HTTP {s}  {a.Request.Uri}"); } }
                 catch { /* ignore */ }
             };
-            web.CoreWebView2.WebMessageReceived += (_, a) =>
+            web.CoreWebView2.WebMessageReceived += (sender, a) =>
             {
-                try { ViewerLog.Write("js: " + a.TryGetWebMessageAsString()); } catch { /* ignore */ }
+                try
+                {
+                    string msg = a.TryGetWebMessageAsString();
+                    if (msg == "report-issue")   // the best-effort badge's "Report this model" link
+                    {
+                        System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo
+                        {
+                            FileName = EngineDialogs.ReportUri(Document?.FileName).AbsoluteUri,
+                            UseShellExecute = true
+                        });
+                        return;
+                    }
+                    if (msg.StartsWith("redline-save:", StringComparison.Ordinal))
+                    {
+                        // layer history lives next to the viewable in the cache entry
+                        try { File.WriteAllText(Path.Combine(entryDir, "redline-layers.json"), msg["redline-save:".Length..]); }
+                        catch (Exception ex) { Serilog.Log.Warning("Couldn't save redline layers in {Dir}: {Error}", entryDir, ex.Message); }
+                        return;
+                    }
+                    if (msg.StartsWith("redline-shot:", StringComparison.Ordinal))
+                    {
+                        _ = SaveRedlineShotAsync(win, msg["redline-shot:".Length..]);
+                        return;
+                    }
+                    ViewerLog.Write("js: " + msg);
+                }
+                catch { /* ignore */ }
             };
             web.CoreWebView2.NavigationCompleted += (_, _) => statusHost.Visibility = Visibility.Collapsed;
-            web.CoreWebView2.Navigate($"https://{ViewerHost}/viewer.html?coloring={coloring}");
+            string query = $"?coloring={coloring}&file={Uri.EscapeDataString(Document?.FileName ?? "")}"
+                + (bestEffort ? "&src=svf&engine=local" : "");
+            web.CoreWebView2.Navigate($"https://{ViewerHost}/viewer.html{query}");
         }
         catch (Exception ex)
         {
@@ -255,9 +363,13 @@ public sealed partial class DocumentView
         {
             if (!_viewerOpen) { return; }
             _viewerOpen = false;
+            _viewer3dWeb = null;
+            _viewer3dClose = null;
             try { web.Close(); } catch { /* disposing */ }
             win.HideOverlay();
         }
+        _viewer3dWeb = web;
+        _viewer3dClose = Close;
 
         root.Tapped += (_, _) => Close();
         close.Click += (_, _) => Close();
@@ -340,6 +452,74 @@ public sealed partial class DocumentView
         }
     }
 
+    /// <summary>Handles a redline-layer screenshot posted by the viewer page: payload is JSON
+    /// {"name": layer name, "mode": "save"|"copy", "data": PNG data URL}. Save shows a file dialog
+    /// owned by the viewer's window (cancelling is fine); copy puts the PNG on the clipboard.</summary>
+    private async Task SaveRedlineShotAsync(MainWindow win, string payload)
+    {
+        try
+        {
+            using var doc = System.Text.Json.JsonDocument.Parse(payload);
+            string name = doc.RootElement.GetProperty("name").GetString() ?? "Layer";
+            string mode = doc.RootElement.TryGetProperty("mode", out var m) ? m.GetString() ?? "save" : "save";
+            string dataUrl = doc.RootElement.GetProperty("data").GetString() ?? "";
+            const string prefix = "data:image/png;base64,";
+            if (!dataUrl.StartsWith(prefix, StringComparison.Ordinal)) { return; }
+            byte[] png = Convert.FromBase64String(dataUrl[prefix.Length..]);
+
+            if (mode == "copy")
+            {
+                var stream = new Windows.Storage.Streams.InMemoryRandomAccessStream();
+                await stream.WriteAsync(png.AsBuffer());
+                stream.Seek(0);
+                var package = new Windows.ApplicationModel.DataTransfer.DataPackage();
+                package.SetBitmap(Windows.Storage.Streams.RandomAccessStreamReference.CreateFromStream(stream));
+                Windows.ApplicationModel.DataTransfer.Clipboard.SetContent(package);
+                win.ShowToast($"Screenshot of “{name}” copied to the clipboard");
+                Serilog.Log.Information("Redline screenshot copied to clipboard ({Layer})", name);
+                return;
+            }
+
+            var picker = new Windows.Storage.Pickers.FileSavePicker
+            {
+                SuggestedFileName = $"{Path.GetFileNameWithoutExtension(Document?.FileName ?? "model")} - {name}",
+            };
+            picker.FileTypeChoices.Add("PNG image", [".png"]);
+            WinRT.Interop.InitializeWithWindow.Initialize(picker, WinRT.Interop.WindowNative.GetWindowHandle(win));
+            Windows.Storage.StorageFile? file = await picker.PickSaveFileAsync();
+            if (file == null) { return; }
+            await Windows.Storage.FileIO.WriteBytesAsync(file, png);
+            win.ShowToast($"Screenshot saved: {file.Name}");
+            Serilog.Log.Information("Redline screenshot saved to {File}", file.Path);
+        }
+        catch (Exception ex)
+        {
+            Serilog.Log.Warning("Redline screenshot export failed: {Error}", ex.Message);
+        }
+    }
+
+    /// <summary>Which engine to generate with. Without Inventor it's always the built-in converter,
+    /// behind a one-time best-effort notice; with Inventor the saved choice applies, asking (two-card
+    /// chooser, persisted) on first use. Null when the user backs out of the chooser.</summary>
+    private static async Task<SvfEngine?> ResolveEngineAsync(MainWindow win)
+    {
+        if (InventorInstalls.Detect().Count == 0)
+        {
+            if (!ViewerSettings.LocalEngineInfoShown)
+            {
+                await EngineDialogs.ShowBestEffortInfoAsync(win.Content.XamlRoot);
+                ViewerSettings.LocalEngineInfoShown = true;
+            }
+            return SvfEngine.Local;
+        }
+
+        if (ViewerSettings.Engine != SvfEngine.Ask) { return ViewerSettings.Engine; }
+
+        SvfEngine? choice = await EngineDialogs.ShowChooserAsync(win.Content.XamlRoot);
+        if (choice != null) { ViewerSettings.Engine = choice.Value; }
+        return choice;
+    }
+
     /// <summary>Resolves which Inventor release to generate with: the saved choice, the only one
     /// installed, or a prompt (remembered). Null if none installed or the user cancels.</summary>
     private static async Task<InventorInstall?> ResolveInventorAsync(MainWindow win)
@@ -392,159 +572,4 @@ public sealed partial class DocumentView
         return tcs.Task;
     }
 
-    // The LMV viewer page (scripts from the Autodesk CDN), loading the cached bubble.json over the
-    // mapped virtual host. env:"Local" => no cloud auth, reads the local SVF directly.
-    private const string ViewerHtml = """
-<!DOCTYPE html>
-<html lang="en">
-<head>
-<meta charset="UTF-8"/>
-<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-<link rel="stylesheet" href="https://developer.api.autodesk.com/modelderivative/v2/viewers/{LMV_VERSION}/style.min.css" type="text/css"/>
-<script src="https://developer.api.autodesk.com/modelderivative/v2/viewers/{LMV_VERSION}/viewer3D.min.js"></script>
-<style>
-  html,body,#viewer{margin:0;height:100%;width:100%;overflow:hidden;background:#2b2b2b;}
-  /* palette glyph for the coloring toolbar button (LMV would otherwise show an empty icon) */
-  #extrabbit-coloring-btn .adsk-button-icon:before{content:"\1F3A8";font-size:20px;line-height:1;}
-</style>
-</head>
-<body>
-<div id="viewer"></div>
-<script>
-  function report(m){ try{ window.chrome.webview.postMessage(String(m)); }catch(e){} console.log(m); }
-  window.addEventListener("error", e => report("error: " + e.message));
-  window.addEventListener("unhandledrejection", e => report("reject: " + (e.reason && e.reason.message || e.reason)));
-
-  // --- Coloring: give every body its own colour so parts of an assembly are easy to tell apart. ---
-  // Golden-angle hue spacing keeps neighbouring bodies separated; soft, CAD-ish saturation (low S,
-  // high V) keeps the palette muted rather than neon.
-  function hsvToRgb(h, s, v){
-    let r = v, g = v, b = v;
-    if (s > 0){
-      const hh = h * 6, i = Math.floor(hh) % 6, f = hh - Math.floor(hh);
-      const p = v * (1 - s), q = v * (1 - s * f), t = v * (1 - s * (1 - f));
-      if (i === 0){ r = v; g = t; b = p; }
-      else if (i === 1){ r = q; g = v; b = p; }
-      else if (i === 2){ r = p; g = v; b = t; }
-      else if (i === 3){ r = p; g = q; b = v; }
-      else if (i === 4){ r = t; g = p; b = v; }
-      else { r = v; g = p; b = q; }
-    }
-    return [r, g, b];
-  }
-  function bodyColor(i){
-    const rgb = hsvToRgb((i * 0.6180339887) % 1, 0.56, 0.80);   // golden-ratio hue, soft CAD saturation
-    // w < 1 blends the tint with the surface's own shading so it stays muted, not neon - theming
-    // paints over an already-lit surface, so a full-intensity tint reads much brighter than a baked colour.
-    return new THREE.Vector4(rgb[0], rgb[1], rgb[2], 0.86);
-  }
-
-  class ColoringExtension extends Autodesk.Viewing.Extension {
-    load(){
-      this._on = false;
-      this._maybeInitial = this._maybeInitial.bind(this);
-      this.viewer.addEventListener(Autodesk.Viewing.GEOMETRY_LOADED_EVENT, this._maybeInitial);
-      if (this.viewer.toolbar){ this.onToolbarCreated(this.viewer.toolbar); }
-      else { this._onTb = () => this.onToolbarCreated(this.viewer.toolbar); this.viewer.addEventListener(Autodesk.Viewing.TOOLBAR_CREATED_EVENT, this._onTb); }
-      return true;
-    }
-    unload(){
-      this.viewer.removeEventListener(Autodesk.Viewing.GEOMETRY_LOADED_EVENT, this._maybeInitial);
-      if (this._onTb){ this.viewer.removeEventListener(Autodesk.Viewing.TOOLBAR_CREATED_EVENT, this._onTb); }
-      if (this._group && this.viewer.toolbar){ this.viewer.toolbar.removeControl(this._group); }
-      this._group = this._button = null;
-      return true;
-    }
-    onToolbarCreated(toolbar){
-      if (this._group) { return; }                              // guard against a double call
-      this._button = new Autodesk.Viewing.UI.Button("extrabbit-coloring-btn");
-      this._button.setToolTip("Body coloring — give every body its own colour");
-      this._button.onClick = () => this.setEnabled(!this._on);
-      this._group = new Autodesk.Viewing.UI.ControlGroup("extrabbit-coloring-group");
-      this._group.addControl(this._button);
-      toolbar.addControl(this._group);
-      this._sync();
-      this._maybeInitial();
-    }
-    _maybeInitial(){                                            // apply the app's chosen starting mode, once the model is ready
-      if (this.options && this.options.initial && !this._on && this._hasTree()){ this.setEnabled(true); }
-    }
-    _hasTree(){ const m = this.viewer.model; return !!(m && m.getInstanceTree && m.getInstanceTree()); }
-    setEnabled(on){
-      this._on = on;
-      if (on){ this._applyColors(); } else { this.viewer.clearThemingColors(this.viewer.model); }
-      this._sync();
-      report("coloring " + (on ? "on" : "off"));
-    }
-    _sync(){
-      if (!this._button) { return; }
-      const S = Autodesk.Viewing.UI.Button.State;
-      this._button.setState(this._on ? S.ACTIVE : S.INACTIVE);
-    }
-    _applyColors(){
-      const model = this.viewer.model;
-      const tree = model && model.getInstanceTree && model.getInstanceTree();
-      if (!tree){ return; }
-      const leaves = [];
-      tree.enumNodeChildren(tree.getRootId(), (dbId) => {
-        if (tree.getChildCount(dbId) === 0){ leaves.push(dbId); }   // a leaf node is one body
-      }, true);
-      leaves.forEach((dbId, i) => this.viewer.setThemingColor(dbId, bodyColor(i), model, true));
-      report("colored " + leaves.length + " bodies");
-    }
-  }
-  Autodesk.Viewing.theExtensionManager.registerExtension("Extrabbit.Coloring", ColoringExtension);
-
-  const wantMulticolor = new URLSearchParams(location.search).get("coloring") === "multicolor";
-
-  const viewer = new Autodesk.Viewing.GuiViewer3D(document.getElementById("viewer"));
-  Autodesk.Viewing.Initializer({ env: "Local", useADP: false }, () => {
-    report("initialized");
-    viewer.start();
-    viewer.loadExtension("Extrabbit.Coloring", { initial: wantMulticolor }).then(
-      () => report("coloring extension loaded"),
-      (err) => report("coloring extension failed: " + err));
-    viewer.addEventListener(Autodesk.Viewing.GEOMETRY_LOADED_EVENT, () => {
-      const m = viewer.model;
-      const box = m && m.getBoundingBox && m.getBoundingBox();
-      if (box) {
-        viewer.navigation.fitBounds(true, box);   // immediate, non-animated fit
-        let c;
-        try { c = box.getCenter ? box.getCenter(new THREE.Vector3()) : box.center(); } catch (e) { report("center err: " + e); }
-        if (c) {
-          report("center " + c.x.toFixed(1) + "," + c.y.toFixed(1) + "," + c.z.toFixed(1));
-          try { viewer.navigation.setPivotPoint(c); } catch (e) { report("setPivotPoint: " + e); }  // orbit around the model, not origin
-        }
-      } else {
-        viewer.fitToView();
-      }
-      // lock the fitted view in as the home view (correct method lives on autocam)
-      try { viewer.autocam.setHomeViewFrom(viewer.getCamera()); report("home set"); }
-      catch (e) { report("autocam.setHomeViewFrom: " + e); }
-    });
-    Autodesk.Viewing.Document.load(
-      "./bubble.json",
-      (doc) => {
-        report("bubble loaded");
-        const node = doc.getRoot().getDefaultGeometry();
-        report("geometry node: " + (node ? "found" : "MISSING"));
-        // createWireframe makes LMV derive edges client-side (mesh boundaries + hard angles) - our
-        // SVF has no edge data, so without it model.hasEdges stays false and LMV hides the "Display
-        // edges" setting, meaning it could never be turned on. With it, the setting appears in the
-        // viewer's Appearance settings and the chosen state persists in localStorage.
-        viewer.loadDocumentNode(doc, node, { createWireframe: true }).then(
-          () => {
-            // edges on by default for an Inventor-like shaded-with-edges look; the setting still
-            // toggles it, but each opened model starts with edges shown
-            try { viewer.setDisplayEdges(true); } catch (e) { report("setDisplayEdges: " + e); }
-            report("model loaded");
-          },
-          (err) => report("loadDocumentNode failed: " + JSON.stringify(err)));
-      },
-      (code, msg) => report("Document.load failed: code=" + code + " msg=" + msg));
-  });
-</script>
-</body>
-</html>
-""";
 }

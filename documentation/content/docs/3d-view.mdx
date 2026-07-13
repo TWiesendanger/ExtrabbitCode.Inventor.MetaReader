@@ -4,6 +4,8 @@ description: Spin the model in 3D - viewables are generated once with Inventor a
 ---
 
 import { PublicImage } from '@/components/public-image';
+import { ThemedImage } from '@/components/themed-image';
+import { DemoGif } from '@/components/demo-gif';
 
 MetaReader can show the **3D model**, not just its metadata. On a part or assembly, **click the
 preview thumbnail** (or the **3D** button next to the file icon, shown when the thumbnail is hidden)
@@ -13,26 +15,62 @@ fit; click outside the panel, press the **✕**, or hit **Esc** to close.
 Models open **shaded with edges** for an Inventor-like look. Toggle edges from the viewer's own
 **Settings (gear) → Appearance → Display edges**; your choice is remembered.
 
-<PublicImage src="/images/app/app__viewer3d.png" alt="A jet-engine assembly open in MetaReader's 3D viewer" className="rounded-lg border border-fd-border my-4 w-full" />
+<ThemedImage slug="app__viewer3d" alt="The bundled fishing-reel assembly open in MetaReader's 3D viewer" />
+
+In the viewer you can also give **every body its own colour** (see below), **measure** distances,
+section and explode the model - and **draw on it**: circle a problem, add text, even paint straight
+onto the geometry. Markup lives on layers and is saved with the viewable; see
+[Redlining](/docs/redlining).
 
 ## Generate once, then cache
 
 The 3D view is an Autodesk **SVF** viewable rendered by the Autodesk viewer. The first time you open a
-given model, MetaReader **generates the SVF with Inventor** (driving its translator add-in) and caches
-it. Every time after that - and for anyone else pointing at the same shared cache - it loads straight
-from the cache.
+given model, MetaReader **generates the viewable once** and caches it. Every time after that - and for
+anyone else pointing at the same shared cache - it loads straight from the cache.
 
-- **Cached** → opens immediately, **no Inventor needed**.
-- **Not cached** → MetaReader generates it first (it opens the model in Inventor in the background; the
-  first run on a large model can take a while), then shows it.
+There are **two engines** that can do the generating:
+
+- **Autodesk Inventor** (exact) - MetaReader drives Inventor's own translator in the background, so
+  the viewable matches the model precisely. The first run on a large model can take a while.
+- **Built-in converter** (fast, best effort) - MetaReader decodes the display mesh that Inventor
+  cached inside the file, with **no Inventor installation at all**. It's quick, but it's a best-effort
+  reconstruction: on some assemblies, part positions or rotations may be off.
+
+Which one runs? If **Inventor isn't installed, the built-in converter is used automatically** - the
+3D view simply works on a machine that has never seen Inventor. If Inventor **is** installed, the
+first 3D view asks which engine you prefer, and the choice is remembered (change it any time in
+**Settings → 3D Viewer**).
+
+<ThemedImage slug="app__engine-chooser" alt="The first-use chooser: Autodesk Inventor (exact translation) or the built-in converter (fast, best effort)" />
 
 <PublicImage src="/images/app/app__viewer3d-generating.png" alt="MetaReader generating the viewable with Inventor on first open" className="rounded-lg border border-fd-border my-4 w-full" />
 
+Best-effort viewables are labelled: an amber **"Best-effort view - positions or rotations may be
+off"** badge sits in the corner, with a **Report this model** link that pre-fills an email in case
+something looks wrong - a sample file is the fastest way to get it fixed. Each cache entry also
+records which engine produced it.
+
 <Callout type="info">
-  *Generating* a viewable needs **Autodesk Inventor installed** (any release - you choose which);
-  *viewing* an already-cached one does not. The viewer loads its rendering engine from Autodesk's CDN,
-  so the 3D view needs an internet connection.
+  The built-in converter reads the graphics **saved inside the model**, so the file must have been
+  saved by Inventor at some point (that's true of virtually every real-world file). The viewer loads
+  its rendering engine from Autodesk's CDN, so the 3D view needs an internet connection.
 </Callout>
+
+## Body coloring
+
+Assemblies and multi-body parts often render in a single material colour. The **palette button** in
+the viewer toolbar (or the `C` key) gives **every body its own colour** - evenly spaced, muted hues
+that make it easy to tell neighbouring parts apart. Click again to go back. Works on both engines,
+and the initial mode is configurable in **Settings → 3D Viewer**.
+
+<DemoGif src="images/app/demo__viewer3d.gif" alt="Orbiting the fishing-reel sample, then giving every body its own colour" />
+
+## STEP files in 3D
+
+STEP files take a different route: there's no SVF and no engine choice. The geometry is triangulated
+**right in the app** by [Open CASCADE](https://dev.opencascade.org/) (via `occt-import-js`),
+converted to glTF and shown in the same Autodesk viewer - no Inventor involved, ever. Redlining and
+body coloring are features of the Inventor viewable path and aren't available on STEP views.
 
 ## The cache (and a shared store)
 

@@ -7,7 +7,7 @@ _Last updated: 23 June 2026._
 
 Inventor MetaReader is built to read your files **locally**. The desktop app never uploads your
 Inventor files, their contents, or any of their metadata. The only data that ever leaves your
-machine is a small amount of **anonymous product-analytics** — and only if you opt in.
+machine is a small amount of **anonymous product-analytics**, and only if you opt in.
 
 ## Opt-in and opt-out
 
@@ -19,7 +19,7 @@ data"**. When the toggle is off, nothing is sent.
 
 When analytics are enabled, the app sends a usage event when you use a feature. Each event includes:
 
-- the **event name** (which feature was used — see the list below),
+- the **event name** (which feature was used, see the list below),
 - the **app version** and your **operating-system version** string,
 - a **random identifier** generated on your machine to distinguish installs. It is a random value
   with no connection to your name, account, email, or hardware, and it is created only after you opt
@@ -29,14 +29,14 @@ The events are:
 
 | Event | Extra data |
 | --- | --- |
-| `app_opened` | — |
+| `app_opened` | - |
 | `document_opened` | document type (part / assembly / drawing / presentation), file **extension**, whether it has model states, whether it is an iPart, and the **number** of references and properties (counts only) |
 | `detail_tab_viewed` | which tab (Properties, Model States, References, File Structure) |
-| `reference_opened` | — |
-| `references_fullscreen` | — |
+| `reference_opened` | - |
+| `references_fullscreen` | - |
 | `viewer_3d_opened` | document type |
 | `json_exported` | document type |
-| `settings_opened` | — |
+| `settings_opened` | - |
 | `theme_changed` | light or dark |
 
 ## What is never collected
@@ -46,7 +46,7 @@ The events are:
 - Thumbnails, geometry, or any part of the file itself.
 - Your name, email, account, IP-derived location, or any other personal identifier.
 
-Only the aggregate, non-identifying signals listed above are sent — enough to know *which features
+Only the aggregate, non-identifying signals listed above are sent: enough to know *which features
 are used and how often*, never *what you are working on*.
 
 ## Who processes the data
