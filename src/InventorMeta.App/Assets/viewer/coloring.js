@@ -55,9 +55,9 @@ class ColoringExtension extends Autodesk.Viewing.Extension {
     return true;
   }
   _tooltip(){
-    let key = "C";
-    try { key = window.Hotkeys.get("coloring").toUpperCase(); } catch (e) { /* registry not loaded */ }
-    return "Body coloring: give every body its own colour (" + key + ")";
+    let suffix = " (C)";
+    try { suffix = window.Hotkeys.suffix("coloring"); } catch (e) { /* registry not loaded */ }
+    return "Body coloring: give every body its own colour" + suffix;
   }
   onToolbarCreated(toolbar){
     if (this._button) { return; }                             // guard against a double call
@@ -73,6 +73,7 @@ class ColoringExtension extends Autodesk.Viewing.Extension {
   _maybeInitial(){                                            // apply the app's chosen starting mode, once the model is ready
     if (this.options && this.options.initial && !this._on && this.viewer.model){ this.setEnabled(true); }
   }
+  toggle(){ this.setEnabled(!this._on); }                     // public entry point for the C hotkey
   setEnabled(on){
     this._on = on;
     // The built-in converter BAKES a palette colour per component into the SVF materials, so just
@@ -111,35 +112,27 @@ class ColoringExtension extends Autodesk.Viewing.Extension {
         (Array.isArray(d) ? d : [d]).forEach(x => { if (x > 0) seen.add(x); });
       }
     } catch (e) { report("fragment dbId scan: " + e); }
-    const ids = [...seen].sort((a, b) => a - b);
-    ids._fromTree = !!tree;
-    return ids;
+    return { ids: [...seen].sort((a, b) => a - b), fromTree: !!tree };
   }
-  // Both apply passes swallow their own errors: they can run at toolbar-creation time against a
-  // model that is still streaming in, where setThemingColor may throw - and an exception thrown
-  // inside a TOOLBAR_CREATED listener aborts LMV's dispatch, silently killing every listener
-  // registered after this extension (that cost the redline button its toolbar wiring once).
-  // The GEOMETRY_LOADED refresh re-applies later, so failing quietly here loses nothing.
-  _applyColors(){
+  // One theming pass, parameterized by the per-body colour and a log verb. It swallows its own
+  // errors: it can run at toolbar-creation time against a still-streaming model where
+  // setThemingColor may throw - and an exception inside a TOOLBAR_CREATED listener aborts LMV's
+  // dispatch, silently killing every listener after this one (that once cost the redline button its
+  // toolbar wiring). The GEOMETRY_LOADED refresh re-applies later, so failing quietly loses nothing.
+  _applyTheming(colorOf, verb){
     try {
       const model = this.viewer.model;
       if (!model){ return; }
-      const ids = this._collectIds(model);
+      const { ids, fromTree } = this._collectIds(model);
       try { this.viewer.clearThemingColors(model); } catch (e) { /* fresh model */ }
-      ids.forEach((dbId, i) => this.viewer.setThemingColor(dbId, bodyColor(i), model, true));
-      report("colored " + ids.length + " bodies" + (ids._fromTree ? "" : " (from fragments)"));
-    } catch (e) { report("coloring apply failed (will retry on geometry-loaded): " + e); }
+      ids.forEach((dbId, i) => this.viewer.setThemingColor(dbId, colorOf(i), model, true));
+      report(verb + " " + ids.length + " bodies" + (fromTree ? "" : " (from fragments)"));
+    } catch (e) { report("coloring " + verb + " failed (will retry on geometry-loaded): " + e); }
   }
+  _applyColors(){ this._applyTheming(bodyColor, "colored"); }
   _applyNeutral(){
-    try {
-      const model = this.viewer.model;
-      if (!model){ return; }
-      const ids = this._collectIds(model);
-      const grey = new THREE.Vector4(0.72, 0.72, 0.72, 1.0);
-      try { this.viewer.clearThemingColors(model); } catch (e) { /* fresh model */ }
-      ids.forEach((dbId) => this.viewer.setThemingColor(dbId, grey, model, true));
-      report("neutralized " + ids.length + " bodies");
-    } catch (e) { report("neutral apply failed (will retry on geometry-loaded): " + e); }
+    const grey = new THREE.Vector4(0.72, 0.72, 0.72, 1.0);
+    this._applyTheming(() => grey, "neutralized");
   }
 }
 

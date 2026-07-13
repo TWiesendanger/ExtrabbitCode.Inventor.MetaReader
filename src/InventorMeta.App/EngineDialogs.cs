@@ -14,6 +14,9 @@ internal static class EngineDialogs
 {
     public const string SupportMail = "extrabbitcode@gmail.com";
 
+    /// <summary>Title of the first-use engine chooser (also reused by the docs snapshotter).</summary>
+    public const string ChooserTitle = "How should 3D views be generated?";
+
     /// <summary>Builds the mailto: link used to report a wrongly displayed model.</summary>
     public static Uri ReportUri(string? fileName = null) => new(
         $"mailto:{SupportMail}"
@@ -33,7 +36,7 @@ internal static class EngineDialogs
 
         ContentDialog dlg = new()
         {
-            Title = "How should 3D views be generated?",
+            Title = ChooserTitle,
             CloseButtonText = "Not now",
             DefaultButton = ContentDialogButton.None,
             XamlRoot = xamlRoot

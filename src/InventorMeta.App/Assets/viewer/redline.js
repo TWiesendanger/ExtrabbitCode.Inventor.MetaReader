@@ -23,9 +23,6 @@ const RL_SVG = (inner) =>
 const RL_ICON_EYE = RL_SVG('<path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7S1 12 1 12z"/><circle cx="12" cy="12" r="3"/>');
 const RL_ICON_EYE_OFF = RL_SVG('<path d="M17.94 17.94A10.4 10.4 0 0 1 12 19c-7 0-11-7-11-7a18.5 18.5 0 0 1 5.06-5.94"/>'
   + '<path d="M9.9 4.24A9.1 9.1 0 0 1 12 5c7 0 11 7 11 7a18.5 18.5 0 0 1-2.16 3.19"/><line x1="1" y1="1" x2="23" y2="23"/>');
-const RL_ICON_NAV = RL_SVG('<polyline points="5 9 2 12 5 15"/><polyline points="9 5 12 2 15 5"/>'
-  + '<polyline points="15 19 12 22 9 19"/><polyline points="19 9 22 12 19 15"/>'
-  + '<line x1="2" y1="12" x2="22" y2="12"/><line x1="12" y1="2" x2="12" y2="22"/>');
 const RL_ICON_ERASE = RL_SVG('<path d="m7 21-4.3-4.3c-1-1-1-2.5 0-3.4l9.6-9.6c1-1 2.5-1 3.4 0l5.6 5.6c1 1 1 2.5 0 3.4L13 21"/>'
   + '<path d="M22 21H7"/><path d="m5 11 9 9"/>');
 const RL_ICON_PLUS = RL_SVG('<line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>');
@@ -46,9 +43,9 @@ const RL_TOOLS = [
   ["text",    "T",       "Text"],
   ["erase",   RL_ICON_ERASE, "Eraser - click or drag over markup to remove it", true],
 ];
-// current binding for a rebindable action, as a tooltip suffix like " (F)"
+// current binding for a rebindable action, as a tooltip suffix like " (F)" (via the Hotkeys registry)
 function rlHotkeySuffix(id){
-  try { return " (" + window.Hotkeys.get(id).toUpperCase() + ")"; } catch (e) { return ""; }
+  try { return window.Hotkeys.suffix(id); } catch (e) { return ""; }
 }
 // shape tools share one dropdown; its trigger shows the last-used shape
 const RL_SHAPES = [
@@ -216,6 +213,8 @@ class RedlineExtension extends Autodesk.Viewing.Extension {
       }
     } catch (e) { report("redline: toolbar wiring failed: " + (e && e.stack || e)); }
   }
+  isActive(){ return this._active; }
+  toggle(){ this.setActive(!this._active); }                 // public entry point for the E hotkey
   setActive(on){
     this._active = on;
     if (on){ this._ensureLayer(); }

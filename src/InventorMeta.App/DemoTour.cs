@@ -37,23 +37,14 @@ internal static class DemoTour
             HideStore.Set(HideStore.TabKey("File Structure"), hidden: false);
             TipSettings.Enabled = false;                 // no teaching tips popping into the recording
 
-            string? part = Sample(samplesDir, "SampleBg", "SamplePart.ipt");
-            string? tnp = Sample(samplesDir, "SampleBg", "TubeAndPipe.ipt");
-            string? sampleAsm = Sample(samplesDir, "SampleBg", "SampleBg.iam");
+            string? part = ShootSupport.Sample(samplesDir, "SampleBg", "SamplePart.ipt");
+            string? tnp = ShootSupport.Sample(samplesDir, "SampleBg", "TubeAndPipe.ipt");
+            string? sampleAsm = ShootSupport.Sample(samplesDir, "SampleBg", "SampleBg.iam");
             string? asm = modelPath != null && File.Exists(modelPath) ? modelPath : sampleAsm;
 
             // start with a clean model: saved markup from earlier sessions would otherwise appear
             // on the 3D view before the redlining chapter introduces it
-            if (asm != null)
-            {
-                try
-                {
-                    SvfStore store = new(ViewerSettings.NetworkPath);
-                    string marks = Path.Combine(store.EntryDir(SvfStore.ComputeKey(asm)), "redline-layers.json");
-                    if (File.Exists(marks)) { File.Delete(marks); }
-                }
-                catch { /* no cache entry yet */ }
-            }
+            if (asm != null) { ShootSupport.ClearRedlineMarkup(asm); }
 
             MainWindow w = new();
             w.Activate();
@@ -254,7 +245,7 @@ internal static class DemoTour
                     for (int i = 0; i < 240 && !ready; i++)
                     {
                         await Task.Delay(500);
-                        ready = await v3.ShootViewer3DScriptAsync(ViewerReadyJs) == "\"1\"";
+                        ready = await v3.ShootViewer3DScriptAsync(ShootSupport.ViewerReadyJs) == "\"1\"";
                     }
                     if (ready)
                     {
@@ -309,7 +300,7 @@ internal static class DemoTour
             }
 
             // -- STEP import: neutral CAD files open like any other, 3D included ----------------
-            if (Sample(samplesDir, "SampleSteps", "Line Guide Drive Shaft_242.stp") is { } step)
+            if (ShootSupport.Sample(samplesDir, "SampleSteps", "Line Guide Drive Shaft_242.stp") is { } step)
             {
                 c0 = clock.ElapsedMilliseconds;
                 w.ShootCaption("STEP import: full ISO-10303 header, geometry summary and 3D");
@@ -604,9 +595,6 @@ internal static class DemoTour
 
     // ---------- page scripts ----------
 
-    private const string ViewerReadyJs =
-        "(function(){try{return (window.NOP_VIEWER && NOP_VIEWER.model && NOP_VIEWER.model.isLoadDone() && document.getElementById('extrabbit-group')) ? '1' : '0';}catch(e){return '0';}})()";
-
     /// <summary>Installs a tiny page-global so per-step pointer events are cheap to fire.
     /// A reserved pointer id keeps the scripted stroke independent from any real pointer activity
     /// that may happen while the user keeps working during the recording.</summary>
@@ -742,13 +730,6 @@ internal static class DemoTour
           } catch (e) { return "err:" + e.message; }
         })()
         """;
-
-    private static string? Sample(string? dir, string sub, string name)
-    {
-        if (dir == null) { return null; }
-        string path = Path.Combine(dir, sub, name);
-        return File.Exists(path) ? path : null;
-    }
 
     // ---------- the choreographed cursor ----------
 

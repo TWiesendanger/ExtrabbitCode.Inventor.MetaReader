@@ -33,16 +33,16 @@ internal static class DocShooter
             // all four tabs appear in the strip). Ephemeral settings keep this in memory only.
             HideStore.Set(HideStore.TabKey("File Structure"), hidden: false);
 
-            string? part = Sample(samplesDir, "SampleBg", "SamplePart.ipt"); // thumbnail + 3 model states
-            string? tnp = Sample(samplesDir, "SampleBg", "TubeAndPipe.ipt"); // Content Center pipe -> "Piping" badge
-            string? sampleAsm = Sample(samplesDir, "SampleBg", "SampleBg.iam"); // for the recent list
+            string? part = ShootSupport.Sample(samplesDir, "SampleBg", "SamplePart.ipt"); // thumbnail + 3 model states
+            string? tnp = ShootSupport.Sample(samplesDir, "SampleBg", "TubeAndPipe.ipt"); // Content Center pipe -> "Piping" badge
+            string? sampleAsm = ShootSupport.Sample(samplesDir, "SampleBg", "SampleBg.iam"); // for the recent list
 
             // The reference graph uses the --model assembly when given (and present), else SampleBg.
             string? asm = modelPath != null && File.Exists(modelPath) ? modelPath : sampleAsm;
 
             // An assembly that uses iParts (factory + members), for the iPart-marking shot. Lives in
             // the (git-ignored) jet-engine sample; the shot is skipped if it isn't extracted locally.
-            string? ipartAsm = samplesDir is null ? null : Sample(
+            string? ipartAsm = samplesDir is null ? null : ShootSupport.Sample(
                 Path.Combine(samplesDir, "Jet_Engine_Model", "Jet Engine Model"), "Workspace", "Mid Compression Assembly.iam");
 
             // One persistent window for the whole run: a WinUI app exits when its last window
@@ -95,7 +95,7 @@ internal static class DocShooter
                     StackPanel top = new() { Padding = new Thickness(24), Spacing = 12 };
                     top.Children.Add(new TextBlock
                     {
-                        Text = "How should 3D views be generated?",
+                        Text = EngineDialogs.ChooserTitle,
                         FontSize = 20, FontWeight = Microsoft.UI.Text.FontWeights.SemiBold
                     });
                     top.Children.Add(body);
@@ -219,13 +219,7 @@ internal static class DocShooter
                 // long poll). Existing saved markup is cleared first so the shot is deterministic.
                 if (asm != null)
                 {
-                    try
-                    {
-                        SvfStore store = new(ViewerSettings.NetworkPath);
-                        string marks = Path.Combine(store.EntryDir(SvfStore.ComputeKey(asm)), "redline-layers.json");
-                        if (File.Exists(marks)) { File.Delete(marks); }
-                    }
-                    catch { /* no cache entry yet - nothing to clear */ }
+                    ShootSupport.ClearRedlineMarkup(asm);
 
                     w.ShootCloseAllTabs();
                     w.ShootOpen(asm);
@@ -237,9 +231,7 @@ internal static class DocShooter
                         for (int i = 0; i < 240 && !ready; i++)
                         {
                             await Task.Delay(500);
-                            ready = await v3.ShootViewer3DScriptAsync(
-                                "(function(){try{return (window.NOP_VIEWER && NOP_VIEWER.model && NOP_VIEWER.model.isLoadDone() && document.getElementById('extrabbit-group')) ? '1' : '0';}catch(e){return '0';}})()"
-                            ) == "\"1\"";
+                            ready = await v3.ShootViewer3DScriptAsync(ShootSupport.ViewerReadyJs) == "\"1\"";
                         }
                         if (ready)
                         {
@@ -448,16 +440,5 @@ internal static class DocShooter
         ras.Seek(0);
         using FileStream fs = new(path, FileMode.Create, FileAccess.Write);
         await ras.AsStreamForRead().CopyToAsync(fs);
-    }
-
-    private static string? Sample(string? dir, string sub, string name)
-    {
-        if (dir == null)
-        {
-            return null;
-        }
-
-        string path = Path.Combine(dir, sub, name);
-        return File.Exists(path) ? path : null;
     }
 }
