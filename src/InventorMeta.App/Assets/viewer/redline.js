@@ -158,13 +158,15 @@ class RedlineExtension extends Autodesk.Viewing.Extension {
     this._bindText();
     window.addEventListener("keydown", (e) => {
       if (!this._active){ return; }
-      if (e.key === "Escape"){ this.setActive(false); return; }
-      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "z"){ e.preventDefault(); this.undo(); return; }
-      // tool shortcuts (rebindable via the Hotkeys dialog) - never while typing (text tool,
-      // layer rename) or with modifiers
-      if (e.ctrlKey || e.metaKey || e.altKey){ return; }
+      // Ignore keys typed into any text field FIRST - the viewer's own inputs (Model Browser
+      // search) and redline's (text tool, layer rename) have their own handling, and Esc/Ctrl+Z
+      // must not leak up to exit the mode or undo markup while someone is typing.
       const t = e.target;
       if (t && (t.tagName === "INPUT" || t.tagName === "TEXTAREA" || t.isContentEditable)){ return; }
+      if (e.key === "Escape"){ this.setActive(false); return; }
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "z"){ e.preventDefault(); this.undo(); return; }
+      // tool shortcuts (rebindable via the Hotkeys dialog) - never with modifiers
+      if (e.ctrlKey || e.metaKey || e.altKey){ return; }
       if (Hotkeys.matches("free", e)){ this._selectTool("free"); }
       else if (Hotkeys.matches("paint3d", e)){ this._selectTool("paint3d"); }
       else if (Hotkeys.matches("orbit", e)){ this._selectTool("nav"); }   // hand input to the viewer's own tools
