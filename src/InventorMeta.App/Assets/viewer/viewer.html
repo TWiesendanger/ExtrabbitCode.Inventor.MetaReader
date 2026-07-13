@@ -68,10 +68,10 @@
       if (t && (t.tagName === "INPUT" || t.tagName === "TEXTAREA" || t.isContentEditable)){ return; }
       if (Hotkeys.matches("coloring", e)){
         const x = viewer.getExtension("Extrabbit.Coloring");
-        if (x){ x.setEnabled(!x._on); }
+        if (x){ x.toggle(); }
       } else if (Hotkeys.matches("redline", e)){
         const x = viewer.getExtension("Extrabbit.Redline");
-        if (x){ x.setActive(!x._active); }
+        if (x){ x.toggle(); }
       }
     });
     // Esc closes the 3D viewer overlay. The host's XAML accelerator only fires while XAML holds
@@ -82,7 +82,7 @@
     window.addEventListener("keydown", (e) => {
       if (e.key !== "Escape"){ return; }
       const rl = viewer.getExtension("Extrabbit.Redline");
-      if (rl && rl._active){ return; }                       // this Esc exits redline mode first
+      if (rl && rl.isActive()){ return; }                    // this Esc exits redline mode first
       const hk = document.getElementById("hotkeysDlg");
       if (hk && hk.style.display === "block"){ return; }      // let the shortcuts dialog keep its Esc
       try { window.chrome.webview.postMessage("viewer-close"); } catch (err) { /* no host */ }

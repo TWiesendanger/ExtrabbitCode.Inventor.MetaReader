@@ -18,8 +18,13 @@ const HK_FIXED = [
   { label: "Close redlining",   key: "Esc" },
 ];
 
+// parsed bindings, cached: get() runs several times per keydown, so re-reading and JSON-parsing
+// localStorage each call is wasteful. The cache is dropped whenever a binding changes.
+let hkCache = null;
 function hkLoad(){
-  try { return JSON.parse(localStorage.getItem(HK_STORE)) || {}; } catch (e) { return {}; }
+  if (hkCache){ return hkCache; }
+  try { hkCache = JSON.parse(localStorage.getItem(HK_STORE)) || {}; } catch (e) { hkCache = {}; }
+  return hkCache;
 }
 
 window.Hotkeys = {
@@ -31,16 +36,23 @@ window.Hotkeys = {
   set(id, key){
     const o = hkLoad();
     o[id] = String(key).toLowerCase();
+    hkCache = o;
     try { localStorage.setItem(HK_STORE, JSON.stringify(o)); } catch (e) { /* private mode */ }
     document.dispatchEvent(new CustomEvent("hotkeys-changed"));
   },
   reset(){
+    hkCache = null;
     try { localStorage.removeItem(HK_STORE); } catch (e) { /* private mode */ }
     document.dispatchEvent(new CustomEvent("hotkeys-changed"));
   },
   // true when the keydown event e is this action's binding (plain press, no modifiers)
   matches(id, e){
     return !e.ctrlKey && !e.metaKey && !e.altKey && !!e.key && e.key.toLowerCase() === this.get(id);
+  },
+  // an action's current binding as a tooltip suffix, e.g. " (F)"; "" if unknown
+  suffix(id){
+    const k = this.get(id);
+    return k ? " (" + k.toUpperCase() + ")" : "";
   },
 };
 
@@ -88,6 +100,7 @@ class HotkeysExtension extends Autodesk.Viewing.Extension {
   }
   unload(){
     if (this._disposeWire){ this._disposeWire(); }
+    if (this._onHkChanged){ document.removeEventListener("hotkeys-changed", this._onHkChanged); }
     extrabbitToolbarRemove(this.viewer.toolbar, this._button);
     this._endRebind();
     if (this._dlg){ this._dlg.remove(); this._dlg = null; }
@@ -113,9 +126,10 @@ class HotkeysExtension extends Autodesk.Viewing.Extension {
     this._dlg = Object.assign(document.createElement("div"), { id: "hotkeysDlg" });
     const host = (this.viewer.canvas && this.viewer.canvas.closest(".adsk-viewing-viewer")) || document.body;
     host.appendChild(this._dlg);
-    document.addEventListener("hotkeys-changed", () => {
-      if (this._dlg.style.display === "block"){ this._render(); }
-    });
+    // live-refresh the open dialog when a binding changes; removed in unload so it doesn't outlive
+    // the extension (each load/unload cycle would otherwise leak a listener holding the dialog DOM)
+    this._onHkChanged = () => { if (this._dlg && this._dlg.style.display === "block"){ this._render(); } };
+    document.addEventListener("hotkeys-changed", this._onHkChanged);
   }
   _render(){
     const dlg = this._dlg;
