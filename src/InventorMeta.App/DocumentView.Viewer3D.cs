@@ -267,6 +267,11 @@ public sealed partial class DocumentView
                 try
                 {
                     string msg = a.TryGetWebMessageAsString();
+                    if (msg == "viewer-close")   // Esc from inside the page (WebView2 has key focus)
+                    {
+                        Close();
+                        return;
+                    }
                     if (msg == "report-issue")   // the best-effort badge's "Report this model" link
                     {
                         System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo
@@ -422,6 +427,11 @@ public sealed partial class DocumentView
                 {
                     string msg = a.TryGetWebMessageAsString();
                     ViewerLog.Write("step js: " + msg);
+                    if (msg == "viewer-close")   // Esc from inside the page (WebView2 has key focus)
+                    {
+                        Close();
+                        return;
+                    }
                     if (msg.StartsWith("status:", StringComparison.Ordinal))
                     {
                         statusText.Text = msg["status:".Length..];
