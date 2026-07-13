@@ -393,6 +393,10 @@ public sealed partial class DocumentView
         RefreshHiddenUi();
     }
 
+    /// <summary>The category badge's hover legend, kept so the demo tour can open it programmatically
+    /// (its painted cursor never moves the OS pointer, so it can't trigger a real hover).</summary>
+    private ToolTip? _categoryTip;
+
     /// <summary>Colours the category badge for the document's <see cref="InventorDocument.PrimaryCategory"/>
     /// and attaches the legend as its hover tooltip.</summary>
     private void SetCategoryBadge(InventorDocument doc)
@@ -401,7 +405,13 @@ public sealed partial class DocumentView
         CategoryBadgeText.Text = name;
         CategoryBadge.Background = new Microsoft.UI.Xaml.Media.SolidColorBrush(color);
         CategoryBadge.Visibility = Visibility.Visible;
-        ToolTipService.SetToolTip(CategoryBadge, new ToolTip { Content = DocCategoryUi.Legend(doc.PrimaryCategory) });
+        _categoryTip = new ToolTip
+        {
+            Content = DocCategoryUi.Legend(doc.PrimaryCategory),
+            PlacementTarget = CategoryBadge,
+            Placement = PlacementMode.Bottom
+        };
+        ToolTipService.SetToolTip(CategoryBadge, _categoryTip);
     }
 
     private void PopulateStates(InventorDocument doc)

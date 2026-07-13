@@ -72,7 +72,13 @@ public partial class App
             int tourModelIndex = Array.IndexOf(cli, "--model");
             string? tourModel = tourModelIndex >= 0 && tourModelIndex + 1 < cli.Length
                 ? cli[tourModelIndex + 1] : null;
-            _ = DemoTour.RunAsync(cli[tourIndex + 1], tourSamples, tourModel);
+            int tourThemeIndex = Array.IndexOf(cli, "--theme");
+            Microsoft.UI.Xaml.ElementTheme tourTheme =
+                tourThemeIndex >= 0 && tourThemeIndex + 1 < cli.Length &&
+                string.Equals(cli[tourThemeIndex + 1], "dark", StringComparison.OrdinalIgnoreCase)
+                    ? Microsoft.UI.Xaml.ElementTheme.Dark
+                    : Microsoft.UI.Xaml.ElementTheme.Light;
+            _ = DemoTour.RunAsync(cli[tourIndex + 1], tourSamples, tourModel, tourTheme);
             return;
         }
 

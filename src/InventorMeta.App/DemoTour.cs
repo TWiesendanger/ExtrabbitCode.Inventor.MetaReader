@@ -27,7 +27,8 @@ internal static class DemoTour
 {
     private sealed record Chapter(string Name, string Theme, long StartMs, long EndMs);
 
-    public static async Task RunAsync(string outDir, string? samplesDir, string? modelPath)
+    public static async Task RunAsync(string outDir, string? samplesDir, string? modelPath,
+                                      ElementTheme theme = ElementTheme.Light)
     {
         List<Chapter> chapters = [];
         Stopwatch clock = new();
@@ -49,7 +50,7 @@ internal static class DemoTour
             MainWindow w = new();
             w.Activate();
             w.ShootMove(8, 8);
-            w.ShootResize(1600, 1000);
+            w.ShootResize(1920, 1080);              // exact Full HD for the Microsoft Store trailer
             w.ShootTopmost();
             await Task.Delay(600);
 
@@ -69,8 +70,8 @@ internal static class DemoTour
             clock.Start();
             long tourStartEpoch = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
 
-            const string t = "light";                     // one pass; light matches the docs
-            ThemeManager.Apply(w, ElementTheme.Light);
+            string t = theme == ElementTheme.Dark ? "dark" : "light";
+            ThemeManager.Apply(w, theme);
             await Task.Delay(600);
 
             // -- home: the welcome screen, the recent list and the sample gallery --------------
@@ -97,7 +98,7 @@ internal static class DemoTour
             {
                 Microsoft.UI.Xaml.Controls.ContentDialog? gallery = null;
                 Task pendingGallery = SamplesGallery.ShowAsync(w.Content.XamlRoot, _ => { },
-                    d => { gallery = d; d.RequestedTheme = ElementTheme.Light; });
+                    d => { gallery = d; d.RequestedTheme = theme; });
                 await Task.Delay(4800);
                 gallery?.Hide();
                 try { await pendingGallery; } catch { /* dismissed */ }
@@ -180,7 +181,9 @@ internal static class DemoTour
                 if (w.CurrentView?.ShootElement("CategoryBadge") is { } badge)
                 {
                     await cursor.MoveToElementAsync(badge, 700);
-                    await Task.Delay(3800);               // the tooltip lists all categories
+                    w.CurrentView?.ShootShowCategoryLegend();   // painted cursor can't raise the real hover
+                    await Task.Delay(3800);               // the legend lists all categories
+                    w.CurrentView?.ShootHideCategoryLegend();
                 }
                 if (w.ShootTab(2) is { } partHeader) { await cursor.MoveToElementAsync(partHeader, 650); }
                 w.ShootSelectTabIndex(2);
@@ -209,7 +212,7 @@ internal static class DemoTour
                 w.ShootCaption("Pick your 3D engine: exact Inventor, or the fast built-in converter");
                 Microsoft.UI.Xaml.Controls.ContentDialog? chooser = null;
                 Task<SvfEngine?> pending = EngineDialogs.ShowChooserAsync(
-                    w.Content.XamlRoot, d => { chooser = d; d.RequestedTheme = ElementTheme.Light; });
+                    w.Content.XamlRoot, d => { chooser = d; d.RequestedTheme = theme; });
                 await Task.Delay(1000);
                 // linger on each card so the trade-offs can be read
                 if (chooser?.Content is Microsoft.UI.Xaml.Controls.StackPanel body

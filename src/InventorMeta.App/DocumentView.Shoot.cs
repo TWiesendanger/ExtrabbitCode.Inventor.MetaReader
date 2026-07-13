@@ -31,6 +31,20 @@ public sealed partial class DocumentView
     /// region (e.g. the sidebar card or a single detail panel).</summary>
     public FrameworkElement? ShootElement(string name) => FindName(name) as FrameworkElement;
 
+    /// <summary>Opens the category badge's hover legend (demo tour). The tour's cursor is painted
+    /// into the window and never moves the OS pointer, so it can't raise a real hover tooltip -
+    /// this pops the same legend directly.</summary>
+    internal void ShootShowCategoryLegend()
+    {
+        if (_categoryTip != null) { _categoryTip.IsOpen = true; }
+    }
+
+    /// <summary>Closes the category badge legend opened by <see cref="ShootShowCategoryLegend"/>.</summary>
+    internal void ShootHideCategoryLegend()
+    {
+        if (_categoryTip != null) { _categoryTip.IsOpen = false; }
+    }
+
     /// <summary>The header element of a detail tab, so the demo tour can move the cursor onto it
     /// before switching (snapshotter).</summary>
     internal FrameworkElement? ShootTabHeader(string headerPrefix) =>
