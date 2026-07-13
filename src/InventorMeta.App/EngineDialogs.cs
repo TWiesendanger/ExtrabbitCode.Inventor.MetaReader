@@ -63,7 +63,7 @@ internal static class EngineDialogs
             cons: ["Slower - starts Inventor in the background", "Needs Inventor installed on this PC"]);
         Button local = EngineCard(
             "ms-appx:///Assets/extrabbit.png", "Built-in converter", "Fast, best effort",
-            pros: ["No Inventor needed, fully offline", "Fast - reads the mesh cached in the file"],
+            pros: ["No Inventor needed on this PC", "Fast - reads the mesh cached in the file"],
             cons: ["Best effort: positions or rotations can be off", "Simplified materials"]);
 
         inventor.Click += (_, _) => onPick(SvfEngine.Inventor);
@@ -75,7 +75,9 @@ internal static class EngineDialogs
         StackPanel body = new() { Spacing = 12, Width = 620 };
         body.Children.Add(new TextBlock
         {
-            Text = "Pick the engine that turns your models into 3D views. You can change this anytime in Settings → 3D Viewer.",
+            Text = "Pick the engine that turns your models into 3D views. Either way, the 3D viewer "
+                 + "itself downloads from the internet the first time you use it. Change this anytime "
+                 + "in Settings → 3D Viewer.",
             Opacity = 0.75, FontSize = 13, TextWrapping = TextWrapping.Wrap
         });
         body.Children.Add(cards);
