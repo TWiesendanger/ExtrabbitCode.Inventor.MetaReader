@@ -86,6 +86,14 @@ internal static class WhatsNewDialog
     /// was shown, so the caller can hold back other first-run UI.</summary>
     public static bool MaybeShow(MainWindow win)
     {
+        // A brand-new install has never had a prior version, so "what's new" is meaningless and
+        // would only bury the welcome tip. Seed the seen-version silently so the dialog first fires
+        // on a genuine later update, and let the welcome onboarding run instead.
+        if (AppSettings.IsFirstRun)
+        {
+            AppSettings.Set(SeenVersionKey, AppInfo.Version);
+            return false;
+        }
         if (AppSettings.Get(SeenVersionKey) == AppInfo.Version) { return false; }
         AppSettings.Set(SeenVersionKey, AppInfo.Version);
         Show(win);

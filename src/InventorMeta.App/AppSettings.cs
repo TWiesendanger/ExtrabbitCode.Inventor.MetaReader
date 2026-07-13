@@ -17,11 +17,18 @@ internal static class AppSettings
     private static readonly JsonSerializerOptions JsonOpts = new() { WriteIndented = true };
 
     private static Dictionary<string, string>? _cache;
+    private static bool _wasFreshInstall;
 
     /// <summary>When true (documentation snapshotter), settings live only in memory: the file is
     /// neither read nor written, so screenshots use clean defaults and the run never disturbs the
     /// user's saved layout. Set before any settings access.</summary>
     internal static bool Ephemeral { get; set; }
+
+    /// <summary>True when no settings file existed at first load - the app has never run on this
+    /// machine before. Captured the first time the store is touched (before any first-run write
+    /// creates the file), so it stays valid for the whole session regardless of what gets written
+    /// afterwards. Lets first-launch UI tell a fresh install from an update.</summary>
+    public static bool IsFirstRun { get { Map(); return _wasFreshInstall; } }
 
     private static Dictionary<string, string> Map()
     {
@@ -35,6 +42,9 @@ internal static class AppSettings
         {
             return _cache;
         }
+
+        // captured before the try loads anything and before any Set() can Flush a file into place
+        _wasFreshInstall = !File.Exists(FilePath) && !File.Exists(LegacyIniPath);
 
         try
         {
