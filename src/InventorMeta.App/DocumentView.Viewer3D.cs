@@ -138,8 +138,25 @@ public sealed partial class DocumentView
             SvfStore store = new(ViewerSettings.NetworkPath);
             statusText.Text = "Checking cache…";
             string key = await Task.Run(() => SvfStore.ComputeKey(FilePath));
-            bool cached = store.Has(key);
-            Serilog.Log.Information("3D view for {File} (cached={Cached})", Path.GetFileName(FilePath), cached);
+
+            // A cached entry only counts if it satisfies the user's engine preference. An exact
+            // (Inventor) viewable satisfies everyone. A best-effort one must NOT override a user who
+            // wants exact AND can produce it - otherwise a colleague's best-effort in the shared
+            // store would permanently hide the exact view (clearing the cache never touches the
+            // shared store). In that one case, treat it as a miss and regenerate exact into the
+            // entry, upgrading it (the shared best-effort entry gains a bubble.json for everyone).
+            bool hasExact = store.FindBubble(key) != null;
+            // only a best-effort-only entry can be rejected, so the Inventor probe is skipped when
+            // an exact viewable already exists (the common hit) or nothing is cached at all
+            bool cached = hasExact;
+            if (!hasExact && store.FindLocalSvf(key) != null)
+            {
+                bool wantsExactOnly = ViewerSettings.Engine == SvfEngine.Inventor
+                    && InventorInstalls.Detect().Count > 0;
+                cached = !wantsExactOnly;
+            }
+            Serilog.Log.Information("3D view for {File} (cached={Cached}, exact={Exact})",
+                Path.GetFileName(FilePath), cached, hasExact);
 
             if (!cached)
             {
