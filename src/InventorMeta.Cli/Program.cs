@@ -17,6 +17,8 @@ if (args.Length < 2)
           invmeta json    <file>              full metadata as JSON
           invmeta props   <file>              every property in every OLE property set
           invmeta graph   <file>              recursive reference tree (resolved on disk)
+          invmeta segments <file>             RSeStorage segment inventory + damage check
+          invmeta repair  <file>              fix stale segment summaries (backs the file up first)
           invmeta tree    <file>              raw CFB storage/stream tree
           invmeta thumb   <file> [outBase]    extract the embedded preview image
           invmeta extract <file> <outDir>     dump every stream to disk
@@ -35,7 +37,7 @@ if (!isStep && !CompoundFile.LooksLikeCompoundFile(file))
     return 2;
 }
 
-if (isStep && cmd is "tree" or "cat" or "extract" or "thumb")
+if (isStep && cmd is "tree" or "cat" or "extract" or "thumb" or "segments" or "repair")
 {
     Console.Error.WriteLine($"'{cmd}' reads the OLE compound file structure; STEP files (.stp/.step) don't have one.");
     return 2;
@@ -49,12 +51,72 @@ switch (cmd)
     case "thumb":   Thumb(new InventorDocument(file), args.Length > 2 ? args[2] : Path.GetFileNameWithoutExtension(file) + "_thumb"); break;
     case "props":   if (isStep) { StepProps(new InventorDocument(file)); } else { Props(file); } break;
     case "graph":   Graph(new InventorDocument(file)); break;
+    case "segments":Segments(new InventorDocument(file)); break;
+    case "repair":  return Repair(file);
     case "tree":    Tree(file); break;
     case "extract": Extract(file, args[2]); break;
     case "cat":     Cat(file, args[2]); break;
     default: Console.Error.WriteLine($"Unknown command '{cmd}'."); return 1;
 }
 return 0;
+
+static void Segments(InventorDocument doc)
+{
+    IReadOnlyList<InventorDocument.Segment> segs = doc.Segments;
+    if (segs.Count == 0) { Console.WriteLine("No RSeStorage segments found."); return; }
+
+    long total = segs.Sum(s => s.DataSize);
+    Console.WriteLine($"RSeStorage segments ({segs.Count}, {total:N0} B of payload)\n");
+    Console.WriteLine($"  {"SEGMENT",-22} {"DATA",13} {"META",10} {"BLOCKS",9}  MODIFIED");
+    foreach (InventorDocument.Segment s in segs)
+    {
+        string blocks = s.ActualBlockCount?.ToString("N0") ?? "?";
+        string mark = s.HasCountMismatch ? $"  !! summary says {s.SummaryBlockCount:N0}"
+                    : s.IsGraphicsCache ? "  *graphics cache" : "";
+        string when = s.Modified?.ToString("yyyy-MM-dd HH:mm") ?? "";
+        Console.WriteLine($"  {s.Name,-22} {s.DataSize,13:N0} {s.MetaSize,10:N0} {blocks,9}  {when}{mark}");
+    }
+    if (doc.HasRepairableSegmentDamage)
+    {
+        Console.WriteLine("\n  !! stale segment summaries - Inventor will refuse to open this file.");
+        Console.WriteLine("     Run 'invmeta repair' to fix it in place (a backup copy is made first).");
+    }
+    else
+    {
+        Console.WriteLine("\n  * the graphics cache is regenerable; if Inventor errors loading it, the model is usually intact.");
+    }
+}
+
+static int Repair(string file)
+{
+    // Repair scans internally and reports what it actually patched - one scan, and the printed
+    // list can never disagree with what happened to the file.
+    SegmentRepair.RepairResult result;
+    try
+    {
+        result = SegmentRepair.Repair(file);
+    }
+    catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or InvalidDataException)
+    {
+        Console.Error.WriteLine($"Repair failed: {ex.Message}");
+        return 2;
+    }
+
+    if (result.Repaired.Count == 0)
+    {
+        Console.WriteLine("Segment summaries are consistent - nothing to repair.");
+        return 0;
+    }
+
+    Console.WriteLine($"Repaired stale segment summaries in {Path.GetFileName(file)}:");
+    foreach (SegmentRepair.Issue i in result.Repaired)
+    {
+        string where = i.Location.Length == 0 ? "" : $"   (member {i.Location})";
+        Console.WriteLine($"  {i.SegmentName,-22} summary {i.SummaryCount,10:N0}  ->  actual {i.ActualCount:N0}{where}");
+    }
+    Console.WriteLine($"\nBackup of the original: {result.BackupPath}");
+    return 0;
+}
 
 static void Graph(InventorDocument doc)
 {
