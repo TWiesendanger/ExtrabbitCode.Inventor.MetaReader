@@ -156,6 +156,41 @@
                                         HorizontalAlignment="Left" Visibility="Collapsed">
                                     <TextBlock x:Name="CategoryBadgeText" FontSize="11" FontWeight="SemiBold" Foreground="White"/>
                                 </Border>
+                                <!-- stale segment summaries: Inventor refuses such files; the button repairs in place -->
+                                <StackPanel x:Name="DamagePanel" Orientation="Horizontal" Spacing="8" Margin="0,7,0,1"
+                                            Visibility="Collapsed">
+                                    <Border x:Name="DamageBadge" CornerRadius="10" Padding="10,2,10,3"
+                                            VerticalAlignment="Center" Background="#C42B1C">
+                                        <StackPanel Orientation="Horizontal" Spacing="5">
+                                            <FontIcon Glyph="&#xE7BA;" FontSize="11" Foreground="White" VerticalAlignment="Center"/>
+                                            <TextBlock Text="Damaged file" FontSize="11" FontWeight="SemiBold" Foreground="White"/>
+                                        </StackPanel>
+                                    </Border>
+                                    <Button x:Name="RepairButton" Click="OnRepairSegments" MinWidth="0" Padding="8,1,8,2"
+                                            VerticalAlignment="Center" ToolTipService.ToolTip="Fix the segment summaries in place (a backup copy is created first)">
+                                        <StackPanel Orientation="Horizontal" Spacing="5">
+                                            <FontIcon Glyph="&#xE90F;" FontSize="11"/>
+                                            <TextBlock Text="Repair" FontSize="11"/>
+                                        </StackPanel>
+                                    </Button>
+                                </StackPanel>
+                                <!-- after a successful repair: confirmation + a shortcut to verify in Inventor itself -->
+                                <StackPanel x:Name="RepairedPanel" Orientation="Horizontal" Spacing="8" Margin="0,7,0,1"
+                                            Visibility="Collapsed">
+                                    <Border CornerRadius="10" Padding="10,2,10,3" VerticalAlignment="Center" Background="#15803D">
+                                        <StackPanel Orientation="Horizontal" Spacing="5">
+                                            <FontIcon Glyph="&#xE73E;" FontSize="11" Foreground="White" VerticalAlignment="Center"/>
+                                            <TextBlock Text="Repaired" FontSize="11" FontWeight="SemiBold" Foreground="White"/>
+                                        </StackPanel>
+                                    </Border>
+                                    <Button x:Name="OpenInInventorButton" Click="OnOpenInInventor" MinWidth="0" Padding="8,1,8,2"
+                                            VerticalAlignment="Center" ToolTipService.ToolTip="Open the repaired file in Autodesk Inventor to verify it loads cleanly">
+                                        <StackPanel Orientation="Horizontal" Spacing="5">
+                                            <FontIcon Glyph="&#xE8A7;" FontSize="11"/>
+                                            <TextBlock Text="Open in Inventor" FontSize="11"/>
+                                        </StackPanel>
+                                    </Button>
+                                </StackPanel>
                             </StackPanel>
                             <ToggleButton x:Name="EditSidebarToggle" Grid.Column="2" VerticalAlignment="Top"
                                           Click="OnToggleSidebarEdit" Padding="7,5" MinWidth="0"
@@ -194,7 +229,14 @@
                     </muxc:TabViewItem>
                     <muxc:TabViewItem x:Name="StructureTab" Header="File Structure" IsClosable="False">
                         <muxc:TabViewItem.IconSource><muxc:SymbolIconSource Symbol="List"/></muxc:TabViewItem.IconSource>
-                        <ScrollViewer Padding="14"><TextBlock x:Name="TreeText" FontFamily="Consolas" IsTextSelectionEnabled="True"/></ScrollViewer>
+                        <ScrollViewer Padding="10,10">
+                            <!-- Inventor files get the segment-database card + storage tree (built in code);
+                                 STEP files show their source text in the plain TextBlock instead. -->
+                            <StackPanel x:Name="StructurePanel" Spacing="10">
+                                <TextBlock x:Name="TreeText" FontFamily="Consolas" IsTextSelectionEnabled="True"
+                                           Visibility="Collapsed" Margin="4"/>
+                            </StackPanel>
+                        </ScrollViewer>
                     </muxc:TabViewItem>
                 </muxc:TabView>
             </Border>
