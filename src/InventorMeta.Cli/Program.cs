@@ -68,27 +68,82 @@ static void Segments(InventorDocument doc)
     long total = segs.Sum(s => s.DataSize);
     Console.WriteLine($"RSeStorage segments ({segs.Count}, {total:N0} B of payload)\n");
     Console.WriteLine($"  {"SEGMENT",-22} {"DATA",13} {"META",10} {"BLOCKS",9}  MODIFIED");
+    Dictionary<string, SegmentDataCheck.Damage> destroyed = doc.DataDamage
+        .Where(d => d.Location.Length == 0)
+        .ToDictionary(d => d.SegmentName, StringComparer.Ordinal);
     foreach (InventorDocument.Segment s in segs)
     {
         string blocks = s.ActualBlockCount?.ToString("N0") ?? "?";
-        string mark = s.HasCountMismatch ? $"  !! summary says {s.SummaryBlockCount:N0}"
+        string mark = destroyed.ContainsKey(s.Name) ? "  !! data destroyed"
+                    : s.HasCountMismatch ? $"  !! summary says {s.SummaryBlockCount:N0}"
                     : s.IsGraphicsCache ? "  *graphics cache" : "";
         string when = s.Modified?.ToString("yyyy-MM-dd HH:mm") ?? "";
         Console.WriteLine($"  {s.Name,-22} {s.DataSize,13:N0} {s.MetaSize,10:N0} {blocks,9}  {when}{mark}");
     }
-    if (doc.HasRepairableSegmentDamage)
+    if (doc.HasDestroyedSegmentData)
+    {
+        Console.WriteLine("\n  !! destroyed segment data - runs of zeroed bytes sit where compressed payload");
+        Console.WriteLine("     used to be (typical of a disk fault or an interrupted copy):");
+        foreach (SegmentDataCheck.Damage d in doc.DataDamage)
+        {
+            string where = d.Location.Length == 0 ? "" : $"   (member {d.Location})";
+            string detail = d.ChecksumOnly
+                ? "content silently altered (checksum mismatch)"
+                : $"only {d.RecoveredBytes:N0} of at least {d.ExpectedBytes:N0} B readable";
+            Console.WriteLine($"     {d.SegmentName,-22} {detail}{where}");
+        }
+        Console.WriteLine("     This is NOT repairable: the destroyed bytes are gone, the stream cannot be");
+        Console.WriteLine("     re-synchronized past the damage, and Inventor needs every segment intact.");
+        Console.WriteLine("     Restore the file from a backup (Vault/PDM, OldVersions, or a file backup).");
+    }
+    else if (doc.HasRepairableSegmentDamage)
     {
         Console.WriteLine("\n  !! stale segment summaries - Inventor will refuse to open this file.");
         Console.WriteLine("     Run 'invmeta repair' to fix it in place (a backup copy is made first).");
     }
     else
     {
-        Console.WriteLine("\n  * the graphics cache is regenerable; if Inventor errors loading it, the model is usually intact.");
+        Console.WriteLine("\n  * segment data verified: every payload decompresses cleanly.");
     }
 }
 
 static int Repair(string file)
 {
+    // Destroyed payload data first: nothing can repair that, and reporting "consistent" or
+    // patching summaries on such a file would only mislead. SegmentRepair.Repair refuses this
+    // case too; checking here gives the full explanation instead of a one-line error.
+    IReadOnlyList<SegmentDataCheck.Damage> destroyed;
+    try
+    {
+        destroyed = SegmentDataCheck.FindDamage(file);
+    }
+    catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or InvalidDataException)
+    {
+        Console.Error.WriteLine($"Repair failed: {ex.Message}");
+        return 2;
+    }
+    if (destroyed.Count > 0)
+    {
+        Console.Error.WriteLine($"{Path.GetFileName(file)} cannot be repaired - segment data is destroyed:");
+        foreach (SegmentDataCheck.Damage d in destroyed)
+        {
+            string where = d.Location.Length == 0 ? "" : $"   (member {d.Location})";
+            string detail = d.ChecksumOnly
+                ? "content silently altered (checksum mismatch)"
+                : $"only {d.RecoveredBytes:N0} of at least {d.ExpectedBytes:N0} B readable";
+            Console.Error.WriteLine($"  {d.SegmentName,-22} {detail}{where}");
+        }
+        Console.Error.WriteLine("""
+
+            Runs of zeroed bytes sit where compressed payload used to be - the signature of a
+            disk fault or an interrupted copy. The destroyed bytes are physically gone, the
+            stream cannot be re-synchronized past the damage, and Inventor needs every segment
+            intact to open a file. Restore the file from a backup instead: Vault or another PDM,
+            the OldVersions folder next to the file, or a file backup.
+            """);
+        return 3;
+    }
+
     // Repair scans internally and reports what it actually patched - one scan, and the printed
     // list can never disagree with what happened to the file.
     SegmentRepair.RepairResult result;

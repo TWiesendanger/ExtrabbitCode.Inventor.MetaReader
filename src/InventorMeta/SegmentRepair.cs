@@ -72,6 +72,19 @@ public static class SegmentRepair
             return new RepairResult();
         }
 
+        // Refuse to touch files whose payload data is destroyed (zeroed sectors): patching the
+        // summaries cannot bring the missing bytes back, the file stays unopenable, and a
+        // "successful repair" would only mislead. Checked before the backup so nothing is left
+        // behind. The real fix is restoring a backup of the file.
+        List<SegmentDataCheck.Damage> destroyed = SegmentDataCheck.Scan(cf);
+        if (destroyed.Count > 0)
+        {
+            throw new InvalidDataException(
+                $"Segment data is destroyed ({string.Join(", ", destroyed.Select(d => d.SegmentName).Distinct())}) - " +
+                "the payload bytes are physically gone, so no repair can make this file open. " +
+                "Restore the file from a backup (Vault/PDM, the OldVersions folder, or a file backup).");
+        }
+
         string backup = MakeBackupPath(filePath);
         File.Copy(filePath, backup);
         try
@@ -223,13 +236,13 @@ public static class SegmentRepair
         return counts;
     }
 
-    private static string ParentPath(string path)
+    internal static string ParentPath(string path)
     {
         int i = path.LastIndexOf('/');
         return i > 0 ? path[..i] : "";
     }
 
-    private static bool IsRSeChild(string path)
+    internal static bool IsRSeChild(string path)
     {
         int i = path.LastIndexOf('/');
         return i > 0 && path.AsSpan(0, i).EndsWith("/RSeStorage", StringComparison.OrdinalIgnoreCase);
@@ -240,6 +253,10 @@ public static class SegmentRepair
         public string Name = "";
         public byte[] SegmentId = [];
         public long BlockCount;
+        /// <summary>Total decompressed bytes of all blocks, per the block-size table (each u32
+        /// carries a flag in the high bit; the low 31 bits are the block's byte size). The
+        /// segment's decompressed payload starts with exactly these bytes.</summary>
+        public long BlockBytes;
     }
 
     /// <summary>Parse an M&lt;id&gt; metadata stream far enough to learn the segment's name, its id
@@ -327,7 +344,13 @@ public static class SegmentRepair
             return null;
         }
 
-        return new MetaStream { Name = name, SegmentId = segId, BlockCount = count };
+        long blockBytes = 0;
+        for (int k = 0; k < count; k++)
+        {
+            blockBytes += BitConverter.ToUInt32(payload, 18 + k * 4) & 0x7FFFFFFF;
+        }
+
+        return new MetaStream { Name = name, SegmentId = segId, BlockCount = count, BlockBytes = blockBytes };
     }
 
     /// <summary>Locate the segment's entry in RSeSegInfo (length-prefixed UTF-16 name, verified

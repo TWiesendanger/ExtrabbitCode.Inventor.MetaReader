@@ -136,6 +136,29 @@ public sealed class InventorDocument
     /// fixes in place.</summary>
     public bool HasRepairableSegmentDamage => SegmentIssues.Count > 0;
 
+    private IReadOnlyList<SegmentDataCheck.Damage>? _dataDamage;
+
+    /// <summary>Segments whose payload data is physically destroyed (zeroed sectors inside the
+    /// compressed stream) - the damage class NOTHING can repair, because the bytes are gone and
+    /// Inventor needs every segment fully intact. Empty for healthy files. First access
+    /// decompresses every segment payload, so read this off the UI thread for large files.</summary>
+    public IReadOnlyList<SegmentDataCheck.Damage> DataDamage
+    {
+        get
+        {
+            if (_dataDamage == null)
+            {
+                try { _dataDamage = IsStep ? [] : SegmentDataCheck.FindDamage(FilePath); }
+                catch { _dataDamage = []; }   // unreadable container -> no verdict
+            }
+            return _dataDamage;
+        }
+    }
+
+    /// <summary>True when segment payload data is destroyed - see <see cref="DataDamage"/>. Do
+    /// not offer a repair for such a file: the only fix is restoring a backup.</summary>
+    public bool HasDestroyedSegmentData => DataDamage.Count > 0;
+
     private List<Segment> ReadSegments()
     {
         List<Segment> list = [];

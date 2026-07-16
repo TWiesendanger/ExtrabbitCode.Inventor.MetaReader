@@ -18,43 +18,107 @@ public sealed partial class DocumentView
     /// "Open in Inventor" shortcut visible until another file is loaded into the view.</summary>
     private bool _repairedThisSession;
 
-    /// <summary>Shows the "Damaged file" badge + repair button when the file carries stale segment
-    /// summaries (the damage that makes Inventor refuse to open it while MetaReader reads on) -
-    /// or, right after this view repaired the file, the "Repaired" chip with an Inventor shortcut.</summary>
+    /// <summary>Shows the "Damaged file" badge when the file carries stale segment summaries
+    /// (with the repair button - that class is fixable in place) or destroyed segment data
+    /// (without it - nothing can repair that; the tooltip explains why and points at backups).
+    /// Right after this view repaired the file, the "Repaired" chip with an Inventor shortcut
+    /// shows instead. The destroyed-data check decompresses every segment, so it runs in the
+    /// background and upgrades the badge when it lands.</summary>
     private void SetDamageBadge(InventorDocument doc)
     {
-        bool damaged = !doc.IsStep && doc.HasRepairableSegmentDamage;
-        DamagePanel.Visibility = damaged ? Visibility.Visible : Visibility.Collapsed;
-        RepairedPanel.Visibility = !damaged && _repairedThisSession ? Visibility.Visible : Visibility.Collapsed;
-        if (!damaged)
+        bool repairable = !doc.IsStep && doc.HasRepairableSegmentDamage;
+        DamagePanel.Visibility = repairable ? Visibility.Visible : Visibility.Collapsed;
+        RepairButton.Visibility = Visibility.Visible;
+        RepairedPanel.Visibility = !repairable && _repairedThisSession ? Visibility.Visible : Visibility.Collapsed;
+        if (repairable)
         {
-            return;
-        }
-
-        StackPanel tip = new() { Spacing = 4, Padding = new Thickness(2), MaxWidth = 420 };
-        tip.Children.Add(new TextBlock
-        {
-            Text = "The segment registry disagrees with the data actually stored - Inventor refuses " +
-                   "to open the file (\"the number of objects found in the segment does not match the " +
-                   "segment summary\"):",
-            TextWrapping = TextWrapping.Wrap
-        });
-        foreach (SegmentRepair.Issue issue in doc.SegmentIssues)
-        {
-            string where = issue.Location.Length == 0 ? "" : $"  ({issue.Location})";
+            StackPanel tip = new() { Spacing = 4, Padding = new Thickness(2), MaxWidth = 420 };
             tip.Children.Add(new TextBlock
             {
-                Text = $"•  {issue.SegmentName}{where}: summary says {issue.SummaryCount:N0} blocks, {issue.ActualCount:N0} are present",
+                Text = "The segment registry disagrees with the data actually stored - Inventor refuses " +
+                       "to open the file (\"the number of objects found in the segment does not match the " +
+                       "segment summary\"):",
+                TextWrapping = TextWrapping.Wrap
+            });
+            foreach (SegmentRepair.Issue issue in doc.SegmentIssues)
+            {
+                string where = issue.Location.Length == 0 ? "" : $"  ({issue.Location})";
+                tip.Children.Add(new TextBlock
+                {
+                    Text = $"•  {issue.SegmentName}{where}: summary says {issue.SummaryCount:N0} blocks, {issue.ActualCount:N0} are present",
+                    FontWeight = FontWeights.SemiBold
+                });
+            }
+            tip.Children.Add(new TextBlock
+            {
+                Text = "Repair updates the summaries in place - no model data is touched, and an untouched " +
+                       "backup copy is saved next to the file first.",
+                Opacity = 0.7, TextWrapping = TextWrapping.Wrap
+            });
+            ToolTipService.SetToolTip(DamageBadge, new ToolTip { Content = tip });
+        }
+
+        if (!doc.IsStep)
+        {
+            _ = UpgradeBadgeForDestroyedDataAsync(doc);
+        }
+    }
+
+    /// <summary>Runs the deep payload check off the UI thread; when it finds destroyed segment
+    /// data, the badge switches to the not-repairable presentation: no repair button (a repair
+    /// cannot bring destroyed bytes back and would fail), a tooltip that explains the damage and
+    /// says what actually helps - restoring a backup.</summary>
+    private async Task UpgradeBadgeForDestroyedDataAsync(InventorDocument doc)
+    {
+        IReadOnlyList<SegmentDataCheck.Damage> damage;
+        try
+        {
+            damage = await Task.Run(() => doc.DataDamage);
+        }
+        catch (Exception)
+        {
+            return;   // unreadable container -> no verdict, keep the current badge
+        }
+
+        if (damage.Count == 0 || !ReferenceEquals(Document, doc))
+        {
+            return;   // healthy, or the view moved on to another file meanwhile
+        }
+
+        DamagePanel.Visibility = Visibility.Visible;
+        RepairButton.Visibility = Visibility.Collapsed;
+        RepairedPanel.Visibility = Visibility.Collapsed;
+
+        StackPanel tip = new() { Spacing = 4, Padding = new Thickness(2), MaxWidth = 440 };
+        tip.Children.Add(new TextBlock
+        {
+            Text = "Parts of this file's internal database are destroyed - runs of zeroed bytes sit " +
+                   "where compressed segment data used to be, the typical result of a disk fault or " +
+                   "an interrupted copy:",
+            TextWrapping = TextWrapping.Wrap
+        });
+        foreach (SegmentDataCheck.Damage d in damage)
+        {
+            string where = d.Location.Length == 0 ? "" : $"  ({d.Location})";
+            string detail = d.ChecksumOnly
+                ? "content silently altered"
+                : $"only {FormatSize(d.RecoveredBytes)} of at least {FormatSize(d.ExpectedBytes)} readable";
+            tip.Children.Add(new TextBlock
+            {
+                Text = $"•  {d.SegmentName}{where}: {detail}",
                 FontWeight = FontWeights.SemiBold
             });
         }
         tip.Children.Add(new TextBlock
         {
-            Text = "Repair updates the summaries in place - no model data is touched, and an untouched " +
-                   "backup copy is saved next to the file first.",
+            Text = "No repair is offered because none can work: the destroyed bytes are physically " +
+                   "gone, the compressed stream cannot be re-synchronized past the damage, and " +
+                   "Inventor needs every segment intact to open a file. Restore an older version " +
+                   "instead - Vault or another PDM, the OldVersions folder next to the file, or a backup.",
             Opacity = 0.7, TextWrapping = TextWrapping.Wrap
         });
         ToolTipService.SetToolTip(DamageBadge, new ToolTip { Content = tip });
+        StatusSink?.Invoke("Segment data is destroyed in this file - not repairable; restore a backup. Hover the badge for details.");
     }
 
     /// <summary>Settings key remembering that the user has read and typed away the one-time
