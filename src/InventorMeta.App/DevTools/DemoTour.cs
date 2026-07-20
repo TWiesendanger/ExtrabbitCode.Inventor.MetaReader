@@ -9,7 +9,7 @@ using System.Threading.Tasks;
 using Microsoft.UI.Xaml;
 using Windows.Foundation;
 
-namespace ExtrabbitCode.Inventor.MetaReader.App;
+namespace ExtrabbitCode.Inventor.MetaReader.App.DevTools;
 
 /// <summary>
 /// Scripted feature tour for recording promotional videos and documentation GIFs. Run with

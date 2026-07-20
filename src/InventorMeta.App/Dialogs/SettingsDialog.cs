@@ -6,7 +6,7 @@ using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Media;
 
-namespace ExtrabbitCode.Inventor.MetaReader.App;
+namespace ExtrabbitCode.Inventor.MetaReader.App.Dialogs;
 
 /// <summary>The app settings dialog. Currently the 3D viewer: which Inventor generates viewables,
 /// how that Inventor is launched (hidden / silent), an optional shared (network) cache, and clearing

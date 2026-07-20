@@ -6,7 +6,7 @@ using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Media;
 using Microsoft.UI.Xaml.Media.Imaging;
 
-namespace ExtrabbitCode.Inventor.MetaReader.App;
+namespace ExtrabbitCode.Inventor.MetaReader.App.Document;
 
 /// <summary>The Model States tab: the per-state property browser with diff matrix and
 /// per-state thumbnails.</summary>

@@ -2,7 +2,7 @@ using System;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 
-namespace ExtrabbitCode.Inventor.MetaReader.App;
+namespace ExtrabbitCode.Inventor.MetaReader.App.Onboarding;
 
 /// <summary>A single discoverability tip: a short message that points at a control, optionally with
 /// an action button that performs the very thing it's hinting at.</summary>

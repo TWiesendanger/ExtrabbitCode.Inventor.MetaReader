@@ -1,6 +1,6 @@
 using System;
 
-namespace ExtrabbitCode.Inventor.MetaReader.App;
+namespace ExtrabbitCode.Inventor.MetaReader.App.Telemetry;
 
 /// <summary>
 /// Persisted product-analytics consent. Stores whether the user opted in, whether they've been

@@ -6,7 +6,7 @@ using System.Text.Json;
 using System.Threading.Tasks;
 using Serilog;
 
-namespace ExtrabbitCode.Inventor.MetaReader.App;
+namespace ExtrabbitCode.Inventor.MetaReader.App.Telemetry;
 
 /// <summary>
 /// Minimal, privacy-respecting product analytics via PostHog (EU). Sends anonymous feature-usage

@@ -1,6 +1,6 @@
 using System.IO;
 
-namespace ExtrabbitCode.Inventor.MetaReader.App;
+namespace ExtrabbitCode.Inventor.MetaReader.App.DevTools;
 
 /// <summary>Helpers shared by the two dev-tooling drivers - the documentation snapshotter
 /// (<see cref="DocShooter"/>) and the demo-tour recorder (<see cref="DemoTour"/>).</summary>

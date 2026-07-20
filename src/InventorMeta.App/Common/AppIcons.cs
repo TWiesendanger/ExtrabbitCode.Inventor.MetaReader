@@ -2,7 +2,7 @@ using System;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Media.Imaging;
 
-namespace ExtrabbitCode.Inventor.MetaReader.App;
+namespace ExtrabbitCode.Inventor.MetaReader.App.Common;
 
 /// <summary>Maps an Inventor document kind to its bundled type icon (Assets\*.png).</summary>
 internal static class AppIcons

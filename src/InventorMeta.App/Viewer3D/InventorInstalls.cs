@@ -4,7 +4,7 @@ using System.IO;
 using System.Linq;
 using System.Text.RegularExpressions;
 
-namespace ExtrabbitCode.Inventor.MetaReader.App;
+namespace ExtrabbitCode.Inventor.MetaReader.App.Viewer3D;
 
 /// <summary>An installed Autodesk Inventor release - the year and the Inventor.exe that drives it
 /// over COM. Every release ships the SVF/collaboration translator add-in used to generate viewables.</summary>

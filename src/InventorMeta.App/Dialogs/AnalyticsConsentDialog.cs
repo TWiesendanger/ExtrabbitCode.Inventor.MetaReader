@@ -3,7 +3,7 @@ using System.Threading.Tasks;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 
-namespace ExtrabbitCode.Inventor.MetaReader.App;
+namespace ExtrabbitCode.Inventor.MetaReader.App.Dialogs;
 
 /// <summary>First-run opt-in prompt for anonymous product analytics. Opt-in is the preselected
 /// default (the primary "Yes" button is focused). The choice is persisted via

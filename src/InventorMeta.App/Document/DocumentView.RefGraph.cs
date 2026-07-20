@@ -11,7 +11,7 @@ using Microsoft.UI.Xaml.Controls.Primitives;
 using Microsoft.UI.Xaml.Media;
 using Microsoft.Web.WebView2.Core;
 
-namespace ExtrabbitCode.Inventor.MetaReader.App;
+namespace ExtrabbitCode.Inventor.MetaReader.App.Document;
 
 /// <summary>
 /// The reference graph, rendered with the bundled vis-network library inside a WebView2: interactive

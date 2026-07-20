@@ -7,7 +7,7 @@ using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Media;
 using Microsoft.UI.Xaml.Media.Imaging;
 
-namespace ExtrabbitCode.Inventor.MetaReader.App;
+namespace ExtrabbitCode.Inventor.MetaReader.App.Samples;
 
 /// <summary>The "Try a sample" gallery shown from the start page: a list of bundled sample files,
 /// each with the capability it demonstrates. Clicking one opens it in a tab; "Open all" opens the

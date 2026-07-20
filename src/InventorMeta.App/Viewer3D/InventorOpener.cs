@@ -3,7 +3,7 @@ using System.Runtime.InteropServices;
 using System.Threading;
 using System.Threading.Tasks;
 
-namespace ExtrabbitCode.Inventor.MetaReader.App;
+namespace ExtrabbitCode.Inventor.MetaReader.App.Viewer3D;
 
 /// <summary>
 /// Opens a document in Autodesk Inventor itself - into a running session when one is up (any

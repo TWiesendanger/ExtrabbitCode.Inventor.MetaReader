@@ -3,7 +3,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 
-namespace ExtrabbitCode.Inventor.MetaReader.App;
+namespace ExtrabbitCode.Inventor.MetaReader.App.Samples;
 
 /// <summary>The sample files shipped with the app. Sample folders are copied out of the (read-only,
 /// packaged) install folder into a writable user folder when first needed, so the app can open any

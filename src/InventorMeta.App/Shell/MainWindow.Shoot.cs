@@ -6,7 +6,7 @@ using Microsoft.UI.Xaml.Shapes;
 using Windows.Graphics;
 using Windows.Foundation;
 
-namespace ExtrabbitCode.Inventor.MetaReader.App;
+namespace ExtrabbitCode.Inventor.MetaReader.App.Shell;
 
 /// <summary>Helpers used only by the documentation snapshotter (<see cref="DocShooter"/>) and the
 /// demo tour (<see cref="DemoTour"/>).</summary>

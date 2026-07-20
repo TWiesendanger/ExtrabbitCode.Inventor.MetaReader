@@ -4,7 +4,7 @@ using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Media;
 using Windows.UI;
 
-namespace ExtrabbitCode.Inventor.MetaReader.App;
+namespace ExtrabbitCode.Inventor.MetaReader.App.Common;
 
 /// <summary>Presentation for <see cref="InventorDocument.DocCategory"/>: a colour + label per
 /// category, and the legend control shown when hovering the category badge.</summary>

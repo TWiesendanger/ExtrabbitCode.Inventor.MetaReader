@@ -10,7 +10,7 @@ using Windows.Foundation;
 using Windows.Graphics.Imaging;
 using Windows.Storage.Streams;
 
-namespace ExtrabbitCode.Inventor.MetaReader.App;
+namespace ExtrabbitCode.Inventor.MetaReader.App.DevTools;
 
 /// <summary>
 /// Headless documentation snapshotter. Run with

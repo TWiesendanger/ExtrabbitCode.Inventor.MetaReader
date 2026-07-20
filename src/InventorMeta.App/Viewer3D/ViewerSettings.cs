@@ -1,6 +1,6 @@
 using System;
 
-namespace ExtrabbitCode.Inventor.MetaReader.App;
+namespace ExtrabbitCode.Inventor.MetaReader.App.Viewer3D;
 
 /// <summary>How the reference graph arranges its nodes.</summary>
 internal enum GraphLayout { LeftRight, TopDown, Network }

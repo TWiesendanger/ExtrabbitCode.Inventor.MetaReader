@@ -4,7 +4,7 @@ using System.IO;
 using System.Linq;
 using Serilog;
 
-namespace ExtrabbitCode.Inventor.MetaReader.App;
+namespace ExtrabbitCode.Inventor.MetaReader.App.Common;
 
 /// <summary>App-wide logging: Serilog writing to a daily rolling file under %LocalAppData%.
 /// Call <see cref="Init"/> once at startup, then log through Serilog's static

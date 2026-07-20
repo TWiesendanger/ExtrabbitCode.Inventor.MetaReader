@@ -7,7 +7,7 @@ using Microsoft.UI.Text;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 
-namespace ExtrabbitCode.Inventor.MetaReader.App;
+namespace ExtrabbitCode.Inventor.MetaReader.App.Document;
 
 /// <summary>The segment-repair flow: the "Damaged file" badge, the one-time risk warning, the
 /// in-place repair with backup, and the post-repair "Open in Inventor" shortcut.</summary>

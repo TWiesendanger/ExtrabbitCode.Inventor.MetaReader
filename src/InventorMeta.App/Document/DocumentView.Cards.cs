@@ -7,7 +7,7 @@ using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Media;
 using Windows.ApplicationModel.DataTransfer;
 
-namespace ExtrabbitCode.Inventor.MetaReader.App;
+namespace ExtrabbitCode.Inventor.MetaReader.App.Document;
 
 /// <summary>The shared card and table toolkit: collapsible cards, click-to-copy rows,
 /// property tables, key/value lists and matrices used by every detail tab.</summary>

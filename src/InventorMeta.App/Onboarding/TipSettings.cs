@@ -1,7 +1,7 @@
 using System;
 using System.Collections.Generic;
 
-namespace ExtrabbitCode.Inventor.MetaReader.App;
+namespace ExtrabbitCode.Inventor.MetaReader.App.Onboarding;
 
 /// <summary>Persisted state for the in-app tips: a global on/off switch and the set of tips the user
 /// has turned off with "Don't show again".</summary>

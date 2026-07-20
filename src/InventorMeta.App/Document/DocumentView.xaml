@@ -1,5 +1,5 @@
 <UserControl
-    x:Class="ExtrabbitCode.Inventor.MetaReader.App.DocumentView"
+    x:Class="ExtrabbitCode.Inventor.MetaReader.App.Document.DocumentView"
     xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
     xmlns:muxc="using:Microsoft.UI.Xaml.Controls">

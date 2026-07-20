@@ -2,7 +2,7 @@ using System;
 using System.Collections.Generic;
 using CommunityToolkit.Mvvm.Messaging;
 
-namespace ExtrabbitCode.Inventor.MetaReader.App;
+namespace ExtrabbitCode.Inventor.MetaReader.App.Settings;
 
 /// <summary>Broadcast when the left sidebar layout (properties / thumbnail) changes.</summary>
 internal sealed record SidebarConfigChangedMessage;

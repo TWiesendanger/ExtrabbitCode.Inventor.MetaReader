@@ -4,7 +4,7 @@ using System.IO;
 using System.Linq;
 using System.Security.Cryptography;
 
-namespace ExtrabbitCode.Inventor.MetaReader.App;
+namespace ExtrabbitCode.Inventor.MetaReader.App.Viewer3D;
 
 /// <summary>
 /// On-disk cache of generated SVF viewables. A model maps to an entry keyed by the SHA-256 of its

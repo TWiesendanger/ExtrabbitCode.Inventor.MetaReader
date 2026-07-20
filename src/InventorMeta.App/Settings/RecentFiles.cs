@@ -2,7 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 
-namespace ExtrabbitCode.Inventor.MetaReader.App;
+namespace ExtrabbitCode.Inventor.MetaReader.App.Settings;
 
 /// <summary>The most-recently-opened files, newest first, persisted as a capped list. Paths are joined
 /// by '|', which is illegal in Windows paths and so is a safe separator.</summary>

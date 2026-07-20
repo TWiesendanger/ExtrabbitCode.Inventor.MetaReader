@@ -6,7 +6,7 @@ using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Media;
 using Microsoft.UI.Xaml.Media.Imaging;
 
-namespace ExtrabbitCode.Inventor.MetaReader.App;
+namespace ExtrabbitCode.Inventor.MetaReader.App.Dialogs;
 
 /// <summary>Dialogs around the SVF engine choice: the first-use chooser (Inventor vs the built-in
 /// best-effort converter) and the one-time notice shown when no Inventor is installed.</summary>

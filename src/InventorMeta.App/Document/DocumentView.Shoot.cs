@@ -8,7 +8,7 @@ using Microsoft.Web.WebView2.Core;
 using Windows.Foundation;
 using Windows.Storage.Streams;
 
-namespace ExtrabbitCode.Inventor.MetaReader.App;
+namespace ExtrabbitCode.Inventor.MetaReader.App.Document;
 
 /// <summary>Helpers used only by the documentation snapshotter (<see cref="DocShooter"/>).</summary>
 public sealed partial class DocumentView
