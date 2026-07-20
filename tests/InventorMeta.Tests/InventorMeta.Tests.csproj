@@ -37,8 +37,8 @@
        referenced from a plain test project). -->
   <ItemGroup>
     <None Include="..\..\src\InventorMeta.App\InventorMeta.App.csproj" Link="AppSources\InventorMeta.App.csproj" CopyToOutputDirectory="PreserveNewest" />
-    <None Include="..\..\src\InventorMeta.App\AppInfo.cs" Link="AppSources\AppInfo.cs" CopyToOutputDirectory="PreserveNewest" />
-    <None Include="..\..\src\InventorMeta.App\WhatsNewDialog.cs" Link="AppSources\WhatsNewDialog.cs" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\..\src\InventorMeta.App\Common\AppInfo.cs" Link="AppSources\AppInfo.cs" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\..\src\InventorMeta.App\Dialogs\WhatsNewDialog.cs" Link="AppSources\WhatsNewDialog.cs" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
 </Project>
