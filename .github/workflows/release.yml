@@ -157,15 +157,15 @@ jobs:
           body: |
             ## Install
 
-            ### Desktop app — `InventorMetaReader-win-x64.zip`
-            Download, unzip anywhere, and run `InventorMeta.App.exe`. Self-contained — no .NET or
+            ### Desktop app - `InventorMetaReader-win-x64.zip`
+            Download, unzip anywhere, and run `InventorMeta.App.exe`. Self-contained, no .NET or
             Windows App Runtime needed. *(A Microsoft Store version is the recommended way to get it
             with automatic updates.)*
 
-            ### Command line — `invmeta`
+            ### Command line - `invmeta`
             Download the binary for your platform (`invmeta-win-x64.exe`, or the `.tar.gz` for
             Linux/macOS). Self-contained, no .NET required.
 
             ---
             `InventorMetaReader-win-x64.msixupload` is the **Microsoft Store submission package**
-            (uploaded in Partner Center) — not for direct install.
+            (uploaded in Partner Center) - not for direct install.
