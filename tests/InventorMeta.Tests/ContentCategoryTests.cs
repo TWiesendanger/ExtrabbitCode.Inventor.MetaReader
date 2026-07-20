@@ -1,6 +1,3 @@
-using System;
-using System.Linq;
-
 namespace ExtrabbitCode.Inventor.MetaReader.Tests;
 
 public class ContentCategoryTests

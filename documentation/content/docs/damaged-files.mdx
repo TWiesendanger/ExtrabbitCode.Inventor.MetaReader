@@ -1,0 +1,67 @@
+---
+title: Damaged Files
+description: When Inventor refuses a file with "Error loading segment", MetaReader tells you whether it can be repaired - and repairs the fixable kind in place.
+---
+
+Sometimes Inventor refuses to open a file and shows a message like **"Error loading segment
+PmGraphicsSegment in database"**. The model may be perfectly fine underneath - or parts of it may be
+gone. MetaReader reads straight past whatever trips Inventor up, so it can open the file, tell you
+**what kind of damage** it has, and, when the damage is the fixable kind, **repair it in place**.
+
+## The "Damaged file" badge
+
+Open a file with this kind of damage and a red **Damaged file** badge appears under the document
+title. Hover it for the details: which segments are affected, and what exactly is wrong. There are
+two very different cases, and the badge tells them apart.
+
+## Repairable: a stale segment registry
+
+Inside every Inventor file, a small registry records how many blocks each internal database segment
+should have. If some tool rewrote the file's streams without refreshing that registry, the counts no
+longer match what's actually stored - and Inventor hard-stops the open with the segment error, even
+though **no model data is missing**. Only the bookkeeping drifted.
+
+This is repairable. When MetaReader sees it, the badge shows a **Repair** button:
+
+- **Repair** rewrites just the registry counts to match the data that's really there. No geometry,
+  features or properties are touched.
+- Before it writes anything, MetaReader saves an **untouched backup copy** next to the file, named
+  `yourfile.ipt.pre-repair.bak`. If anything looks wrong afterwards, that copy is your original.
+- The first time you use it, MetaReader asks you to confirm you understand that the repair rewrites
+  the file's internal database - it's a rescue tool, not an everyday action.
+
+After a successful repair the badge turns into a green **Repaired** chip with an **Open in Inventor**
+button, so you can confirm the file opens before you rely on it.
+
+<Callout type="warn">
+  A repair edits the file's internal database - a proprietary structure Autodesk gives no supported
+  way to modify. Treat it as a last resort: prefer restoring a healthy version from Vault or another
+  PDM, the **OldVersions** folder, or a backup. Always open the repaired file in Inventor and check
+  it before you continue working with it, and keep the `.pre-repair.bak` copy until you have.
+</Callout>
+
+## Not repairable: destroyed segment data
+
+The other case is real data loss. Runs of zeroed bytes sit where compressed geometry used to be -
+the signature of a disk fault or an interrupted copy or transfer. Those bytes are physically gone,
+the compressed stream can't be re-synchronized past the gap, and Inventor needs every segment intact
+to open a file.
+
+MetaReader detects this too, and is honest about it: **no Repair button appears**, because no repair
+could work. The badge names the affected segments and how much still reads, and tells you the only
+real fix - **restore the file from a backup** (Vault or another PDM, the OldVersions folder next to
+the file, or a file backup). MetaReader never offers a repair that would only produce a file that
+still won't open.
+
+Even for an unrepairable file, everything MetaReader reads from metadata - iProperties, the preview
+thumbnail, referenced files, version history - is still available, which is often enough to identify
+the file and find the right backup to restore.
+
+## From the command line
+
+The [command-line tool](/docs/command-line) makes the same distinction without the app. `invmeta
+segments <file>` inventories the internal databases and flags any damage; `invmeta repair <file>`
+fixes a stale registry in place (writing the same `.pre-repair.bak` backup first) and refuses a file
+whose data is destroyed. See [Command line](/docs/command-line#checking-a-damaged-file).
+
+For what these segments and registries actually are, see [How it works](/docs/how-it-works).

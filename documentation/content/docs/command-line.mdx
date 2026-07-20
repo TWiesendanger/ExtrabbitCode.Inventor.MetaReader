@@ -24,15 +24,17 @@ dotnet build src/InventorMeta.Cli -c Release
 ## Commands
 
 ```text
-invmeta info    <file>              friendly report (type, iProperties, refs, version)
-invmeta states  <file>              per-model-state iProperties (parts/assemblies)
-invmeta json    <file>              full metadata as JSON
-invmeta props   <file>              every property in every set
-invmeta graph   <file>              recursive reference tree
-invmeta tree    <file>              raw file structure
-invmeta thumb   <file> [outBase]    extract the embedded preview image
-invmeta extract <file> <outDir>     dump every stream to disk
-invmeta cat     <file> <streamPath> hex+ascii dump of one stream
+invmeta info     <file>              friendly report (type, iProperties, refs, version)
+invmeta states   <file>              per-model-state iProperties (parts/assemblies)
+invmeta json     <file>              full metadata as JSON
+invmeta props    <file>              every property in every set
+invmeta graph    <file>              recursive reference tree
+invmeta segments <file>             RSeStorage segment inventory + damage check
+invmeta repair   <file>             fix a stale segment registry (backs the file up first)
+invmeta tree     <file>              raw file structure
+invmeta thumb    <file> [outBase]    extract the embedded preview image
+invmeta extract  <file> <outDir>     dump every stream to disk
+invmeta cat      <file> <streamPath> hex+ascii dump of one stream
 ```
 
 **STEP files** (`.stp` / `.step`) work with `info`, `states`, `json`, `props` and `graph` - you get
@@ -60,6 +62,30 @@ Pull the preview image out of a file:
 invmeta thumb "Assembly1.iam" preview
 # -> writes preview.png (or preview.bmp)
 ```
+
+## Checking a damaged file
+
+When Inventor refuses to open a file with an "Error loading segment … in database" message,
+`segments` inventories the internal databases and checks their integrity:
+
+```bash
+invmeta segments "Broken.ipt"
+```
+
+It distinguishes two kinds of damage. A **stale segment registry** is only bookkeeping that drifted
+out of sync - no data is lost - and `repair` fixes it in place, writing an untouched backup copy next
+to the file first:
+
+```bash
+invmeta repair "Broken.ipt"
+# -> patches the registry; original saved as Broken.ipt.pre-repair.bak
+```
+
+**Destroyed segment data** (runs of zeroed bytes where compressed geometry used to be, typically from
+a disk fault or an interrupted copy) is not repairable - the bytes are physically gone. `segments`
+reports which segments are affected and how much survives, and `repair` refuses the file rather than
+producing one that still won't open. The only fix is to restore an earlier copy from Vault or another
+PDM, the OldVersions folder next to the file, or a backup.
 
 ## Automating across many files
 

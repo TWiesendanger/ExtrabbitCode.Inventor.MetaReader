@@ -78,6 +78,167 @@ public sealed class InventorDocument
     private string _primaryName = "[Primary]";
     public List<string> References { get; } = [];
 
+    /// <summary>One segment of the proprietary RSeStorage document database (geometry, graphics cache,
+    /// browser tree, …). The payload is not decoded, but the segment's identity, size and block-count
+    /// bookkeeping are readable - enough to inventory the database and spot the classic damage where
+    /// the registry's block-count summary went stale and Inventor refuses to load the file
+    /// ("the number of objects found in the segment does not match the segment summary").</summary>
+    public sealed class Segment
+    {
+        public string Name = "";      // segment type, e.g. "PmGraphicsSegment" (read from its metadata stream)
+        public string Id = "";        // the mangled id shared by the paired data (B) and metadata (M) streams
+        public long DataSize;         // bytes in the B&lt;id&gt; payload stream
+        public long MetaSize;         // bytes in the M&lt;id&gt; metadata stream
+        public DateTime? Modified;    // last-modified time of the payload stream
+        /// <summary>Block count the RSeSegInfo registry claims this segment has; what Inventor
+        /// expects to find on load. Null when the file's format revision isn't understood.</summary>
+        public long? SummaryBlockCount;
+        /// <summary>Block count actually present, per the segment's own metadata block table.
+        /// Null when the file's format revision isn't understood.</summary>
+        public long? ActualBlockCount;
+        /// <summary>True when the registry summary disagrees with the blocks actually present -
+        /// Inventor refuses to open such a file; <see cref="SegmentRepair.Repair"/> fixes it.</summary>
+        public bool HasCountMismatch => SummaryBlockCount.HasValue && ActualBlockCount.HasValue &&
+                                        SummaryBlockCount != ActualBlockCount;
+        /// <summary>The regenerable display-graphics cache - the segment most often found corrupt.</summary>
+        public bool IsGraphicsCache => Name.IndexOf("Graphics", StringComparison.OrdinalIgnoreCase) >= 0;
+        public override string ToString() => $"{Name} ({DataSize:N0} B)";
+    }
+
+    private List<Segment>? _segments;
+
+    /// <summary>The RSeStorage segments (the internal payload databases), largest first. Lets you take
+    /// stock of what a file carries and flag a damaged segment - useful when Inventor errors with
+    /// "Error loading segment …", which this tool reads straight past.</summary>
+    public IReadOnlyList<Segment> Segments => _segments ??= ReadSegments();
+
+    private IReadOnlyList<SegmentRepair.Issue>? _segmentIssues;
+
+    /// <summary>Every segment whose registry summary disagrees with its actual block count, across
+    /// the document's own RSeStorage tree and the trees of embedded model-state members. Empty for
+    /// a healthy file. Derived from the same single scan that fills <see cref="Segments"/> - the
+    /// file is opened and its metadata decompressed once, not per property.</summary>
+    public IReadOnlyList<SegmentRepair.Issue> SegmentIssues
+    {
+        get
+        {
+            if (_segmentIssues == null)
+            {
+                _ = Segments;              // one scan fills both caches
+                _segmentIssues ??= [];     // unreadable container -> no verdict
+            }
+            return _segmentIssues;
+        }
+    }
+
+    /// <summary>True when at least one segment's registry summary disagrees with its actual block
+    /// count - the damage that makes Inventor refuse the file and that <see cref="SegmentRepair"/>
+    /// fixes in place.</summary>
+    public bool HasRepairableSegmentDamage => SegmentIssues.Count > 0;
+
+    private IReadOnlyList<SegmentDataCheck.Damage>? _dataDamage;
+
+    /// <summary>Segments whose payload data is physically destroyed (zeroed sectors inside the
+    /// compressed stream) - the damage class NOTHING can repair, because the bytes are gone and
+    /// Inventor needs every segment fully intact. Empty for healthy files. First access
+    /// decompresses every segment payload, so read this off the UI thread for large files.</summary>
+    public IReadOnlyList<SegmentDataCheck.Damage> DataDamage
+    {
+        get
+        {
+            if (_dataDamage == null)
+            {
+                try { _dataDamage = IsStep ? [] : SegmentDataCheck.FindDamage(FilePath); }
+                catch { _dataDamage = []; }   // unreadable container -> no verdict
+            }
+            return _dataDamage;
+        }
+    }
+
+    /// <summary>True when segment payload data is destroyed - see <see cref="DataDamage"/>. Do
+    /// not offer a repair for such a file: the only fix is restoring a backup.</summary>
+    public bool HasDestroyedSegmentData => DataDamage.Count > 0;
+
+    private List<Segment> ReadSegments()
+    {
+        List<Segment> list = [];
+        try
+        {
+            using CompoundFile cf = new(FilePath);
+            Dictionary<string, CompoundFile.DirEntry> data = new(StringComparer.Ordinal);
+            Dictionary<string, CompoundFile.DirEntry> meta = new(StringComparer.Ordinal);
+            foreach (CompoundFile.DirEntry e in cf.Directory)
+            {
+                // Segment streams are the B&lt;id&gt;/M&lt;id&gt; pairs directly under /RSeStorage.
+                if (e.Type != 2 || e.Name.Length < 2 || !ParentIs(e.Path, "/RSeStorage")) { continue; }
+                string id = e.Name[1..];
+                if (e.Name[0] == 'B') { data[id] = e; }
+                else if (e.Name[0] == 'M') { meta[id] = e; }
+            }
+
+            // One scan serves everything: SegmentIssues (all trees) and the per-segment counts
+            // here (the document's own tree, joined by the B/M storage id - names can repeat).
+            List<SegmentRepair.SegmentCounts> scanned = SegmentRepair.ScanCounts(cf);
+            _segmentIssues = SegmentRepair.ToIssues(scanned);
+            Dictionary<string, SegmentRepair.SegmentCounts> counts = new(StringComparer.Ordinal);
+            foreach (SegmentRepair.SegmentCounts c in scanned)
+            {
+                if (c.Location.Length == 0 && c.StorageId.Length > 0)
+                {
+                    counts[c.StorageId] = c;
+                }
+            }
+
+            foreach ((string id, CompoundFile.DirEntry b) in data)
+            {
+                if (!meta.TryGetValue(id, out CompoundFile.DirEntry? m)) { continue; }
+                counts.TryGetValue(id, out SegmentRepair.SegmentCounts? c);
+                // the scan already parsed the name; the legacy scan-for-text fallback covers
+                // format revisions the strict parser declines
+                Segment seg = new()
+                {
+                    Id = id,
+                    Name = c?.Name ?? FirstUtf16String(cf.ReadEntry(m)),
+                    DataSize = b.Size,
+                    MetaSize = m.Size,
+                    Modified = b.Modified is { Year: > 1601 } dt ? dt : null,
+                    ActualBlockCount = c?.Actual,
+                    SummaryBlockCount = c?.Summary,
+                };
+                list.Add(seg);
+            }
+            list.Sort((x, y) => y.DataSize.CompareTo(x.DataSize));
+        }
+        catch { /* malformed container -> empty inventory */ }
+        return list;
+    }
+
+    private static bool ParentIs(string path, string parent)
+    {
+        int i = path.LastIndexOf('/');
+        return i >= 0 && string.Equals(path[..i], parent, StringComparison.OrdinalIgnoreCase);
+    }
+
+    /// <summary>A segment's metadata stream opens with its type name as a UTF-16 string (e.g.
+    /// "PmGraphicsSegment"); return that leading string.</summary>
+    private static string FirstUtf16String(byte[] data)
+    {
+        int i = 0;
+        while (i + 1 < data.Length)
+        {
+            if (data[i] is >= 0x20 and < 0x7f && data[i + 1] == 0)
+            {
+                int j = i;
+                StringBuilder sb = new();
+                while (j + 1 < data.Length && data[j] is >= 0x20 and < 0x7f && data[j + 1] == 0) { sb.Append((char)data[j]); j += 2; }
+                if (sb.Length >= 3) { return sb.ToString(); }   // skip 1-2 char header bytes before the name
+                i = j + 2;
+            }
+            else { i++; }
+        }
+        return "";
+    }
+
     private List<ContentCategory>? _categories;
 
     /// <summary>Content Center categories this part belongs to (Tube &amp; Pipe, Frame Generator, …),
@@ -683,6 +844,7 @@ public sealed class InventorDocument
             categories = Categories.Select(c => new { displayName = c.DisplayName, internalName = c.InternalName, mnemonic = c.Mnemonic }).ToArray(),
             subsystems = Subsystems.Select(s => new { key = s.Key, displayName = s.DisplayName }).ToArray(),
             primaryCategory = PrimaryCategory.ToString(),
+            segments = Segments.Select(s => new { name = s.Name, dataSize = s.DataSize, metaSize = s.MetaSize, isGraphicsCache = s.IsGraphicsCache }).ToArray(),
             isIPart = IsIPart,
             hasThumbnail = Thumbnail != null,
             properties = Properties

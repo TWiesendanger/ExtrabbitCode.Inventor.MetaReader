@@ -5,6 +5,35 @@ description: Highlights of each MetaReader release.
 
 import { DemoGif } from '@/components/demo-gif';
 
+## 1.3.0
+
+Sharper diagnosis of damaged files, and 3D generation that stays out of your way.
+
+### Clearer diagnosis of damaged files
+
+Two very different problems make Inventor refuse to open a file with an "Error loading segment"
+message, and MetaReader now tells them apart. A **stale segment registry** is bookkeeping that drifted
+out of sync - no data is lost, and MetaReader can **repair it in place** (a backup is written first).
+**Destroyed segment data** - runs of zeroed bytes where compressed geometry used to be, the signature
+of a disk fault or an interrupted copy - is different: the bytes are physically gone. MetaReader now
+detects that case, names the affected segments, and explains that **no repair is possible** - the fix
+is to restore the file from a backup (Vault or another PDM, the OldVersions folder, or a file backup).
+No repair is offered that could only fail. The `segments` and `repair` [CLI](/docs/command-line)
+commands report the same distinction.
+
+### Isolated, more reliable 3D generation
+
+When MetaReader generates a viewable with Inventor, it now always starts its **own dedicated Inventor
+instance** and shuts it down when finished. It no longer attaches to an Inventor session you already
+have open, so generation can't be tripped up by a dialog or an edit in progress on your side - and a
+crash or hang during generation can never take your session with it. See [3D viewer](/docs/3d-view).
+
+### Better logging
+
+The app records much more about what it's doing - document loads and their timings, damage findings,
+each 3D generation step, and any failure with its details - so a problem is far easier to pin down
+from the diagnostics log in **Settings → Open log**.
+
 ## 1.2.0
 
 3D everywhere: STEP files open with a 3D view, viewables generate **without Inventor**, and you can

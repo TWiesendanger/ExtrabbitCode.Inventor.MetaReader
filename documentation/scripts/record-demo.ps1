@@ -1,11 +1,20 @@
 # Records the demo tour and cuts it into documentation GIFs and a promo video.
 # Builds the app, runs it in --demo-tour mode (a visible, always-on-top window walking the
-# features at a human pace, once per theme), records the window region with ffmpeg (gdigrab of
-# the composited desktop - a plain window grab renders WebView2 content black), then cuts the
-# chapters listed in chapters.json into GIFs (light pass) and an MP4 feature tour (dark pass).
+# features at a human pace), records the window region with ffmpeg (gdigrab of the composited
+# desktop - a plain window grab renders WebView2 content black), then cuts the chapters listed
+# in chapters.json into GIFs and an MP4 feature tour.
 #
-# Requires ffmpeg on PATH (winget install Gyan.FFmpeg). The window sits top-left for ~4 minutes;
-# it stays above other windows, but don't drag anything on top of it.
+#   .\record-demo.ps1                       # light pass: docs/what's-new GIFs + the promo video
+#   .\record-demo.ps1 -Theme dark -VideoOnly  # dark pass: ONLY the 1920x1080 Store trailer,
+#                                             # leaving the existing (light) GIFs untouched
+#
+# The window records at its native 1920x1080, so the MP4 is exactly Full HD (the Microsoft Store
+# trailer slot requires 1920x1080). Requires ffmpeg on PATH (winget install Gyan.FFmpeg). The
+# window sits top-left for ~4 minutes; it stays above other windows, but don't drag anything on top.
+param(
+    [ValidateSet('light', 'dark')] [string]$Theme = 'light',
+    [switch]$VideoOnly
+)
 $ErrorActionPreference = "Stop"
 
 $repo = Resolve-Path "$PSScriptRoot\..\.."
@@ -27,7 +36,7 @@ Remove-Item $out -Recurse -Force -ErrorAction SilentlyContinue
 New-Item -ItemType Directory -Force $out | Out-Null
 
 # 1. the tour app writes window-rect.json, then waits for record-ready.flag
-$appProc = Start-Process $app -ArgumentList "--demo-tour","`"$out`"","--samples","`"$samples`"","--model","`"$model`"" -PassThru
+$appProc = Start-Process $app -ArgumentList "--demo-tour","`"$out`"","--samples","`"$samples`"","--model","`"$model`"","--theme",$Theme -PassThru
 $rectFile = "$out\window-rect.json"
 for ($i = 0; $i -lt 60 -and -not (Test-Path $rectFile); $i++) { Start-Sleep -Milliseconds 500 }
 if (-not (Test-Path $rectFile)) { throw "window-rect.json never appeared" }
@@ -65,28 +74,32 @@ if (-not $appProc.HasExited) { Stop-Process -Id $appProc.Id -Force -Confirm:$fal
 $ch = (Get-Content "$out\chapters.json" | ConvertFrom-Json).chapters
 $off = 2.5
 function Chapter($name, $theme) { $ch | Where-Object { $_.name -eq $name -and $_.theme -eq $theme } }
-function Cut($ss, $dur, $w, $fps, $outFile) {
-    & $ffmpeg -y -v error -ss $ss -t $dur -i $rec -vf "fps=$fps,scale=${w}:-1:flags=lanczos,palettegen=stats_mode=diff" "$out\pal.png"
-    & $ffmpeg -y -v error -ss $ss -t $dur -i $rec -i "$out\pal.png" -lavfi "fps=$fps,scale=${w}:-1:flags=lanczos[x];[x][1:v]paletteuse=dither=bayer:bayer_scale=4:diff_mode=rectangle" $outFile
-}
-$appGifDir = "$repo\src\InventorMeta.App\Assets\whatsnew"
-function Gif($start, $dur, $name) {
-    $ss = $start + $off
-    Cut $ss $dur 820 11 "$gifDir\$name"                                          # docs, inline
-    Cut $ss $dur 1600 11 "$gifDir\$($name -replace '\.gif$', '-hd.gif')"         # docs, lightbox
-    Cut $ss $dur 1280 10 "$appGifDir\$($name -replace '^demo__', '')"            # app what's-new dialog
-    "{0}: {1:N2} MB (+hd, +app)" -f $name, ((Get-Item "$gifDir\$name").Length / 1MB)
-}
-$refs = Chapter "references" "light"; $orb = Chapter "viewer-orbit" "light"
-$col = Chapter "coloring" "light"; $red = Chapter "redlining" "light"
-$tabs = Chapter "tabs" "light"
-Gif ($refs.startMs/1000 + 3.2) (($refs.endMs - $refs.startMs)/1000 - 3.6) "demo__references.gif"
-Gif ($tabs.startMs/1000 + 0.2) (($tabs.endMs - $tabs.startMs)/1000 - 0.4) "demo__tabs.gif"
-Gif ($orb.startMs/1000) (($col.endMs - $orb.startMs)/1000 - 0.3) "demo__viewer3d.gif"
-Gif ($red.startMs/1000 + 0.5) (($red.endMs - $red.startMs)/1000 - 1.0) "demo__redlining.gif"
 
-# 5. the full (light) pass becomes the promo / Store video
-$h = Chapter "home" "light"; $o = Chapter "outro" "light"
+# GIFs are skipped in -VideoOnly mode, so a dark video pass leaves the (light) docs GIFs untouched.
+if (-not $VideoOnly) {
+    function Cut($ss, $dur, $w, $fps, $outFile) {
+        & $ffmpeg -y -v error -ss $ss -t $dur -i $rec -vf "fps=$fps,scale=${w}:-1:flags=lanczos,palettegen=stats_mode=diff" "$out\pal.png"
+        & $ffmpeg -y -v error -ss $ss -t $dur -i $rec -i "$out\pal.png" -lavfi "fps=$fps,scale=${w}:-1:flags=lanczos[x];[x][1:v]paletteuse=dither=bayer:bayer_scale=4:diff_mode=rectangle" $outFile
+    }
+    $appGifDir = "$repo\src\InventorMeta.App\Assets\whatsnew"
+    function Gif($start, $dur, $name) {
+        $ss = $start + $off
+        Cut $ss $dur 820 11 "$gifDir\$name"                                          # docs, inline
+        Cut $ss $dur 1600 11 "$gifDir\$($name -replace '\.gif$', '-hd.gif')"         # docs, lightbox
+        Cut $ss $dur 1280 10 "$appGifDir\$($name -replace '^demo__', '')"            # app what's-new dialog
+        "{0}: {1:N2} MB (+hd, +app)" -f $name, ((Get-Item "$gifDir\$name").Length / 1MB)
+    }
+    $refs = Chapter "references" $Theme; $orb = Chapter "viewer-orbit" $Theme
+    $col = Chapter "coloring" $Theme; $red = Chapter "redlining" $Theme
+    $tabs = Chapter "tabs" $Theme
+    Gif ($refs.startMs/1000 + 3.2) (($refs.endMs - $refs.startMs)/1000 - 3.6) "demo__references.gif"
+    Gif ($tabs.startMs/1000 + 0.2) (($tabs.endMs - $tabs.startMs)/1000 - 0.4) "demo__tabs.gif"
+    Gif ($orb.startMs/1000) (($col.endMs - $orb.startMs)/1000 - 0.3) "demo__viewer3d.gif"
+    Gif ($red.startMs/1000 + 0.5) (($red.endMs - $red.startMs)/1000 - 1.0) "demo__redlining.gif"
+}
+
+# 5. the full pass becomes the promo / Store video, at the recording's native 1920x1080
+$h = Chapter "home" $Theme; $o = Chapter "outro" $Theme
 & $ffmpeg -y -v error -ss ($h.startMs/1000 + $off) -t (($o.endMs - $h.startMs)/1000) -i $rec `
     -c:v libx264 -preset slow -crf 21 -pix_fmt yuv420p -movflags +faststart "$out\metareader-feature-tour.mp4"
 "video: $out\metareader-feature-tour.mp4"
