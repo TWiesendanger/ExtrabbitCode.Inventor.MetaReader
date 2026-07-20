@@ -81,9 +81,10 @@ model generates it; everyone else gets a cache hit.
 Configure it in **Settings → 3D Viewer**:
 
 - **Inventor version** - which installed release generates viewables, or *Ask each time*.
-- **Hide Inventor** / **Run silently** - when MetaReader launches Inventor to generate a viewable, keep
-  its window hidden and suppress its prompts (both on by default). An Inventor session you already had
-  open is never touched.
+- **Hide Inventor** / **Run silently** - MetaReader generates each viewable in its own dedicated
+  Inventor instance, which it starts and then shuts down again. These options keep that instance's
+  window hidden and suppress its prompts (both on by default). An Inventor session you already had open
+  is never attached to or disturbed.
 - **Shared cache folder** - a network path so viewables are reused across users; leave empty for a
   local-only cache under your profile.
 - **Cached viewables** - **Open** the local cache folder, or **Clear** it to reclaim space.

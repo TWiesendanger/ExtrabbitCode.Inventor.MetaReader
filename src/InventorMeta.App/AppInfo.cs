@@ -30,6 +30,11 @@ internal static class AppInfo
     /// <summary>Newest first.</summary>
     public static readonly (string Version, string[] Notes)[] History =
     [
+        ("1.3.0.0", [
+            "Damaged files are now diagnosed precisely: MetaReader tells apart a stale segment registry it can repair from destroyed segment data it cannot, and for the latter explains why no repair is possible and what to do instead (restore a backup).",
+            "3D generation always runs in its own dedicated Inventor instance that is shut down afterwards, so it never disturbs an Inventor session you have open - and is more reliable.",
+            "More thorough logging throughout the app to make problems easier to diagnose."
+        ]),
         ("1.2.0.0", [
             "STEP file support (.stp/.step) - header metadata and the 3D model, in the app and the CLI.",
             "Redlining: draw on the 3D model - freehand, shapes, text and an eraser, organized in layers with per-layer camera poses, saved with the cached viewable.",

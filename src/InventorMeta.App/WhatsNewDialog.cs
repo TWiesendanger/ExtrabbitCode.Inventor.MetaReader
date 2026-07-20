@@ -23,6 +23,26 @@ internal static class WhatsNewDialog
 
     private static readonly Release[] Releases =
     [
+        new("1.3.0",
+        [
+            new("Clearer diagnosis of damaged files",
+                "MetaReader now tells apart the two kinds of damage that make Inventor refuse a " +
+                "file. A stale segment registry it can still repair in place; destroyed segment " +
+                "data (zeroed sectors from a disk fault or an interrupted copy) it cannot - and " +
+                "it says so plainly, naming the affected segments and pointing you to a backup " +
+                "instead of offering a repair that could never work.",
+                null),
+            new("Isolated, more reliable 3D generation",
+                "Generating a viewable with Inventor now always runs in its own dedicated Inventor " +
+                "instance that is shut down when it finishes. It never attaches to - or disturbs - " +
+                "a session you already have open, which makes generation noticeably more robust.",
+                null),
+            new("Better logging",
+                "The app records much more about what it is doing - loads, timings, damage " +
+                "findings, generation steps and failures - so a problem is far easier to pin down " +
+                "from the diagnostics log in Settings.",
+                null),
+        ]),
         new("1.2.0",
         [
             new("STEP files",
