@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
 using System.Linq;
@@ -13,6 +14,12 @@ namespace ExtrabbitCode.Inventor.MetaReader.App;
 /// over COM (the same SaveCopyAs the sample iLogic macro uses). Late-bound so it works against any
 /// installed Inventor release without a version-specific interop reference. Requires Inventor
 /// installed; viewing an already-cached SVF does not.
+///
+/// Each translation runs in its OWN dedicated Inventor instance that MetaReader starts and then
+/// tears down (Quit, with a hard process-kill fallback). It never attaches to - or disturbs - an
+/// Inventor session the user already has open: a headless job that borrowed a live session was the
+/// main source of flakiness (the user's modal dialogs, in-progress edits and add-ins all
+/// interfered), so isolation is deliberate.
 /// </summary>
 public static class SvfGenerator
 {
@@ -23,12 +30,12 @@ public static class SvfGenerator
     public sealed record Result(bool Ok, string? BubblePath, string? Error);
 
     /// <summary>Translates <paramref name="filePath"/> to SVF in <paramref name="outputBaseDir"/> using
-    /// <paramref name="inventor"/>. Long-running (opens the model in Inventor) - call off the UI thread.
-    /// When <paramref name="hideWhenStarted"/> is set, an Inventor instance we launch ourselves is kept
-    /// hidden (a session the user already had open is never touched). When <paramref name="silent"/> is
-    /// set, Inventor's dialog prompts are suppressed for the duration.</summary>
+    /// <paramref name="inventor"/>. Long-running (opens the model in a freshly started, dedicated
+    /// Inventor) - call off the UI thread. The instance is always torn down before returning. When
+    /// <paramref name="hide"/> is set, that dedicated instance stays hidden; when
+    /// <paramref name="silent"/> is set, its dialog prompts are suppressed.</summary>
     public static Result Generate(InventorInstall inventor, string filePath, string outputBaseDir,
-        bool hideWhenStarted = true, bool silent = true, Action<string>? log = null)
+        bool hide = true, bool silent = true, Action<string>? log = null)
     {
         void L(string m) => log?.Invoke(m);
         // Fresh entry each run - the translator creates its own output\ subfolder under here.
@@ -36,32 +43,29 @@ public static class SvfGenerator
         Directory.CreateDirectory(outputBaseDir);
 
         object? inv = null;
-        bool startedByUs = false;
-        bool? prevSilent = null;   // previous SilentOperation, restored on a borrowed session
+        IReadOnlyList<int> ownedPids = [];
         IDisposable? filter = null;
         try
         {
-            // A running Inventor that's momentarily busy (mid-operation or showing a dialog) rejects
-            // incoming COM calls; without a message filter that surfaces instantly as
-            // RPC_E_CALL_REJECTED. The filter retries the busy call instead of failing.
+            // A busy Inventor (mid-operation or showing a dialog) rejects incoming COM calls; without
+            // a message filter that surfaces instantly as RPC_E_CALL_REJECTED. The filter retries the
+            // busy call instead of failing.
             filter = OleMessageFilter.Register(L);
-            L("Connecting to Inventor…");
-            (inv, startedByUs) = ConnectOrLaunch(inventor);
-            L(startedByUs ? "Launched a new Inventor instance." : "Attached to a running Inventor instance.");
+            L("Starting a dedicated Inventor instance…");
+            (inv, ownedPids) = LaunchDedicated(inventor, L);
             dynamic app = inv;
 
-            // Suppress Inventor's dialog prompts during the unattended translation; remember the prior
-            // value so a session the user already had open is restored afterward.
+            // Suppress Inventor's dialog prompts during the unattended translation. No need to restore
+            // it - this instance exists only for this run and is killed at the end.
             if (silent)
             {
-                try { prevSilent = (bool)app.SilentOperation; app.SilentOperation = true; L("SilentOperation = true"); }
+                try { app.SilentOperation = true; L("SilentOperation = true"); }
                 catch { L("Couldn't set SilentOperation."); }
             }
 
-            // Only hide an instance we launched ourselves - never change a running session's visibility.
-            if (startedByUs && hideWhenStarted)
+            if (hide)
             {
-                try { app.Visible = false; L("Inventor hidden (launched by us)."); }
+                try { app.Visible = false; L("Inventor hidden."); }
                 catch { L("Couldn't hide Inventor."); }
             }
 
@@ -136,21 +140,35 @@ public static class SvfGenerator
         }
         finally
         {
-            if (inv != null)
-            {
-                // Restore dialog suppression on a borrowed session (an instance we started is about to
-                // quit, so there's nothing to put back).
-                if (!startedByUs && prevSilent.HasValue)
-                {
-                    try { ((dynamic)inv).SilentOperation = prevSilent.Value; } catch { /* ignore */ }
-                }
-                if (startedByUs)
-                {
-                    try { ((dynamic)inv).Quit(); } catch { /* leave it running if it refuses */ }
-                }
-                try { Marshal.FinalReleaseComObject(inv); } catch { /* ignore */ }
-            }
+            TearDown(inv, ownedPids, L);
             filter?.Dispose();   // revoke the message filter last, so it still covers Quit / release above
+        }
+    }
+
+    /// <summary>Shuts down the dedicated Inventor instance: a graceful Quit first, then - because a
+    /// headless Inventor sometimes ignores Quit - a hard kill of the exact process(es) this run
+    /// spawned. Only PIDs identified as ours are killed, so a session the user already had open is
+    /// never affected.</summary>
+    private static void TearDown(object? inv, IReadOnlyList<int> ownedPids, Action<string> log)
+    {
+        if (inv != null)
+        {
+            try { ((dynamic)inv).Quit(); log("Inventor Quit requested."); }
+            catch (Exception ex) { log($"Quit failed ({ex.GetType().Name}); will hard-kill."); }
+            try { Marshal.FinalReleaseComObject(inv); } catch { /* ignore */ }
+        }
+
+        foreach (int pid in ownedPids)
+        {
+            Process? p = null;
+            try { p = Process.GetProcessById(pid); } catch { continue; }   // already gone = clean Quit
+            using (p)
+            {
+                // give a graceful Quit a moment to land before forcing it
+                if (p.WaitForExit(8000)) { log($"Inventor (pid {pid}) exited."); continue; }
+                try { p.Kill(entireProcessTree: true); log($"Hard-killed Inventor (pid {pid})."); }
+                catch (Exception ex) { log($"Couldn't kill Inventor (pid {pid}): {ex.Message}"); }
+            }
         }
     }
 
@@ -168,13 +186,55 @@ public static class SvfGenerator
     internal static string FriendlyError(Exception ex) => ex.HResult switch
     {
         RPC_E_CALL_REJECTED or RPC_E_SERVERCALL_RETRYLATER or RPC_E_SERVERCALL_REJECTED =>
-            "Inventor was busy and didn't respond in time. Close any open dialog in Inventor (or close "
-            + "that Inventor session so MetaReader can start its own), then try again.",
+            "Inventor was busy and didn't respond in time. Close any modal dialog open in Inventor, "
+            + "then try again.",
         _ => ex.Message,
     };
 
+    /// <summary>Starts a brand-new, dedicated Inventor instance and returns it together with the OS
+    /// process id(s) it spawned (for a guaranteed teardown). COM activation ("CreateObject"
+    /// semantics) hands back a direct reference to our own instance, so - unlike attaching via the
+    /// running-object table - we never grab, and later quit, a session the user already had open.
+    /// Verified against Inventor 2024-2027: each activation is a distinct new Inventor.exe, even when
+    /// other instances are already running.</summary>
+    internal static (object app, IReadOnlyList<int> ownedPids) LaunchDedicated(InventorInstall inventor, Action<string> log)
+    {
+        Type? progId = Type.GetTypeFromProgID("Inventor.Application");
+        if (progId == null)
+        {
+            throw new InvalidOperationException("The Inventor.Application COM class isn't registered on this machine.");
+        }
+
+        HashSet<int> before = InventorPids();
+        object app = Activator.CreateInstance(progId)
+                     ?? throw new InvalidOperationException($"Couldn't start {inventor.DisplayName}.");
+
+        // Identify the process we just spawned so it can be force-killed at the end. It may register a
+        // moment after CreateInstance returns, so poll briefly.
+        List<int> owned = [];
+        for (int i = 0; i < 25 && owned.Count == 0; i++)
+        {
+            owned = [.. InventorPids().Except(before)];
+            if (owned.Count > 0) { break; }
+            Thread.Sleep(200);
+        }
+        log(owned.Count > 0
+            ? $"Started a dedicated Inventor (pid {string.Join(",", owned)})."
+            : "Started a dedicated Inventor (couldn't identify its process id for a kill fallback).");
+        return (app, owned);
+    }
+
+    /// <summary>Process ids of every running Inventor.exe (empty on any failure).</summary>
+    private static HashSet<int> InventorPids()
+    {
+        try { return [.. Process.GetProcessesByName("Inventor").Select(p => p.Id)]; }
+        catch { return []; }
+    }
+
     /// <summary>Uses a running Inventor if one is up; otherwise launches the selected release and
-    /// waits for it to register as a COM server. (Shared with <see cref="InventorOpener"/>.)</summary>
+    /// waits for it to register as a COM server. Used by <see cref="InventorOpener"/> to open a file
+    /// in the user's own session - the SVF generator deliberately does NOT share this and always
+    /// starts its own isolated instance instead.</summary>
     internal static (object app, bool startedByUs) ConnectOrLaunch(InventorInstall inventor)
     {
         if (TryGetActiveInventor(out object? running)) { return (running!, false); }
