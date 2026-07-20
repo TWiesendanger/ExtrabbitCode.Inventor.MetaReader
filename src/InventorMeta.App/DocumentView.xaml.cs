@@ -247,8 +247,14 @@ public sealed partial class DocumentView
         _shown3DTip = false;
         try
         {
+            long size = new FileInfo(path).Length;
+            System.Diagnostics.Stopwatch sw = System.Diagnostics.Stopwatch.StartNew();
             Document = new InventorDocument(path);
             Populate(Document);
+            Serilog.Log.Information(
+                "Loaded {File} ({Size:N0} B) in {Ms} ms - {Props} properties, {Refs} references, {States} model states, {Segments} segments",
+                Document.FileName, size, sw.ElapsedMilliseconds, Document.Properties.Count,
+                Document.References.Count, Document.ModelStateDetails.Count, Document.Segments.Count);
             string counts = Document.IsStep
                 ? $"{Document.Properties.Count} STEP metadata field(s)."
                 : $"{Document.Properties.Count} properties, {Document.References.Count} reference(s).";
@@ -266,6 +272,7 @@ public sealed partial class DocumentView
         }
         catch (Exception ex)
         {
+            Serilog.Log.Error(ex, "Failed to load {File}", path);
             StatusSink?.Invoke("Error: " + ex.Message);
             return false;
         }

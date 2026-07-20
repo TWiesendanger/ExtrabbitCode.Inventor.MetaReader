@@ -86,7 +86,7 @@ public sealed partial class DocumentView
 
         RefNode? root = null;
         try { root = await Task.Run(() => ReferenceGraph.Build(doc)); }
-        catch { /* fall through to error message */ }
+        catch (Exception ex) { Serilog.Log.Error(ex, "Reference graph build failed for {File}", doc.FileName); }
 
         if (gen != _refGen)
         {

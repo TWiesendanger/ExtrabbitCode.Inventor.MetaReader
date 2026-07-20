@@ -86,8 +86,13 @@ public sealed class SvfStore
         {
             if (Directory.Exists(LocalRoot)) { Directory.Delete(LocalRoot, recursive: true); }
         }
-        catch { return 0; }
+        catch (Exception ex)
+        {
+            Serilog.Log.Warning(ex, "Clearing the local SVF cache at {Dir} failed", LocalRoot);
+            return 0;
+        }
 
+        Serilog.Log.Information("Local SVF cache cleared ({Freed:N0} B at {Dir})", freed, LocalRoot);
         return freed;
     }
 

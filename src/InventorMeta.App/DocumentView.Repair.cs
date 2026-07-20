@@ -32,6 +32,8 @@ public sealed partial class DocumentView
         RepairedPanel.Visibility = !repairable && _repairedThisSession ? Visibility.Visible : Visibility.Collapsed;
         if (repairable)
         {
+            Serilog.Log.Warning("Repairable segment damage in {File}: {Issues}",
+                doc.FileName, string.Join("; ", doc.SegmentIssues));
             StackPanel tip = new() { Spacing = 4, Padding = new Thickness(2), MaxWidth = 420 };
             tip.Children.Add(new TextBlock
             {
@@ -71,19 +73,26 @@ public sealed partial class DocumentView
     private async Task UpgradeBadgeForDestroyedDataAsync(InventorDocument doc)
     {
         IReadOnlyList<SegmentDataCheck.Damage> damage;
+        System.Diagnostics.Stopwatch sw = System.Diagnostics.Stopwatch.StartNew();
         try
         {
             damage = await Task.Run(() => doc.DataDamage);
         }
-        catch (Exception)
+        catch (Exception ex)
         {
+            Serilog.Log.Debug(ex, "Deep segment data check failed for {File}", doc.FileName);
             return;   // unreadable container -> no verdict, keep the current badge
         }
 
+        Serilog.Log.Debug("Deep segment data check for {File}: {Count} damaged segment(s) in {Ms} ms",
+            doc.FileName, damage.Count, sw.ElapsedMilliseconds);
         if (damage.Count == 0 || !ReferenceEquals(Document, doc))
         {
             return;   // healthy, or the view moved on to another file meanwhile
         }
+
+        Serilog.Log.Warning("Destroyed segment data in {File}: {Damage} - not repairable, a backup must be restored",
+            doc.FileName, string.Join("; ", damage));
 
         DamagePanel.Visibility = Visibility.Visible;
         RepairButton.Visibility = Visibility.Collapsed;
@@ -240,6 +249,7 @@ public sealed partial class DocumentView
 
             // Repair rescans the file fresh - when someone fixed it since this view loaded,
             // nothing is patched, no backup exists, and the UI must not claim otherwise.
+            Serilog.Log.Information("Repairing segment summaries in {File}", FilePath);
             SegmentRepair.RepairResult result = SegmentRepair.Repair(FilePath);
             if (result.Repaired.Count == 0)
             {
@@ -260,6 +270,7 @@ public sealed partial class DocumentView
         }
         catch (Exception ex)
         {
+            Serilog.Log.Error(ex, "Repair failed for {File}", FilePath);
             StatusSink?.Invoke("Repair failed: " + ex.Message);
         }
         finally
@@ -302,6 +313,7 @@ public sealed partial class DocumentView
         }
         catch (Exception ex)
         {
+            Serilog.Log.Error(ex, "Open in Inventor failed for {File}", FilePath);
             StatusSink?.Invoke("Could not open the file in Inventor: " + ex.Message);
         }
         finally
