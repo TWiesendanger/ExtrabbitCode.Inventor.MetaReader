@@ -160,7 +160,7 @@ public static class SvfGenerator
 
         foreach (int pid in ownedPids)
         {
-            Process? p = null;
+            Process? p;
             try { p = Process.GetProcessById(pid); } catch { continue; }   // already gone = clean Quit
             using (p)
             {

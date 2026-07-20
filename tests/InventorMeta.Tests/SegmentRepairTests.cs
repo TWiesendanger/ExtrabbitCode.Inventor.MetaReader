@@ -1,6 +1,3 @@
-using System.Linq;
-using ExtrabbitCode.Inventor.MetaReader;
-
 namespace ExtrabbitCode.Inventor.MetaReader.Tests;
 
 /// <summary>
