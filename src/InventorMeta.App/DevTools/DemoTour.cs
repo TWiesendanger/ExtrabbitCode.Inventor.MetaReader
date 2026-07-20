@@ -390,7 +390,7 @@ internal static class DemoTour
         // 2. a second layer for the annotations that follow
         w.ShootCaption("Organize markup in layers");
         await vc.MoveToDomAsync("#redlineLayers .rl-layers-head .rl-layer-btn", 550);   // the +
-        await vc.ClickDomAsync("#redlineLayers .rl-layers-head .rl-layer-btn", 0);
+        await vc.ClickDomAsync("#redlineLayers .rl-layers-head .rl-layer-btn");
         await v3.ShootViewer3DScriptAsync(
             "(function(){const e=NOP_VIEWER.getExtension('Extrabbit.Redline');e._renameLayer(e._activeId,'Inspection notes');return 'ok';})()");
         await Task.Delay(650);
