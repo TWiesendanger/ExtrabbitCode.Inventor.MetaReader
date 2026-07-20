@@ -72,9 +72,18 @@ public sealed partial class MainWindow
             string[] cli = Environment.GetCommandLineArgs();
             DispatcherQueue.TryEnqueue(() =>
             {
-                foreach (string a in cli.Skip(1).Where(File.Exists))
+                foreach (string a in cli.Skip(1))
                 {
-                    OpenFile(a);
+                    if (File.Exists(a))
+                    {
+                        OpenFile(a);
+                    }
+                    else
+                    {
+                        // otherwise a mistyped path or a stale shortcut opens an empty window
+                        // with no trace of why
+                        Serilog.Log.Warning("File passed on the command line does not exist: {File}", a);
+                    }
                 }
             });
 
@@ -339,6 +348,7 @@ public sealed partial class MainWindow
     private void OnTabClose(TabView sender, TabViewTabCloseRequestedEventArgs args)
     {
         if (ReferenceEquals(args.Tab, HomeTab)) { return; }
+        Serilog.Log.Debug("Closed tab {File}", (args.Tab.Content as DocumentView)?.FilePath);
         DocTabs.TabItems.Remove(args.Tab);
         AfterTabRemoved();
     }
@@ -390,7 +400,14 @@ public sealed partial class MainWindow
         }
     }
 
-    public void SetStatus(string message) => StatusText.Text = message;
+    /// <summary>Status-bar sink for every view in this window. Each message also goes to the app
+    /// log: the status bar carries the user-visible trace of what happened (loads, exports,
+    /// repairs, errors), and mirroring it makes the log tell the same story.</summary>
+    public void SetStatus(string message)
+    {
+        StatusText.Text = message;
+        Serilog.Log.Information("status: {Message}", message);
+    }
 
     /// <summary>True if any document tab is open (i.e. a tab other than Home).</summary>
     private bool HasDocTabs() => DocTabs.TabItems.OfType<TabViewItem>().Any(t => !ReferenceEquals(t, HomeTab));

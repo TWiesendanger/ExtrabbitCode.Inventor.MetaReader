@@ -36,7 +36,10 @@ public static partial class InventorInstalls
             }
         }
 
-        return byYear.Values.OrderByDescending(i => i.Year).ToList();
+        List<InventorInstall> found = byYear.Values.OrderByDescending(i => i.Year).ToList();
+        Serilog.Log.Debug("Inventor installs detected: {Installs}",
+            found.Count == 0 ? "none" : string.Join(", ", found.Select(i => i.DisplayName)));
+        return found;
     }
 
     private static IEnumerable<string> SafeDirs(string root, string pattern)

@@ -69,7 +69,14 @@ internal static class AppSettings
                 try { File.Delete(LegacyIniPath); } catch { /* leave it */ }
             }
         }
-        catch { /* first run / unreadable */ }
+        catch (Exception ex)
+        {
+            // first run has no file; anything else here means settings silently reset - log it
+            if (File.Exists(FilePath) || File.Exists(LegacyIniPath))
+            {
+                Serilog.Log.Warning(ex, "Settings could not be read from {File} - continuing with defaults", FilePath);
+            }
+        }
         return _cache;
     }
 
@@ -105,6 +112,9 @@ internal static class AppSettings
             Directory.CreateDirectory(Dir);
             File.WriteAllText(FilePath, JsonSerializer.Serialize(Map(), JsonOpts));
         }
-        catch { /* best-effort */ }
+        catch (Exception ex)
+        {
+            Serilog.Log.Warning(ex, "Settings could not be saved to {File}", FilePath);
+        }
     }
 }

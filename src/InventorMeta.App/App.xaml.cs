@@ -39,6 +39,21 @@ public partial class App
         Analytics.Init();
         Serilog.Log.Information("Inventor MetaReader starting (v{Version})",
             typeof(App).Assembly.GetName().Version?.ToString() ?? "?");
+        Serilog.Log.Information("Environment: {Os}, .NET {Clr}, culture {Culture}, {Cores} cores",
+            Environment.OSVersion.VersionString, Environment.Version,
+            System.Globalization.CultureInfo.CurrentUICulture.Name, Environment.ProcessorCount);
+
+        // The file sink writes unbuffered, but the exit line itself still needs a flush - and
+        // ProcessExit fires no matter which window was closed last.
+        AppDomain.CurrentDomain.ProcessExit += (_, _) =>
+        {
+            try
+            {
+                Serilog.Log.Information("Inventor MetaReader exiting");
+                Serilog.Log.CloseAndFlush();
+            }
+            catch { /* shutting down anyway */ }
+        };
 
         // Headless docs mode: "--shoot-docs <outDir> [--samples <dir>] [--model <assembly.iam>]"
         // renders one PNG per view (light + dark) and exits, without ever showing the normal app.
@@ -54,6 +69,7 @@ public partial class App
             int modelIndex = Array.IndexOf(cli, "--model");
             string? model = modelIndex >= 0 && modelIndex + 1 < cli.Length
                 ? cli[modelIndex + 1] : null;
+            Serilog.Log.Information("Mode: --shoot-docs -> {OutDir}", cli[shootIndex + 1]);
             _ = DocShooter.RunAsync(cli[shootIndex + 1], samples, model);
             return;
         }
@@ -78,6 +94,7 @@ public partial class App
                 string.Equals(cli[tourThemeIndex + 1], "dark", StringComparison.OrdinalIgnoreCase)
                     ? Microsoft.UI.Xaml.ElementTheme.Dark
                     : Microsoft.UI.Xaml.ElementTheme.Light;
+            Serilog.Log.Information("Mode: --demo-tour ({Theme}) -> {OutDir}", tourTheme, cli[tourIndex + 1]);
             _ = DemoTour.RunAsync(cli[tourIndex + 1], tourSamples, tourModel, tourTheme);
             return;
         }
@@ -86,6 +103,7 @@ public partial class App
         // key, generates the SVF into the store, prints the result to the console, and exits.
         if (Array.IndexOf(cli, "--gen-svf") >= 0)
         {
+            Serilog.Log.Information("Mode: --gen-svf");
             SvfTestRunner.Run(cli);
             return;
         }

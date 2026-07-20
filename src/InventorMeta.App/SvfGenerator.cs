@@ -164,8 +164,8 @@ public static class SvfGenerator
     private const int RPC_E_SERVERCALL_REJECTED = unchecked((int)0x80010004);
 
     /// <summary>Turns a COM failure into a message worth showing the user; the raw HRESULT is logged
-    /// separately for diagnosis.</summary>
-    private static string FriendlyError(Exception ex) => ex.HResult switch
+    /// separately for diagnosis. (Shared with <see cref="InventorOpener"/>.)</summary>
+    internal static string FriendlyError(Exception ex) => ex.HResult switch
     {
         RPC_E_CALL_REJECTED or RPC_E_SERVERCALL_RETRYLATER or RPC_E_SERVERCALL_REJECTED =>
             "Inventor was busy and didn't respond in time. Close any open dialog in Inventor (or close "
@@ -174,8 +174,8 @@ public static class SvfGenerator
     };
 
     /// <summary>Uses a running Inventor if one is up; otherwise launches the selected release and
-    /// waits for it to register as a COM server.</summary>
-    private static (object app, bool startedByUs) ConnectOrLaunch(InventorInstall inventor)
+    /// waits for it to register as a COM server. (Shared with <see cref="InventorOpener"/>.)</summary>
+    internal static (object app, bool startedByUs) ConnectOrLaunch(InventorInstall inventor)
     {
         if (TryGetActiveInventor(out object? running)) { return (running!, false); }
 
@@ -224,7 +224,7 @@ public static class SvfGenerator
         [PreserveSig] int MessagePending(IntPtr hTaskCallee, int dwTickCount, int dwPendingType);
     }
 
-    private sealed class OleMessageFilter : IOleMessageFilter
+    internal sealed class OleMessageFilter : IOleMessageFilter
     {
         private const int SERVERCALL_RETRYLATER = 2;   // dwRejectType values
         private const int SERVERCALL_REJECTED = 1;

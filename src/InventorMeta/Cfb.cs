@@ -237,6 +237,126 @@ public sealed class CompoundFile : IDisposable
         return ReadFatChain(e.StartSector, e.Size);
     }
 
+    /// <summary>Overwrite an existing stream's bytes without changing its size. The replacement
+    /// re-uses the stream's sector chain in place, so the directory, FAT and every other stream
+    /// stay byte-identical - exactly what a targeted metadata repair needs. Call
+    /// <see cref="Save"/> afterwards to persist the change.</summary>
+    public void OverwriteStreamInPlace(DirEntry e, byte[] data)
+    {
+        if (e.Type != 2)
+        {
+            throw new InvalidOperationException("Not a stream entry.");
+        }
+
+        if (data.Length != e.Size)
+        {
+            throw new ArgumentException($"Replacement must match the stream size ({e.Size} bytes, got {data.Length}).");
+        }
+
+        if (e.Size < MiniStreamCutoff)
+        {
+            WriteMiniChain(e.StartSector, data);
+        }
+        else
+        {
+            WriteChain(e.StartSector, data, CheckedSectorOffset, SectorSize, NextFat);
+        }
+    }
+
+    /// <summary>Write the (patched) container back to disk. The bytes go to a temp sibling first
+    /// and replace the target atomically, so a crash or full disk mid-write cannot leave the file
+    /// truncated - it either keeps its old content or has the new one.</summary>
+    public void Save(string path)
+    {
+        string tmp = path + ".saving.tmp";
+        File.WriteAllBytes(tmp, _data);
+        try
+        {
+            if (File.Exists(path))
+            {
+                File.Replace(tmp, path, null);
+            }
+            else
+            {
+                File.Move(tmp, path);
+            }
+        }
+        catch
+        {
+            try { File.Delete(tmp); } catch { /* best-effort cleanup */ }
+            throw;
+        }
+    }
+
+    private void WriteMiniChain(uint start, byte[] data)
+    {
+        // Mini sectors live inside the root entry's regular FAT chain; map each mini sector
+        // to its file offset through that chain. MiniSectorSize divides SectorSize, so a mini
+        // sector never straddles two container sectors.
+        List<uint> rootChain = [];
+        uint rs = Directory[0].StartSector; int guard = 0;
+        while (rs != ENDOFCHAIN && rs != FREESECT && guard++ < Fat.Length + 4)
+        {
+            rootChain.Add(rs);
+            rs = NextFat(rs);
+        }
+
+        int FileOffset(uint miniSector)
+        {
+            long byteOff = (long)miniSector * MiniSectorSize;
+            int idx = (int)(byteOff / SectorSize);
+            if (idx >= rootChain.Count)
+            {
+                throw new InvalidDataException("Mini sector beyond the mini-stream container.");
+            }
+
+            // CheckedSectorOffset refuses corrupt root-chain entries; the mini sector then stays
+            // inside that validated container sector (MiniSectorSize divides SectorSize).
+            return CheckedSectorOffset(rootChain[idx]) + (int)(byteOff % SectorSize);
+        }
+
+        WriteChain(start, data, FileOffset, MiniSectorSize,
+                   s => s < MiniFat.Length ? MiniFat[s] : ENDOFCHAIN);
+    }
+
+    /// <summary>Maps a FAT sector to its file offset like <see cref="SectorOffset"/>, but refuses
+    /// (instead of wrapping through the int cast or clamping like the read side) when a corrupt
+    /// chain entry points into the header or beyond the container - a WRITE there would destroy
+    /// unrelated container structures.</summary>
+    private int CheckedSectorOffset(uint s)
+    {
+        long off = ((long)s + 1) * SectorSize;
+        if (off < SectorSize || off + SectorSize > _data.Length)
+        {
+            throw new InvalidDataException($"Corrupt sector chain: sector {s} maps outside the container; refusing to write.");
+        }
+        return (int)off;
+    }
+
+    private void WriteChain(uint start, byte[] data, Func<uint, int> fileOffset, int sectorSize, Func<uint, uint> next)
+    {
+        int written = 0;
+        uint s = start; int guard = 0;
+        while (s != ENDOFCHAIN && s != FREESECT && written < data.Length && guard++ < _data.Length / sectorSize + 4)
+        {
+            int off = fileOffset(s);
+            int n = Math.Min(sectorSize, data.Length - written);
+            if (off < SectorSize || off + n > _data.Length)
+            {
+                throw new InvalidDataException($"Corrupt sector chain: write at offset {off} would leave the container; refusing.");
+            }
+
+            Array.Copy(data, written, _data, off, n);
+            written += n;
+            s = next(s);
+        }
+
+        if (written != data.Length)
+        {
+            throw new InvalidDataException("Sector chain ended before the replacement data was fully written.");
+        }
+    }
+
     // ---- Chain readers ----
     private byte[] ReadFatChain(uint start, long size = -1)
     {
