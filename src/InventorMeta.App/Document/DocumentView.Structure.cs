@@ -144,7 +144,7 @@ public sealed partial class DocumentView
         HorizontalAlignment = right ? HorizontalAlignment.Right : HorizontalAlignment.Left
     };
 
-    private static Grid SegmentGrid(FrameworkElement name, FrameworkElement bar, FrameworkElement blocks, FrameworkElement registry, bool bottomRule)
+    private Grid SegmentGrid(FrameworkElement name, FrameworkElement bar, FrameworkElement blocks, FrameworkElement registry, bool bottomRule)
     {
         Grid g = new() { ColumnSpacing = 10, Padding = new Thickness(0, 6, 0, 6) };
         g.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(165) });
@@ -156,14 +156,14 @@ public sealed partial class DocumentView
         if (bottomRule)
         {
             g.BorderThickness = new Thickness(0, 0, 0, 1);
-            g.BorderBrush = (Brush)Application.Current.Resources["DividerStrokeColorDefaultBrush"];
+            g.BorderBrush = ThemeManager.ThemeBrush("DividerStrokeColorDefaultBrush", ActualTheme);
         }
         return g;
     }
 
     /// <summary>A flat proportional bar: red for a damaged segment, green for a healthy one, on a
     /// subtle full-width track.</summary>
-    private static Border SizeBar(double fraction, bool damaged)
+    private Border SizeBar(double fraction, bool damaged)
     {
         Grid fillGrid = new();
         fillGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(Math.Max(fraction, 0.006), GridUnitType.Star) });
@@ -176,7 +176,7 @@ public sealed partial class DocumentView
         return new Border
         {
             Height = 8, CornerRadius = new CornerRadius(4), VerticalAlignment = VerticalAlignment.Center,
-            Background = (Brush)Application.Current.Resources["ControlFillColorSecondaryBrush"],
+            Background = ThemeManager.ThemeBrush("ControlFillColorSecondaryBrush", ActualTheme),
             Child = fillGrid
         };
     }

@@ -102,8 +102,8 @@ public sealed partial class DocumentView
         Border panel = new()
         {
             Margin = new Thickness(48), CornerRadius = new CornerRadius(10), Child = panelGrid,
-            Background = (Brush)Application.Current.Resources["SolidBackgroundFillColorBaseBrush"],
-            BorderBrush = (Brush)Application.Current.Resources["CardStrokeColorDefaultSolidBrush"],
+            Background = ThemeManager.ThemeBrush("SolidBackgroundFillColorBaseBrush", ActualTheme),
+            BorderBrush = ThemeManager.ThemeBrush("CardStrokeColorDefaultSolidBrush", ActualTheme),
             BorderThickness = new Thickness(1)
         };
         panel.Tapped += (_, e) => e.Handled = true;   // clicks inside the panel don't close
@@ -372,8 +372,8 @@ public sealed partial class DocumentView
         Border panel = new()
         {
             Margin = new Thickness(48), CornerRadius = new CornerRadius(10), Child = panelGrid,
-            Background = (Brush)Application.Current.Resources["SolidBackgroundFillColorBaseBrush"],
-            BorderBrush = (Brush)Application.Current.Resources["CardStrokeColorDefaultSolidBrush"],
+            Background = ThemeManager.ThemeBrush("SolidBackgroundFillColorBaseBrush", ActualTheme),
+            BorderBrush = ThemeManager.ThemeBrush("CardStrokeColorDefaultSolidBrush", ActualTheme),
             BorderThickness = new Thickness(1)
         };
         panel.Tapped += (_, e) => e.Handled = true;
@@ -573,7 +573,8 @@ public sealed partial class DocumentView
             },
             PrimaryButtonText = "Use", CloseButtonText = "Cancel",
             DefaultButton = ContentDialogButton.Primary,
-            XamlRoot = win.Content.XamlRoot
+            XamlRoot = win.Content.XamlRoot,
+            RequestedTheme = (win.Content as FrameworkElement)?.RequestedTheme ?? ElementTheme.Default
         };
 
         if (await dlg.ShowAsync() != ContentDialogResult.Primary) { return null; }

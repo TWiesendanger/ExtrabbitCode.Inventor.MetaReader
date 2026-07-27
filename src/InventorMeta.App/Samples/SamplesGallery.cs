@@ -17,6 +17,7 @@ internal static class SamplesGallery
 {
     public static async Task ShowAsync(XamlRoot xamlRoot, Action<string> open, Action<ContentDialog>? built = null)
     {
+        ElementTheme theme = xamlRoot.Content is FrameworkElement rootFe ? rootFe.RequestedTheme : ElementTheme.Default;
         var samples = SampleFiles.AvailableSamples().ToList();
 
         StackPanel body = new() { Spacing = 10, Width = 460 };
@@ -32,12 +33,13 @@ internal static class SamplesGallery
             PrimaryButtonText = samples.Count > 1 ? "Open all" : "",
             CloseButtonText = "Close",
             DefaultButton = ContentDialogButton.Close,
-            XamlRoot = xamlRoot
+            XamlRoot = xamlRoot,
+            RequestedTheme = (xamlRoot.Content as FrameworkElement)?.RequestedTheme ?? ElementTheme.Default
         };
 
         foreach ((SampleFiles.Sample sample, string path) in samples)
         {
-            Button card = SampleCard(sample);
+            Button card = SampleCard(sample, theme);
             card.Click += (_, _) => { dlg.Hide(); open(path); };
             body.Children.Add(card);
         }
@@ -61,7 +63,7 @@ internal static class SamplesGallery
     }
 
     /// <summary>A full-width clickable card: type icon, title and one-line capability blurb.</summary>
-    private static Button SampleCard(SampleFiles.Sample sample)
+    private static Button SampleCard(SampleFiles.Sample sample, ElementTheme theme)
     {
         Image icon = new()
         {
@@ -97,8 +99,8 @@ internal static class SamplesGallery
             HorizontalContentAlignment = HorizontalAlignment.Stretch,
             Padding = new Thickness(14, 12, 14, 12),
             CornerRadius = new CornerRadius(8),
-            Background = (Brush)Application.Current.Resources["CardBackgroundFillColorDefaultBrush"],
-            BorderBrush = (Brush)Application.Current.Resources["CardStrokeColorDefaultSolidBrush"],
+            Background = ThemeManager.ThemeBrush("CardBackgroundFillColorDefaultBrush", theme),
+            BorderBrush = ThemeManager.ThemeBrush("CardStrokeColorDefaultSolidBrush", theme),
             BorderThickness = new Thickness(1)
         };
     }

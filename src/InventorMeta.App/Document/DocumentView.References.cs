@@ -415,7 +415,7 @@ public sealed partial class DocumentView
         Border box = new() { Style = (Style)Resources["DataCard"], Width = w, Height = h, Child = g };
         if (n.Depth == 0)
         {
-            box.BorderBrush = (Brush)Application.Current.Resources["AccentFillColorDefaultBrush"];
+            box.BorderBrush = ThemeManager.ThemeBrush("AccentFillColorDefaultBrush", ActualTheme);
             box.BorderThickness = new Thickness(2);
         }
         else if (isFactory)

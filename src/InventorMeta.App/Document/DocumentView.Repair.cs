@@ -189,6 +189,7 @@ public sealed partial class DocumentView
         {
             Title = "Read this before repairing",
             XamlRoot = XamlRoot,
+            RequestedTheme = ActualTheme,
             PrimaryButtonText = "Continue",
             CloseButtonText = "Cancel",
             DefaultButton = ContentDialogButton.Close,
@@ -230,6 +231,7 @@ public sealed partial class DocumentView
             {
                 Title = "Repair the segment database?",
                 XamlRoot = XamlRoot,
+                RequestedTheme = ActualTheme,
                 PrimaryButtonText = "Repair",
                 CloseButtonText = "Cancel",
                 DefaultButton = ContentDialogButton.Primary,

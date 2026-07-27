@@ -32,6 +32,7 @@ internal static class EngineDialogs
     /// chooser on camera (setting its theme and closing it again).</summary>
     public static async Task<SvfEngine?> ShowChooserAsync(XamlRoot xamlRoot, Action<ContentDialog>? built = null)
     {
+        ElementTheme theme = xamlRoot.Content is FrameworkElement rootFe ? rootFe.RequestedTheme : ElementTheme.Default;
         SvfEngine? picked = null;
 
         ContentDialog dlg = new()
@@ -39,12 +40,13 @@ internal static class EngineDialogs
             Title = ChooserTitle,
             CloseButtonText = "Not now",
             DefaultButton = ContentDialogButton.None,
-            XamlRoot = xamlRoot
+            XamlRoot = xamlRoot,
+            RequestedTheme = (xamlRoot.Content as FrameworkElement)?.RequestedTheme ?? ElementTheme.Default
         };
         // the two cards need more room than ContentDialog's default 548px cap - without this the
         // right card gets clipped
         dlg.Resources["ContentDialogMaxWidth"] = 720d;
-        dlg.Content = BuildChooserBody(e => { picked = e; dlg.Hide(); });
+        dlg.Content = BuildChooserBody(e => { picked = e; dlg.Hide(); }, theme);
 
         built?.Invoke(dlg);
         await dlg.ShowAsync();
@@ -54,7 +56,7 @@ internal static class EngineDialogs
     /// <summary>The chooser's body - intro line plus the two engine cards. Also hosted by the
     /// documentation snapshotter, which can't photograph a real ContentDialog (popups render in
     /// their own layer, outside the window content that RenderTargetBitmap sees).</summary>
-    internal static StackPanel BuildChooserBody(Action<SvfEngine> onPick)
+    internal static StackPanel BuildChooserBody(Action<SvfEngine> onPick, ElementTheme theme)
     {
         Grid cards = new() { ColumnSpacing = 12 };
         cards.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
@@ -63,11 +65,11 @@ internal static class EngineDialogs
         Button inventor = EngineCard(
             "ms-appx:///Assets/inventor.png", "Autodesk Inventor", "Exact translation",
             pros: ["Exact geometry, positions and rotations", "Official Inventor translator"],
-            cons: ["Slower - starts Inventor in the background", "Needs Inventor installed on this PC"]);
+            cons: ["Slower - starts Inventor in the background", "Needs Inventor installed on this PC"], theme);
         Button local = EngineCard(
             "ms-appx:///Assets/extrabbit.png", "Built-in converter", "Fast, best effort",
             pros: ["No Inventor needed on this PC", "Fast - reads the mesh cached in the file"],
-            cons: ["Best effort: positions or rotations can be off", "Simplified materials"]);
+            cons: ["Best effort: positions or rotations can be off", "Simplified materials"], theme);
 
         inventor.Click += (_, _) => onPick(SvfEngine.Inventor);
         local.Click += (_, _) => onPick(SvfEngine.Local);
@@ -115,13 +117,14 @@ internal static class EngineDialogs
             Content = body,
             PrimaryButtonText = "Got it",
             DefaultButton = ContentDialogButton.Primary,
-            XamlRoot = xamlRoot
+            XamlRoot = xamlRoot,
+            RequestedTheme = (xamlRoot.Content as FrameworkElement)?.RequestedTheme ?? ElementTheme.Default
         };
         await dlg.ShowAsync();
     }
 
     /// <summary>One selectable engine card: icon, name, tagline, then pro (✓) and con (−) lines.</summary>
-    private static Button EngineCard(string iconAsset, string title, string tagline, string[] pros, string[] cons)
+    private static Button EngineCard(string iconAsset, string title, string tagline, string[] pros, string[] cons, ElementTheme theme)
     {
         StackPanel content = new() { Spacing = 4 };
 
@@ -133,8 +136,8 @@ internal static class EngineDialogs
         content.Children.Add(new TextBlock { Text = title, FontSize = 16, FontWeight = FontWeights.SemiBold });
         content.Children.Add(new TextBlock { Text = tagline, FontSize = 12, Opacity = 0.65, Margin = new Thickness(0, 0, 0, 8) });
 
-        foreach (string p in pros) { content.Children.Add(TraitLine("", "SystemFillColorSuccessBrush", p)); }
-        foreach (string c in cons) { content.Children.Add(TraitLine("", "SystemFillColorCautionBrush", c)); }
+        foreach (string p in pros) { content.Children.Add(TraitLine("", "SystemFillColorSuccessBrush", p, theme)); }
+        foreach (string c in cons) { content.Children.Add(TraitLine("", "SystemFillColorCautionBrush", c, theme)); }
 
         return new Button
         {
@@ -145,13 +148,13 @@ internal static class EngineDialogs
             HorizontalContentAlignment = HorizontalAlignment.Stretch,
             VerticalAlignment = VerticalAlignment.Stretch,
             VerticalContentAlignment = VerticalAlignment.Top,
-            Background = (Brush)Application.Current.Resources["CardBackgroundFillColorDefaultBrush"],
-            BorderBrush = (Brush)Application.Current.Resources["CardStrokeColorDefaultSolidBrush"],
+            Background = ThemeManager.ThemeBrush("CardBackgroundFillColorDefaultBrush", theme),
+            BorderBrush = ThemeManager.ThemeBrush("CardStrokeColorDefaultSolidBrush", theme),
             BorderThickness = new Thickness(1)
         };
     }
 
-    private static Grid TraitLine(string glyph, string brushKey, string text)
+    private static Grid TraitLine(string glyph, string brushKey, string text, ElementTheme theme)
     {
         Grid g = new() { ColumnSpacing = 8, Margin = new Thickness(0, 2, 0, 2) };
         g.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
@@ -161,7 +164,7 @@ internal static class EngineDialogs
         {
             Glyph = glyph, FontSize = 12, VerticalAlignment = VerticalAlignment.Top,
             Margin = new Thickness(0, 3, 0, 0),
-            Foreground = (Brush)Application.Current.Resources[brushKey]
+            Foreground = ThemeManager.ThemeBrush(brushKey, theme)
         };
         TextBlock label = new() { Text = text, FontSize = 12, Opacity = 0.85, TextWrapping = TextWrapping.Wrap };
 

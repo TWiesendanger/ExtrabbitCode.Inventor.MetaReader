@@ -30,6 +30,11 @@ internal static class AppInfo
     /// <summary>Newest first.</summary>
     public static readonly (string Version, string[] Notes)[] History =
     [
+        ("1.4.0.0", [
+            "Light and dark theme are now honoured consistently across every dialog and surface - the What's new panel, Settings, the engine chooser, the samples gallery and more - including when the app theme differs from the Windows system theme.",
+            "A dedicated dark-mode accent colour, tuned for dark backgrounds instead of borrowing the Windows system highlight.",
+            "Assorted visual polish, including rounded corners on the About dialog."
+        ]),
         ("1.3.0.0", [
             "Damaged files are now diagnosed precisely: MetaReader tells apart a stale segment registry it can repair from destroyed segment data it cannot, and for the latter explains why no repair is possible and what to do instead (restore a backup).",
             "3D generation always runs in its own dedicated Inventor instance that is shut down afterwards, so it never disturbs an Inventor session you have open - and is more reliable.",

@@ -297,7 +297,7 @@ public sealed partial class MainWindow
     {
         OverlayHost.Background = dimmed
             ? new Microsoft.UI.Xaml.Media.SolidColorBrush(Windows.UI.Color.FromArgb(0xB3, 0, 0, 0))
-            : (Microsoft.UI.Xaml.Media.Brush)Application.Current.Resources["SolidBackgroundFillColorBaseBrush"];
+            : ThemeManager.ThemeBrush("SolidBackgroundFillColorBaseBrush", _theme);
         OverlayHost.Children.Clear();
         OverlayHost.Children.Add(content);
         OverlayHost.Visibility = Visibility.Visible;

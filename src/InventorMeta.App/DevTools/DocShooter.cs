@@ -83,7 +83,7 @@ internal static class DocShooter
                     Brush stroke = new SolidColorBrush(light ? Windows.UI.Color.FromArgb(0xFF, 0xE0, 0xE0, 0xE0) : Windows.UI.Color.FromArgb(0xFF, 0x36, 0x36, 0x36));
                     Brush cardBg = new SolidColorBrush(light ? Windows.UI.Color.FromArgb(0xB3, 0xFF, 0xFF, 0xFF) : Windows.UI.Color.FromArgb(0x14, 0xFF, 0xFF, 0xFF));
 
-                    StackPanel body = EngineDialogs.BuildChooserBody(_ => { });
+                    StackPanel body = EngineDialogs.BuildChooserBody(_ => { }, theme);
                     if (body.Children[^1] is Grid engineCards)
                     {
                         foreach (UIElement child in engineCards.Children)
