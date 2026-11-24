@@ -53,6 +53,8 @@ reverse-engineering write-up.
   once that state has been recomputed in Inventor; until then the tool shows `(not cached)`
   instead of guessing.)*
 - **Model States** and the originating template / version provenance
+- **iLogic** - whether a document carries rules, each rule's name, options (suppressed, don't run
+  automatically, …) and code, and its event triggers
 - **STEP files** (`.stp` / `.step`) - the ISO-10303 header (author, organization, schema), entity
   counts, products and solid bodies
 - The raw CFB storage/stream tree, and any individual stream

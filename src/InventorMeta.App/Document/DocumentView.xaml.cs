@@ -35,6 +35,7 @@ public sealed partial class DocumentView
         InitializeComponent();
         WireTabHide(PropsTab, "All Properties");
         WireTabHide(StatesTab, "Model States");
+        WireTabHide(ILogicTab, "iLogic");
         WireTabHide(RefsTab, "References");
         WireTabHide(StructureTab, "File Structure");
 
@@ -58,7 +59,8 @@ public sealed partial class DocumentView
     private void OnDetailTabChanged(object sender, SelectionChangedEventArgs e)
     {
         bool hasCards = ReferenceEquals(DetailTabs.SelectedItem, PropsTab)
-                     || ReferenceEquals(DetailTabs.SelectedItem, StatesTab);
+                     || ReferenceEquals(DetailTabs.SelectedItem, StatesTab)
+                     || ReferenceEquals(DetailTabs.SelectedItem, ILogicTab);
         TabStripActions.Visibility = hasCards ? Visibility.Visible : Visibility.Collapsed;
 
         if (Document != null && DetailTabs.SelectedItem is TabViewItem { Header: string hdr })
@@ -126,6 +128,7 @@ public sealed partial class DocumentView
         bool isStep = Document?.IsStep == true;
         PropsTab.Visibility = TabVis("All Properties", true);
         StatesTab.Visibility = TabVis("Model States", Document?.HasModelStates == true);
+        ILogicTab.Visibility = TabVis("iLogic", Document?.ILogic.IsEmpty == false);
         RefsTab.Visibility = TabVis("References", !isStep);
         StructureTab.Visibility = TabVis("File Structure", true);
 
@@ -200,6 +203,7 @@ public sealed partial class DocumentView
         }
         Tab("All Properties", true);
         Tab("Model States", Document.HasModelStates);
+        Tab("iLogic", !Document.ILogic.IsEmpty);
         Tab("References", !Document.IsStep);
         Tab("File Structure", true);
 
@@ -354,6 +358,7 @@ public sealed partial class DocumentView
         }
 
         SetCategoryBadge(doc);
+        SetILogicBadges(doc);
         SetDamageBadge(doc);
 
         RenderSidebar();   // also sets the 3D triggers (button visible only when the thumbnail is off)
@@ -373,6 +378,8 @@ public sealed partial class DocumentView
         }
 
         PopulateStates(doc);
+
+        PopulateILogic(doc);
 
         PopulateReferences(doc);
 

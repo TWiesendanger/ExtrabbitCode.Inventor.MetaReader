@@ -219,6 +219,33 @@ public static class SegmentDataCheck
         return (true, produced, false);
     }
 
+    /// <summary>The decompressed image of one segment payload blob (the B&lt;id&gt; stream), or null
+    /// when the stream is not in the known blob layout or does not decompress cleanly. Used by
+    /// readers that look inside a segment (e.g. <see cref="ILogicReader"/> for the attribute
+    /// segment); the damage check above only counts bytes and never keeps the image.</summary>
+    internal static byte[]? TryInflate(byte[] data)
+    {
+        if (data.Length < 18 || !data.AsSpan(0, 16).SequenceEqual(BlobMagic) || data[17] is not (1 or 2))
+        {
+            return null;
+        }
+        try
+        {
+            int skip = data[17] == 1 ? 20 : 18;   // zlib: skip its 2-byte header, decode as bare deflate
+            using MemoryStream src = new(data, skip, data.Length - skip);
+            using Stream dec = data[17] == 1
+                ? new DeflateStream(src, CompressionMode.Decompress)
+                : new ZstdSharp.DecompressionStream(src);
+            using MemoryStream image = new();
+            dec.CopyTo(image);
+            return image.ToArray();
+        }
+        catch
+        {
+            return null;   // damaged payload - see FindDamage
+        }
+    }
+
     private static long LongestZeroRun(byte[] data)
     {
         long best = 0, run = 0;

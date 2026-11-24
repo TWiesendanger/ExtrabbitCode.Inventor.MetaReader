@@ -31,6 +31,7 @@ internal static class AppInfo
     public static readonly (string Version, string[] Notes)[] History =
     [
         ("1.4.0.0", [
+            "iLogic: see whether a document carries rules, each rule's options and code, and which events trigger them - in the sidebar, a new iLogic tab, and the CLI ('invmeta ilogic', plus iLogic in 'info' and 'json').",
             "Light and dark theme are now honoured consistently across every dialog and surface - the What's new panel, Settings, the engine chooser, the samples gallery and more - including when the app theme differs from the Windows system theme.",
             "A dedicated dark-mode accent colour, tuned for dark backgrounds instead of borrowing the Windows system highlight.",
             "Assorted visual polish, including rounded corners on the About dialog."

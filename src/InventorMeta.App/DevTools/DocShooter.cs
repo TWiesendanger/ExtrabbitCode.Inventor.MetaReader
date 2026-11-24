@@ -36,6 +36,10 @@ internal static class DocShooter
             string? part = ShootSupport.Sample(samplesDir, "SampleBg", "SamplePart.ipt"); // thumbnail + 3 model states
             string? tnp = ShootSupport.Sample(samplesDir, "SampleBg", "TubeAndPipe.ipt"); // Content Center pipe -> "Piping" badge
             string? sampleAsm = ShootSupport.Sample(samplesDir, "SampleBg", "SampleBg.iam"); // for the recent list
+            // A part with iLogic rules + event triggers, for the iLogic chips and tab. Not bundled with
+            // the app; copy tests/InventorMeta.Tests/Fixtures/iLogic/ThreeRules.ipt there as
+            // iLogicRules.ipt to shoot it. Skipped when absent.
+            string? iLogicPart = ShootSupport.Sample(samplesDir, "SampleBg", "iLogicRules.ipt");
 
             // The reference graph uses the --model assembly when given (and present), else SampleBg.
             string? asm = modelPath != null && File.Exists(modelPath) ? modelPath : sampleAsm;
@@ -182,6 +186,26 @@ internal static class DocShooter
                     if (w.CurrentView?.ShootElement("SidebarCard") is { } catSidebar)
                     {
                         await CaptureRegion(w, catSidebar, "app__category-sidebar", theme, outDir);
+                    }
+                }
+
+                // 4c. iLogic: the outlined "iLogic" + trigger chips next to the category badge, and the
+                // iLogic tab listing the rules with their options, triggers and code.
+                if (iLogicPart != null)
+                {
+                    w.ShootCloseAllTabs();
+                    w.ShootOpen(iLogicPart);
+                    await Task.Delay(800);
+                    DocumentView? lv = w.CurrentView;
+                    if (lv?.ShootElement("SidebarCard") is { } iLogicSidebar)
+                    {
+                        await CaptureRegion(w, iLogicSidebar, "app__ilogic-sidebar", theme, outDir);
+                    }
+                    lv?.ShootSelectTab("iLogic");
+                    await Task.Delay(600);
+                    if (lv?.ShootElement("DetailTabs") is { } iLogicPanel)
+                    {
+                        await CaptureRegion(w, iLogicPanel, "app__ilogic-panel", theme, outDir);
                     }
                 }
 

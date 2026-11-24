@@ -2,7 +2,8 @@
     x:Class="ExtrabbitCode.Inventor.MetaReader.App.Document.DocumentView"
     xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-    xmlns:muxc="using:Microsoft.UI.Xaml.Controls">
+    xmlns:muxc="using:Microsoft.UI.Xaml.Controls"
+    xmlns:common="using:ExtrabbitCode.Inventor.MetaReader.App.Common">
 
     <UserControl.Resources>
         <!-- theme-reactive styles for the code-built cards & tables -->
@@ -53,6 +54,33 @@
             <Setter Property="FontSize" Value="11"/>
             <Setter Property="FontWeight" Value="SemiBold"/>
             <Setter Property="Foreground" Value="{ThemeResource TextOnAccentFillColorPrimaryBrush}"/>
+        </Style>
+        <!-- Outlined chip for what a document CONTAINS (iLogic, triggers, rule options); the solid
+             category badge says what it IS. Theme colours only, so it follows the light/dark toggle. -->
+        <Style x:Key="FeatureChip" TargetType="Border">
+            <Setter Property="Background" Value="{ThemeResource SubtleFillColorSecondaryBrush}"/>
+            <Setter Property="BorderBrush" Value="{ThemeResource ControlStrongStrokeColorDisabledBrush}"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="CornerRadius" Value="10"/>
+            <Setter Property="Padding" Value="9,1,9,2"/>
+            <Setter Property="VerticalAlignment" Value="Center"/>
+        </Style>
+        <Style x:Key="FeatureChipText" TargetType="TextBlock">
+            <Setter Property="FontSize" Value="11"/>
+            <Setter Property="FontWeight" Value="SemiBold"/>
+            <Setter Property="Foreground" Value="{ThemeResource TextFillColorPrimaryBrush}"/>
+        </Style>
+        <Style x:Key="FeatureChipIcon" TargetType="FontIcon">
+            <Setter Property="FontSize" Value="11"/>
+            <Setter Property="VerticalAlignment" Value="Center"/>
+            <Setter Property="Foreground" Value="{ThemeResource AccentTextFillColorPrimaryBrush}"/>
+        </Style>
+        <!-- read-only source code (iLogic rule text) -->
+        <Style x:Key="CodeBlock" TargetType="Border">
+            <Setter Property="Background" Value="{ThemeResource CardBackgroundFillColorSecondaryBrush}"/>
+            <Setter Property="BorderBrush" Value="{ThemeResource CardStrokeColorDefaultBrush}"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="CornerRadius" Value="6"/>
         </Style>
     </UserControl.Resources>
 
@@ -151,11 +179,31 @@
                             <StackPanel Grid.Column="1">
                                 <TextBlock x:Name="FileNameText" FontSize="16" FontWeight="SemiBold" TextWrapping="Wrap"/>
                                 <TextBlock x:Name="DocTypeText" Opacity="0.7" FontSize="13" TextWrapping="Wrap"/>
-                                <!-- colour-coded document category; hover shows the legend (set in code) -->
-                                <Border x:Name="CategoryBadge" Margin="0,7,0,1" CornerRadius="10" Padding="10,2,10,3"
-                                        HorizontalAlignment="Left" Visibility="Collapsed">
-                                    <TextBlock x:Name="CategoryBadgeText" FontSize="11" FontWeight="SemiBold" Foreground="White"/>
-                                </Border>
+                                <!-- badge row: what the document is (solid) + what it contains (outlined);
+                                     wraps when the badges outgrow the card -->
+                                <common:WrapPanel x:Name="BadgeRow" Margin="0,7,0,1">
+                                    <!-- colour-coded document category; hover shows the legend (set in code) -->
+                                    <Border x:Name="CategoryBadge" CornerRadius="10" Padding="10,2,10,3"
+                                            VerticalAlignment="Center" Visibility="Collapsed">
+                                        <TextBlock x:Name="CategoryBadgeText" FontSize="11" FontWeight="SemiBold" Foreground="White"/>
+                                    </Border>
+                                    <!-- the document contains iLogic rules; hover lists them, click opens the iLogic tab -->
+                                    <Border x:Name="ILogicChip" Style="{StaticResource FeatureChip}" Visibility="Collapsed"
+                                            Tapped="OnILogicChipTapped">
+                                        <StackPanel Orientation="Horizontal" Spacing="5">
+                                            <FontIcon Glyph="&#xE943;" Style="{StaticResource FeatureChipIcon}"/>
+                                            <TextBlock Text="iLogic" Style="{StaticResource FeatureChipText}"/>
+                                        </StackPanel>
+                                    </Border>
+                                    <!-- iLogic event triggers; hover lists event -> rule -->
+                                    <Border x:Name="TriggerChip" Style="{StaticResource FeatureChip}" Visibility="Collapsed"
+                                            Tapped="OnILogicChipTapped">
+                                        <StackPanel Orientation="Horizontal" Spacing="5">
+                                            <FontIcon Glyph="&#xE945;" Style="{StaticResource FeatureChipIcon}"/>
+                                            <TextBlock x:Name="TriggerChipText" Style="{StaticResource FeatureChipText}"/>
+                                        </StackPanel>
+                                    </Border>
+                                </common:WrapPanel>
                                 <!-- stale segment summaries: Inventor refuses such files; the button repairs in place -->
                                 <StackPanel x:Name="DamagePanel" Orientation="Horizontal" Spacing="8" Margin="0,7,0,1"
                                             Visibility="Collapsed">
@@ -222,6 +270,10 @@
                     <muxc:TabViewItem x:Name="StatesTab" Header="Model States" IsClosable="False">
                         <muxc:TabViewItem.IconSource><muxc:SymbolIconSource Symbol="Switch"/></muxc:TabViewItem.IconSource>
                         <ScrollViewer Padding="10,10"><StackPanel x:Name="StatesPanel" Spacing="12"/></ScrollViewer>
+                    </muxc:TabViewItem>
+                    <muxc:TabViewItem x:Name="ILogicTab" Header="iLogic" IsClosable="False">
+                        <muxc:TabViewItem.IconSource><muxc:FontIconSource Glyph="&#xE943;"/></muxc:TabViewItem.IconSource>
+                        <ScrollViewer Padding="10,10"><StackPanel x:Name="ILogicPanel" Spacing="12"/></ScrollViewer>
                     </muxc:TabViewItem>
                     <muxc:TabViewItem x:Name="RefsTab" Header="References" IsClosable="False">
                         <muxc:TabViewItem.IconSource><muxc:SymbolIconSource Symbol="Link"/></muxc:TabViewItem.IconSource>

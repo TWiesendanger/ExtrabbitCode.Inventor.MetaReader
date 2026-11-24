@@ -23,6 +23,7 @@ byte-by-byte with the tooling in this repo. Findings are split into
 | Model States / representations | ✅ Yes (names) | `UFRxDoc` + `MemberDocs` |
 | **iProperties per model state** (without switching states!) | ✅ Yes, fully | each `MemberDocs/<state>` sub-doc - see §7 |
 | Originating template, save/version provenance | ✅ Yes | `UFRxDoc` |
+| **iLogic rules** (names, code, options) + event triggers | ✅ Yes | `_iLogic` / `_iLogicEventsRules` property sets + the attribute segment - see §9 |
 | Parametric feature tree, sketches, parameters | ❌ Opaque | `RSeStorage` (proprietary B-Rep DB) |
 | Exact solid geometry (B-Rep) | ❌ Opaque | `RSeStorage` segment streams |
 
@@ -245,6 +246,13 @@ The **segment payloads are a proprietary serialization of Inventor's modeling ke
 features/geometry is not practical and not stable across releases. **This is the wall**:
 for geometry, use a neutral export or the Inventor/Apprentice API instead.
 
+The *container* of each payload is known, though: a `B…` stream is one compressed blob - an
+18-byte header (16-byte format id `9E C2 2B A4 …`, a version byte, a compression byte:
+1 = zlib, 2 = zstd) followed by the compressed image (`SegmentDataCheck` decodes it). Most
+decompressed images are still opaque kernel data, but some segments hold simple tagged records -
+notably the **attribute segment** (`FBAttributeSegment`), which carries the document's
+`AttributeSets` and with them every iLogic rule (§9).
+
 ---
 
 ## 7. `MemberDocs` - Model States (and iPart/iAssembly members)  ⭐ per-state properties
@@ -348,17 +356,108 @@ detects PNG/BMP/DIB by magic and wraps a bare DIB in a BMP header). Strip the pr
 
 ---
 
-## 9. What you can build on this
+## 9. iLogic rules and event triggers
+
+Verified against parts and assemblies saved by Inventor 2027.2: hand-made test files (one rule;
+the same rule with an event trigger, suppressed, and deleted again) plus files generated through
+the iLogic automation API (several rules, each rule option, non-ASCII names and code). iLogic
+data lives in three places.
+
+### 9.1 `_iLogic` property set: "the document has rules"
+
+FMTID `2EB795DD-E92E-4C88-9A5C-00BD21AEA7C8`, PID 2 `RuleStatus` = `InUse`. Present while the
+document has at least one rule - **active or suppressed** - and **removed when the last rule is
+deleted**, so it is a reliable, cheap "has iLogic" test with no false positives.
+
+### 9.2 `_iLogicEventsRules` property set: event triggers
+
+FMTID `2C540830-0723-455E-A8E2-891722EB4C3E` (older files name it `iLogicEventsRules`, without the
+underscore - match by FMTID). Each trigger is one property: **name = event id + index**
+(`BeforeDocSave0`, `BeforeDocSave1`, …), **value = the rule's name**. Deleting a rule removes its
+triggers. The set can also exist **empty** (only PID 255) in a file without rules, e.g. inherited
+from a template - so on its own it does *not* mean "has iLogic".
+
+The event ids are iLogic's `InventorEventCode` names; the labels below are the English names the
+Event Triggers dialog shows (from iLogic's own `EventNames` resources):
+
+| Event id | Label | Event id | Label |
+|----------|-------|----------|-------|
+| `BeforeDocOpen` | Before Open Document | `AfterAnyParamChange` | Any Model Parameter Change |
+| `AfterDocOpen` | After Open Document | `AfterAnyUserParamChange` | Any User Parameter Change |
+| `DocClose` | Close Document | `PartBodyChanged` | Part Geometry Change |
+| `BeforeDocSave` | Before Save Document | `AfterMaterialChange` | Material Change |
+| `AfterDocSave` | After Save Document | `AfterAnyiPropertyChange` | iProperty Change |
+| `AfterDocNew` | New Document | `AfterDrawingViewsUpdate` | Drawing View Change |
+| `AfterModelStateActivated` | Model State Activated | `AfterFeatureSuppressionChange` | Feature Suppression Change |
+| `BeforeVaultCheckIn` | Before Vault Check-In | `AfterComponentSuppressionChange` | Component Suppression Change |
+| | | `AfterComponentReplace` | iPart or iAssembly Change Component |
+
+Only `BeforeDocSave` has been seen in a file saved from the Event Triggers dialog; the other ids are
+taken from iLogic's code, and an unknown id is shown as-is.
+
+### 9.3 The rules themselves: the attribute segment
+
+iLogic stores rules as document **attributes** (`Document.AttributeSets` in the API), which live in
+the `FBAttributeSegment` RSeStorage segment. Decompressed (§6), it holds two kinds of records:
+
+* **Attribute set declarations**, in order: `u32 chars | UTF-16 name`, preceded by the list of the
+  set's attribute ids.
+* **Attributes**, grouped set by set *in the same order as the declarations*:
+  `u32 chars | UTF-16 name | u8 type | 39 00 00 | value`, where type 1 = `int32`, 3 = string
+  (`u32 chars | UTF-16`), 4 = byte array (`02 00 00 30 | u32 len | u32 len | u32 | bytes`). These
+  match the API's `ValueTypeEnum` (kIntegerType 14593, kStringType 14595, kByteArrayType 14596).
+
+The iLogic attribute sets:
+
+| Attribute set | Attribute | Meaning |
+|---------------|-----------|---------|
+| `iLogicRuleListSet` | `iLogicRuleList` (bytes) | rule name -> attribute set, in browser order (below) |
+| `iLogicRule_Name<n>` (one per rule) | `iLogicRuleText` (string) | **the rule's code**, exactly as written |
+| | `iLogicRuleFlags` (int) | **rule options** (below) |
+| | `iLogicRuleExecText` (string) | the generated VB wrapper iLogic compiles - a cache, rebuilt from `iLogicRuleText` when missing |
+| | `iLogicType`, `iLogicDataVersion`, `iLogicRuleParams`, `iLogicRuleRefAssems` | bookkeeping |
+| `iLogicDocumentRuleOptions` | `iLogicRuleRunningOrder` (int) | |
+| `iLogicDocumentLanguageAttSet` | `iLogicDocumentLanguage` / `…ThreeLetterLanguage` | e.g. `en-US` / `eng` |
+
+`iLogicRuleList` is `u8 version | u32 count | count × (u32 bytes | UTF-16 rule name | u32 bytes |
+UTF-16 set name)`. **The `<n>` in `iLogicRule_Name<n>` is an internal slot, not a position** - a
+file with three rules had `Name0`, `Name3`, `Name4` - so rule names must come from this list, and
+each set's attributes are found by the set's position among the declarations.
+
+`iLogicRuleFlags` bits, in the order iLogic's own `RuleOptions` class declares its fields; each bit
+was confirmed by toggling one option and diffing the saved file:
+
+| Bit | Option | Default |
+|-----|--------|---------|
+| `0x01` | quick-run mode | on |
+| `0x02` | **Suppressed** | off |
+| `0x04` | Straight VB code | off |
+| `0x08` | Fire dependent rules immediately | off |
+| `0x10` | Don't run automatically | off |
+| `0x20` | Silent operation **off** (inverted) | off (= silent) |
+
+So a fresh rule reads `1`, a suppressed one `3`, one that doesn't run automatically `17`. Suppression
+changes *only* this value - the `_iLogic` property set keeps saying `InUse`.
+
+**External rules** live in `.iLogicVb` files outside the document; only a trigger that names them
+can appear here. `ILogicReader` implements all of the above and only decompresses the attribute
+segment when the `_iLogic` set is present.
+
+---
+
+## 10. What you can build on this
 
 * **Reliable & forward-stable:** type detection, all iProperties, custom properties,
   thumbnail, references, model-state names, version/provenance. These use *documented*
   Microsoft container/property-set formats + a stable Inventor PID map, so they keep
   working across Inventor versions.
+* **Also readable:** iLogic rules, their options and event triggers (§9) - a simple record
+  format inside one compressed segment.
 * **Don't attempt:** parsing `RSeStorage` segment payloads for geometry/features.
 
 ---
 
-## 10. Sources
+## 11. Sources
 
 * **[MS-CFB]** Compound File Binary File Format - Microsoft Open Specifications.
 * **[MS-OLEPS]** Object Linking and Embedding Property Set Data Structures - Microsoft.

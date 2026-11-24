@@ -25,6 +25,12 @@ internal static class WhatsNewDialog
     [
         new("1.4.0",
         [
+            new("See the iLogic inside a file",
+                "Documents with iLogic rules now show an \"iLogic\" chip next to the category badge, " +
+                "plus a trigger chip when events run rules. A new iLogic tab lists every rule with " +
+                "its options (suppressed, doesn't run automatically, …), the events that run it and " +
+                "its code - all read straight from the file, without Inventor.",
+                null),
             new("Light theme, everywhere",
                 "The light/dark switch at the top now reaches every corner of the app. Dialogs, " +
                 "cards, the samples gallery and this What's new panel all follow your choice - even " +
