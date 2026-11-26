@@ -25,6 +25,7 @@ internal static class Samples
     public const string SheetSample = "SheetSample.ipt";  // a sheet metal part (part document subtype)
     public const string IAssemblyFactory = "iAssemblyFactory.iam";              // an iAssembly factory
     public const string IAssemblyMember = "iAssemblyFactory/Assembly8-01.iam";  // a generated member of it
+    public const string ILogicPart = "MountingPlate.ipt"; // the gallery's iLogic sample: four rules, three triggers
 
     private static readonly string Dir = Path.Combine(AppContext.BaseDirectory, "SampleBg");
 

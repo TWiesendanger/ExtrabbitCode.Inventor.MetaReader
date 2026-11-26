@@ -137,6 +137,29 @@ public class ILogicTests
     }
 
     [Fact]
+    public void GallerySampleShowsEveryRuleOptionAndItsTriggers()
+    {
+        // The start-page iLogic sample: one rule per option combination, and three triggers -
+        // two rules on the same event plus a second event for one of them.
+        ILogicInfo il = Samples.Load(Samples.ILogicPart).ILogic;
+
+        Assert.Equal(["UpdateDescription", "CheckHoleEdgeDistance", "ApplyStandardSize", "OldHoleCheck"],
+            il.Rules.Select(r => r.Name));
+        Assert.Equal([1, 33, 25, 3], il.Rules.Select(r => r.Flags));
+        Assert.False(il.Rules[1].SilentOperation);
+        Assert.False(il.Rules[2].RunsAutomatically);
+        Assert.True(il.Rules[2].FireDependentImmediately);
+        Assert.True(il.Rules[3].IsSuppressed);
+        Assert.Contains("iProperties.Value(\"Project\", \"Description\")", il.Rules[0].Text);
+
+        Assert.Equal(
+            ["BeforeDocSave0 -> UpdateDescription", "BeforeDocSave1 -> CheckHoleEdgeDistance",
+             "AfterAnyUserParamChange0 -> CheckHoleEdgeDistance"],
+            il.Triggers.Select(t => $"{t.Event}{t.Index} -> {t.RuleName}"));
+        Assert.Equal(2, il.Rules[1].Triggers.Count);
+    }
+
+    [Fact]
     public void DocumentsWithoutILogicReportNothing()
     {
         Assert.True(Samples.Load(Samples.Part).ILogic.IsEmpty);

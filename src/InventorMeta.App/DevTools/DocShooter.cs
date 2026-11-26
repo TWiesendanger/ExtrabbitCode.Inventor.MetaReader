@@ -36,10 +36,8 @@ internal static class DocShooter
             string? part = ShootSupport.Sample(samplesDir, "SampleBg", "SamplePart.ipt"); // thumbnail + 3 model states
             string? tnp = ShootSupport.Sample(samplesDir, "SampleBg", "TubeAndPipe.ipt"); // Content Center pipe -> "Piping" badge
             string? sampleAsm = ShootSupport.Sample(samplesDir, "SampleBg", "SampleBg.iam"); // for the recent list
-            // A part with iLogic rules + event triggers, for the iLogic chips and tab. Not bundled with
-            // the app; copy tests/InventorMeta.Tests/Fixtures/iLogic/ThreeRules.ipt there as
-            // iLogicRules.ipt to shoot it. Skipped when absent.
-            string? iLogicPart = ShootSupport.Sample(samplesDir, "SampleBg", "iLogicRules.ipt");
+            // The gallery's iLogic sample (four rules, three triggers), for the iLogic chips and tab.
+            string? iLogicPart = ShootSupport.Sample(samplesDir, "SampleBg", "MountingPlate.ipt");
 
             // The reference graph uses the --model assembly when given (and present), else SampleBg.
             string? asm = modelPath != null && File.Exists(modelPath) ? modelPath : sampleAsm;

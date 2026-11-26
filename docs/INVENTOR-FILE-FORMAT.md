@@ -395,6 +395,15 @@ Event Triggers dialog shows (from iLogic's own `EventNames` resources):
 Only `BeforeDocSave` has been seen in a file saved from the Event Triggers dialog; the other ids are
 taken from iLogic's code, and an unknown id is shown as-is.
 
+The property **PID** is `(InventorEventCode + 3) × 100 + index`, with the enum values from iLogic's
+`iLogic.InventorEventCode` (`BeforeDocSave` = 4 → 700, `AfterAnyUserParamChange` = 27 → 3000, a
+second rule on it 3001). Checked in Inventor 2027 by writing triggers through
+`Document.PropertySets`: with these PIDs they fire, both live and after a save and reopen. The same
+names with wrong PIDs (9000/9001) never fire, so iLogic does go by the PID. Only 700 has also been
+seen in a file saved from the Event Triggers dialog; the other values come from this formula. The
+bundled `MountingPlate.ipt` sample was built this way. MetaReader reads triggers by property *name*,
+not PID.
+
 ### 9.3 The rules themselves: the attribute segment
 
 iLogic stores rules as document **attributes** (`Document.AttributeSets` in the API), which live in
