@@ -31,6 +31,8 @@
   <ItemGroup>
     <None Include="..\..\src\InventorMeta.App\Assets\SampleFiles\SampleBg\**\*.*" Exclude="..\..\src\InventorMeta.App\Assets\SampleFiles\SampleBg\**\OldVersions\**" Link="SampleBg\%(RecursiveDir)%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
     <None Include="..\..\src\InventorMeta.App\Assets\SampleFiles\SampleSteps\**\*.*" Link="StepSamples\%(RecursiveDir)%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
+    <!-- Test-only fixtures (not shipped with the app), e.g. the iLogic rule/trigger variants. -->
+    <None Update="Fixtures\**\*.*" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
   <!-- The release-discipline tests parse these app sources (the WinUI project itself can't be

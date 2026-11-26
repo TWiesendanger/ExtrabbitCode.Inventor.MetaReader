@@ -29,6 +29,7 @@ invmeta states   <file>              per-model-state iProperties (parts/assembli
 invmeta json     <file>              full metadata as JSON
 invmeta props    <file>              every property in every set
 invmeta graph    <file>              recursive reference tree
+invmeta ilogic   <file>              iLogic rules (with their code) and event triggers
 invmeta segments <file>             RSeStorage segment inventory + damage check
 invmeta repair   <file>             fix a stale segment registry (backs the file up first)
 invmeta tree     <file>              raw file structure
@@ -54,6 +55,12 @@ Compare a multi-state part's properties (the same data as the [Model States](/do
 
 ```bash
 invmeta states "SamplePart.ipt"
+```
+
+List a document's [iLogic](/docs/ilogic) rules with their code, options and event triggers:
+
+```bash
+invmeta ilogic "Bracket.ipt"
 ```
 
 Pull the preview image out of a file:

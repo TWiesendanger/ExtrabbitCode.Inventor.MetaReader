@@ -31,6 +31,12 @@ public static class InventorProps
         // Stamped by Design Accelerator generators (bolted connections, shafts, gears, …);
         // embedded name (PID 255) is "FDesign". Generic - it does not record the generator subtype.
         ["6CD3181A-0C7D-41AA-BDB3-969A9B72E1BB"] = "Design Accelerator",
+        // Stamped by iLogic while the document has rules (removed with the last rule); embedded name
+        // (PID 255) is "_iLogic". Holds RuleStatus = "InUse". See ILogicReader.
+        ["2EB795DD-E92E-4C88-9A5C-00BD21AEA7C8"] = "iLogic",
+        // iLogic event triggers; embedded name is "_iLogicEventsRules" (older files: no underscore).
+        // One property per trigger, named event + index ("BeforeDocSave0"), value = rule name.
+        ["2C540830-0723-455E-A8E2-891722EB4C3E"] = "iLogic Event Triggers",
         ["D861FB30-3136-11D1-9E92-0060B03C1CA6"] = "Design Tracking Control (internal)",
         ["BB586990-AF3E-11D3-95A9-00A0C9B6E37A"] = "Private Model Information (internal)",
         ["02657684-6AD0-49EC-BBD2-9CC4E9293E60"] = "_PostAdaInternalDateMigration (internal)",

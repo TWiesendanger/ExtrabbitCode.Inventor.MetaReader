@@ -239,6 +239,13 @@ public sealed class InventorDocument
         return "";
     }
 
+    private ILogicInfo? _iLogic;
+
+    /// <summary>iLogic rules (names, code, options) and event triggers stored in the document - see
+    /// <see cref="ILogicReader"/>. Free for documents without rules; for documents with rules the
+    /// first access decompresses the small attribute segment.</summary>
+    public ILogicInfo ILogic => _iLogic ??= ILogicReader.Read(this);
+
     private List<ContentCategory>? _categories;
 
     /// <summary>Content Center categories this part belongs to (Tube &amp; Pipe, Frame Generator, …),
@@ -844,6 +851,24 @@ public sealed class InventorDocument
             categories = Categories.Select(c => new { displayName = c.DisplayName, internalName = c.InternalName, mnemonic = c.Mnemonic }).ToArray(),
             subsystems = Subsystems.Select(s => new { key = s.Key, displayName = s.DisplayName }).ToArray(),
             primaryCategory = PrimaryCategory.ToString(),
+            iLogic = new
+            {
+                hasRules = ILogic.HasRules,
+                ruleStatus = ILogic.RuleStatus,
+                rules = ILogic.Rules.Select(r => new
+                {
+                    name = r.Name,
+                    attributeSet = r.AttributeSet,
+                    flags = r.Flags,
+                    isSuppressed = r.IsSuppressed,
+                    runsAutomatically = r.RunsAutomatically,
+                    silentOperation = r.SilentOperation,
+                    fireDependentImmediately = r.FireDependentImmediately,
+                    isStraightVb = r.IsStraightVb,
+                    text = r.Text,
+                }).ToArray(),
+                triggers = ILogic.Triggers.Select(t => new { @event = t.Event, eventLabel = t.EventLabel, index = t.Index, rule = t.RuleName }).ToArray(),
+            },
             segments = Segments.Select(s => new { name = s.Name, dataSize = s.DataSize, metaSize = s.MetaSize, isGraphicsCache = s.IsGraphicsCache }).ToArray(),
             isIPart = IsIPart,
             hasThumbnail = Thumbnail != null,

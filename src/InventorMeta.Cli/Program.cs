@@ -17,6 +17,7 @@ if (args.Length < 2)
           invmeta json    <file>              full metadata as JSON
           invmeta props   <file>              every property in every OLE property set
           invmeta graph   <file>              recursive reference tree (resolved on disk)
+          invmeta ilogic  <file>              iLogic rules (with their code) and event triggers
           invmeta segments <file>             RSeStorage segment inventory + damage check
           invmeta repair  <file>              fix stale segment summaries (backs the file up first)
           invmeta tree    <file>              raw CFB storage/stream tree
@@ -51,6 +52,7 @@ switch (cmd)
     case "thumb":   Thumb(new InventorDocument(file), args.Length > 2 ? args[2] : Path.GetFileNameWithoutExtension(file) + "_thumb"); break;
     case "props":   if (isStep) { StepProps(new InventorDocument(file)); } else { Props(file); } break;
     case "graph":   Graph(new InventorDocument(file)); break;
+    case "ilogic":  ILogic(new InventorDocument(file)); break;
     case "segments":Segments(new InventorDocument(file)); break;
     case "repair":  return Repair(file);
     case "tree":    Tree(file); break;
@@ -200,6 +202,53 @@ static void Graph(InventorDocument doc)
     Print(root, "", true);
 }
 
+static void ILogic(InventorDocument doc)
+{
+    ILogicInfo il = doc.ILogic;
+    if (il.IsEmpty)
+    {
+        Console.WriteLine($"{doc.FileName}: no iLogic rules or event triggers.");
+        return;
+    }
+    if (il.HasRules && il.Rules.Count == 0)
+    {
+        Console.WriteLine($"{doc.FileName}: contains iLogic rules, but their details are not readable in this file version.");
+    }
+    foreach (ILogicRule r in il.Rules)
+    {
+        Line('=');
+        Console.WriteLine($"  {r.Name}{RuleNotes(r)}");
+        foreach (ILogicTrigger t in r.Triggers)
+        {
+            Console.WriteLine($"  runs on: {t.EventLabel}");
+        }
+        Line('-');
+        Console.WriteLine(r.Text ?? "(code not readable)");
+    }
+    // triggers that name a rule not stored in this document (an external rule)
+    List<ILogicTrigger> other = il.Triggers.Where(t => !il.Rules.Any(r => r.Name == t.RuleName)).ToList();
+    if (other.Count > 0)
+    {
+        Line('=');
+        Console.WriteLine("  EVENT TRIGGERS (rules not stored in this document)");
+        foreach (ILogicTrigger t in other)
+        {
+            Console.WriteLine($"  {t.EventLabel} -> {t.RuleName}");
+        }
+    }
+}
+
+static string RuleNotes(ILogicRule r)
+{
+    List<string> notes = [];
+    if (r.IsSuppressed) { notes.Add("suppressed"); }
+    if (r.Flags != null && !r.RunsAutomatically) { notes.Add("doesn't run automatically"); }
+    if (r.IsStraightVb) { notes.Add("straight VB"); }
+    if (r.FireDependentImmediately) { notes.Add("fires dependent rules immediately"); }
+    if (r.Flags != null && !r.SilentOperation) { notes.Add("not silent"); }
+    return notes.Count > 0 ? "  (" + string.Join(", ", notes) + ")" : "";
+}
+
 static void Info(InventorDocument doc)
 {
     Line('=');
@@ -229,6 +278,28 @@ static void Info(InventorDocument doc)
         Console.WriteLine($"\nMODEL STATES ({doc.ModelStateDetails.Count})\n  " +
                           string.Join(", ", doc.ModelStateDetails.Select(s => s.Name + (s.IsActive ? " (active)" : ""))) +
                           "\n  → run 'invmeta states' to compare iProperties per state");
+    }
+
+    if (!doc.ILogic.IsEmpty)
+    {
+        ILogicInfo il = doc.ILogic;
+        Console.WriteLine(il.HasRules ? $"\niLOGIC ({il.Rules.Count} rule{(il.Rules.Count == 1 ? "" : "s")})" : "\niLOGIC");
+        foreach (ILogicRule r in il.Rules)
+        {
+            Console.WriteLine($"  {r.Name}{RuleNotes(r)}");
+        }
+        if (il.HasRules && il.Rules.Count == 0)
+        {
+            Console.WriteLine("  contains rules (details not readable in this file version)");
+        }
+        foreach (ILogicTrigger t in il.Triggers)
+        {
+            Console.WriteLine($"  trigger: {t.EventLabel} -> {t.RuleName}");
+        }
+        if (il.Rules.Count > 0)
+        {
+            Console.WriteLine("  → run 'invmeta ilogic' to print the rule code");
+        }
     }
 
     if (doc.References.Count > 0)
