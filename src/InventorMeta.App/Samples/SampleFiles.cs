@@ -24,6 +24,7 @@ internal static class SampleFiles
     [
         new("SampleBg.iam", "Assembly", "Nested subassemblies, the full reference graph and a 3D view.", InventorDocument.DocKind.Assembly),
         new("SamplePart.ipt", "Part with model states", "Three model states, each with its own iProperties, plus a 3D view.", InventorDocument.DocKind.Part),
+        new("MountingPlate.ipt", "Part with iLogic", "Four iLogic rules with their code and options, and the events that trigger them.", InventorDocument.DocKind.Part),
         new("SampleBg.idw", "Drawing", "A drawing linked back to the model it documents.", InventorDocument.DocKind.Drawing),
         new("iPartSample.ipt", "iPart factory", "A table-driven family of part variants.", InventorDocument.DocKind.Part),
         new("iAssemblyFactory.iam", "iAssembly factory", "A table-driven family of assemblies.", InventorDocument.DocKind.Assembly),

@@ -9,6 +9,9 @@ iLogic rules are stored inside the Inventor document itself. MetaReader reads th
 the file - **no Inventor needed** - so you can see at a glance whether a part, assembly or drawing
 carries automation, what each rule does, and which events run it.
 
+To try it, open **Part with iLogic** from the **Try a sample** gallery on the start page: a mounting
+plate with four rules (one of them suppressed, one that only runs by hand) and three event triggers.
+
 ## In the sidebar
 
 Next to the [category badge](/docs/categories), two outlined chips show what the document contains:
@@ -18,7 +21,7 @@ Next to the [category badge](/docs/categories), two outlined chips show what the
 - **N triggers** - the document has event triggers. Hover it to see which event runs which rule,
   e.g. *Before Save Document → UpdateDescription*.
 
-<ThemedImage slug="app__ilogic-sidebar" alt="The sidebar of a part with iLogic: a General category badge followed by outlined 'iLogic' and '2 triggers' chips" className="max-w-sm mx-auto" />
+<ThemedImage slug="app__ilogic-sidebar" alt="The sidebar of a part with iLogic: a General category badge followed by outlined 'iLogic' and '3 triggers' chips" className="max-w-sm mx-auto" />
 
 The category badge is solid because it says what the document *is*; the iLogic chips are outlined
 because they say what it *contains*.
@@ -32,7 +35,7 @@ The **iLogic** tab lists every rule in the order of the iLogic browser, each in 
 - **Triggers** - the events that run the rule.
 - **The rule's code**, read-only, with a **Copy code** button.
 
-<ThemedImage slug="app__ilogic-panel" alt="The iLogic tab with three rule cards: one with a Before Save trigger, one suppressed, one that doesn't run automatically, each showing its code" />
+<ThemedImage slug="app__ilogic-panel" alt="The iLogic tab: an UpdateDescription rule run before save, and a CheckHoleEdgeDistance rule marked Not silent with two triggers, each showing its code" />
 
 Triggers that point at a rule *not* stored in the document - an **external rule** - are listed in
 their own card at the end. External rules live in separate `.iLogicVb` files, so their code isn't
