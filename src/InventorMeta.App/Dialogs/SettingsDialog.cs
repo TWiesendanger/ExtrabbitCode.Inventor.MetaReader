@@ -15,6 +15,10 @@ internal static class SettingsDialog
 {
     public static async Task ShowAsync(XamlRoot xamlRoot)
     {
+        // Follow the window's chosen light/dark theme so neither the dialog nor its cards render in
+        // the app-level (system) theme - which otherwise leaves light cards while the window is dark.
+        ElementTheme theme = xamlRoot.Content is FrameworkElement rootFe ? rootFe.RequestedTheme : ElementTheme.Default;
+
         System.Collections.Generic.IReadOnlyList<InventorInstall> installs = InventorInstalls.Detect();
         SvfStore store = new(ViewerSettings.NetworkPath);
 
@@ -130,7 +134,8 @@ internal static class SettingsDialog
             Title = "Settings",
             Content = new ScrollViewer { Content = body, MaxHeight = 540, HorizontalScrollMode = ScrollMode.Disabled },
             PrimaryButtonText = "Save", CloseButtonText = "Cancel", DefaultButton = ContentDialogButton.Primary,
-            XamlRoot = xamlRoot
+            XamlRoot = xamlRoot,
+            RequestedTheme = theme
         };
 
         if (await dlg.ShowAsync() != ContentDialogResult.Primary) { return; }
@@ -144,45 +149,45 @@ internal static class SettingsDialog
         ViewerSettings.ColoringMode = (ColoringMode)Math.Max(0, coloring.SelectedIndex);
         ViewerSettings.Engine = (SvfEngine)Math.Max(0, engine.SelectedIndex);
         AnalyticsConsent.Enabled = analytics.IsOn;
+
+        // --- card/row builders, local so they follow the dialog's `theme` (captured) rather than the
+        // app-level (system) theme; a settings card is label + description with its input. ---
+        Border Card(UIElement child) => new()
+        {
+            Padding = new Thickness(14, 12, 14, 12), CornerRadius = new CornerRadius(8), Child = child,
+            Background = ThemeManager.ThemeBrush("CardBackgroundFillColorDefaultBrush", theme),
+            BorderBrush = ThemeManager.ThemeBrush("CardStrokeColorDefaultSolidBrush", theme),
+            BorderThickness = new Thickness(1)
+        };
+
+        Border Row(string label, string description, FrameworkElement control)
+        {
+            StackPanel text = new() { VerticalAlignment = VerticalAlignment.Center, Spacing = 2 };
+            text.Children.Add(new TextBlock { Text = label, FontWeight = FontWeights.SemiBold });
+            text.Children.Add(new TextBlock { Text = description, Opacity = 0.65, FontSize = 12, TextWrapping = TextWrapping.Wrap });
+
+            if (control is TextBox or ComboBox)
+            {
+                StackPanel stack = new() { Spacing = 8 };
+                stack.Children.Add(text);
+                stack.Children.Add(control);
+                return Card(stack);
+            }
+
+            Grid g = new() { ColumnSpacing = 16 };
+            g.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+            g.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+            Grid.SetColumn(text, 0);
+            g.Children.Add(text);
+            control.VerticalAlignment = VerticalAlignment.Center;
+            Grid.SetColumn(control, 1);
+            g.Children.Add(control);
+            return Card(g);
+        }
     }
 
     private static TextBlock SectionHeader(string text) =>
         new() { Text = text, FontWeight = FontWeights.SemiBold, FontSize = 15, Margin = new Thickness(0, 2, 0, 4) };
-
-    /// <summary>A settings card: label + description on the left; full-width inputs (text/combo) stack
-    /// beneath the text, compact controls (toggle/button) sit to the right.</summary>
-    private static Border Row(string label, string description, FrameworkElement control)
-    {
-        StackPanel text = new() { VerticalAlignment = VerticalAlignment.Center, Spacing = 2 };
-        text.Children.Add(new TextBlock { Text = label, FontWeight = FontWeights.SemiBold });
-        text.Children.Add(new TextBlock { Text = description, Opacity = 0.65, FontSize = 12, TextWrapping = TextWrapping.Wrap });
-
-        if (control is TextBox or ComboBox)
-        {
-            StackPanel stack = new() { Spacing = 8 };
-            stack.Children.Add(text);
-            stack.Children.Add(control);
-            return Card(stack);
-        }
-
-        Grid g = new() { ColumnSpacing = 16 };
-        g.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-        g.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-        Grid.SetColumn(text, 0);
-        g.Children.Add(text);
-        control.VerticalAlignment = VerticalAlignment.Center;
-        Grid.SetColumn(control, 1);
-        g.Children.Add(control);
-        return Card(g);
-    }
-
-    private static Border Card(UIElement child) => new()
-    {
-        Padding = new Thickness(14, 12, 14, 12), CornerRadius = new CornerRadius(8), Child = child,
-        Background = (Brush)Application.Current.Resources["CardBackgroundFillColorDefaultBrush"],
-        BorderBrush = (Brush)Application.Current.Resources["CardStrokeColorDefaultSolidBrush"],
-        BorderThickness = new Thickness(1)
-    };
 
     private static string Mb(long bytes) =>
         bytes < 1024 * 1024 ? $"{bytes / 1024.0:0} KB" : $"{bytes / (1024.0 * 1024.0):0.0} MB";

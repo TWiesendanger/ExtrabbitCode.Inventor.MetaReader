@@ -92,7 +92,7 @@ public sealed partial class DocumentView
                 {
                     Child = img, CornerRadius = new CornerRadius(8), Margin = new Thickness(14, 12, 14, 6),
                     BorderThickness = new Thickness(1), HorizontalAlignment = HorizontalAlignment.Left,
-                    BorderBrush = (Brush)Application.Current.Resources["CardStrokeColorDefaultBrush"]
+                    BorderBrush = ThemeManager.ThemeBrush("CardStrokeColorDefaultBrush", ActualTheme)
                 });
             }
 

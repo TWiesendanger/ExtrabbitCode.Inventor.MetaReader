@@ -23,6 +23,20 @@ internal static class WhatsNewDialog
 
     private static readonly Release[] Releases =
     [
+        new("1.4.0",
+        [
+            new("Light theme, everywhere",
+                "The light/dark switch at the top now reaches every corner of the app. Dialogs, " +
+                "cards, the samples gallery and this What's new panel all follow your choice - even " +
+                "when it differs from the Windows system theme, which used to leave some surfaces " +
+                "stuck in the wrong colours.",
+                null),
+            new("A tuned dark-mode accent",
+                "The brand accent now has its own shade in dark mode instead of borrowing the " +
+                "Windows system highlight, so buttons and links sit properly against dark " +
+                "backgrounds.",
+                null),
+        ]),
         new("1.3.0",
         [
             new("Clearer diagnosis of damaged files",
@@ -123,9 +137,14 @@ internal static class WhatsNewDialog
     /// <summary>Builds and shows the overlay (also used by the footer's "What's new" button).</summary>
     public static void Show(MainWindow win)
     {
+        // Follow the window's chosen light/dark theme. The overlay inherits the window's ActualTheme
+        // for default text/controls, but the card's explicit surface brushes are read below against
+        // this theme rather than the app-level (system) theme, so the card isn't stuck dark in light mode.
+        ElementTheme theme = win.Content is FrameworkElement fe ? fe.RequestedTheme : ElementTheme.Default;
+
         // the fullscreen layer sits INSIDE this overlay, above the card, so Esc and click-away
         // close the layer first and the dialog second
-        Grid root = new() { Background = new SolidColorBrush(Microsoft.UI.Colors.Transparent) };
+        Grid root = new() { Background = new SolidColorBrush(Microsoft.UI.Colors.Transparent), RequestedTheme = theme };
         Grid? fullscreen = null;
 
         void CloseFullscreen()
@@ -159,7 +178,7 @@ internal static class WhatsNewDialog
         {
             Border versionPill = new()
             {
-                Background = (Brush)Application.Current.Resources["AccentFillColorDefaultBrush"],
+                Background = ThemeManager.ThemeBrush("AccentFillColorDefaultBrush", theme),
                 CornerRadius = new CornerRadius(10),
                 Padding = new Thickness(10, 3, 10, 4),
                 HorizontalAlignment = HorizontalAlignment.Left,
@@ -167,7 +186,7 @@ internal static class WhatsNewDialog
                 Child = new TextBlock
                 {
                     Text = release.Version, FontSize = 12, FontWeight = FontWeights.SemiBold,
-                    Foreground = (Brush)Application.Current.Resources["TextOnAccentFillColorPrimaryBrush"]
+                    Foreground = ThemeManager.ThemeBrush("TextOnAccentFillColorPrimaryBrush", theme)
                 }
             };
             content.Children.Add(versionPill);
@@ -183,7 +202,7 @@ internal static class WhatsNewDialog
                 {
                     Text = s.Blurb, Opacity = 0.8, FontSize = 13, TextWrapping = TextWrapping.Wrap
                 });
-                if (s.GifAsset != null) { section.Children.Add(GifCard(s.GifAsset, OpenFullscreen)); }
+                if (s.GifAsset != null) { section.Children.Add(GifCard(s.GifAsset, theme, OpenFullscreen)); }
                 content.Children.Add(section);
             }
         }
@@ -228,8 +247,8 @@ internal static class WhatsNewDialog
             Width = 760,
             MaxHeight = 700,
             CornerRadius = new CornerRadius(10),
-            Background = (Brush)Application.Current.Resources["SolidBackgroundFillColorBaseBrush"],
-            BorderBrush = (Brush)Application.Current.Resources["CardStrokeColorDefaultSolidBrush"],
+            Background = ThemeManager.ThemeBrush("SolidBackgroundFillColorBaseBrush", theme),
+            BorderBrush = ThemeManager.ThemeBrush("CardStrokeColorDefaultSolidBrush", theme),
             BorderThickness = new Thickness(1),
             HorizontalAlignment = HorizontalAlignment.Center,
             VerticalAlignment = VerticalAlignment.Center
@@ -256,7 +275,7 @@ internal static class WhatsNewDialog
     /// <summary>A demo GIF that sits on its first frame until clicked - click again to pause.
     /// A play badge signals the interaction and hides while the animation runs; a corner button
     /// blows the animation up to a fullscreen layer.</summary>
-    private static UIElement GifCard(string asset, Action<string> openFullscreen)
+    private static UIElement GifCard(string asset, ElementTheme theme, Action<string> openFullscreen)
     {
         BitmapImage bmp = new() { UriSource = new Uri($"ms-appx:///Assets/whatsnew/{asset}"), AutoPlay = false };
         Image img = new() { Source = bmp, Stretch = Stretch.Uniform };
@@ -299,7 +318,7 @@ internal static class WhatsNewDialog
         {
             Child = holder,
             CornerRadius = new CornerRadius(8),
-            BorderBrush = (Brush)Application.Current.Resources["CardStrokeColorDefaultSolidBrush"],
+            BorderBrush = ThemeManager.ThemeBrush("CardStrokeColorDefaultSolidBrush", theme),
             BorderThickness = new Thickness(1),
             Margin = new Thickness(0, 6, 0, 0)
         };
